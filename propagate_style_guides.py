@@ -21,6 +21,7 @@ STYLE_FILES = [
 	'docs/PYTHON_STYLE.md',
 	'docs/MARKDOWN_STYLE.md',
 	'docs/REPO_STYLE.md',
+	'docs/CLAUDE_HOOK_USAGE_GUIDE.md',
 	'CLAUDE.md',
 ]
 NOEXIST_ONLY_STYLE_FILES = [
@@ -572,6 +573,54 @@ def resolve_source_file(source_candidates: list[str], source_name: str) -> str:
 
 
 #============================================
+def merge_claude_md(source_file: str, dest_file: str) -> str:
+	"""
+	Merge source CLAUDE.md with destination CLAUDE.md, preserving extra @ lines.
+
+	Reads both files, finds any @ reference lines in the destination that are
+	not present in the source, and appends them to the source content.
+
+	Args:
+		source_file (str): Path to the template CLAUDE.md.
+		dest_file (str): Path to the destination CLAUDE.md.
+
+	Returns:
+		str: Merged file content with extra destination @ lines preserved.
+	"""
+	with open(source_file, 'r') as f:
+		source_lines = f.read().splitlines()
+	with open(dest_file, 'r') as f:
+		dest_lines = f.read().splitlines()
+	# collect @ reference lines from source
+	source_refs = set()
+	for line in source_lines:
+		stripped = line.strip()
+		if stripped.startswith('@'):
+			source_refs.add(stripped)
+	# find extra @ lines in destination not in source
+	extra_lines = []
+	for line in dest_lines:
+		stripped = line.strip()
+		if stripped.startswith('@') and stripped not in source_refs:
+			extra_lines.append(line)
+	# build merged content: source lines then extra destination lines
+	merged = source_lines[:]
+	if extra_lines:
+		# remove trailing blank lines from source before appending
+		while merged and merged[-1].strip() == '':
+			merged.pop()
+		for line in extra_lines:
+			merged.append(line)
+		# ensure trailing newline
+		merged.append('')
+	merged_text = '\n'.join(merged)
+	# ensure file ends with newline
+	if not merged_text.endswith('\n'):
+		merged_text += '\n'
+	return merged_text
+
+
+#============================================
 def build_source_maps(
 	source_dir: str,
 	styles: list[str],
@@ -995,6 +1044,26 @@ def main():
 						os.makedirs(dest_parent, exist_ok=True)
 
 				dest_exists = os.path.isfile(dest_file)
+
+				# for CLAUDE.md, merge to preserve extra @ lines
+				if target_rel_path == 'CLAUDE.md' and dest_exists:
+					merged_content = merge_claude_md(source_file, dest_file)
+					with open(dest_file, 'r') as f:
+						existing_content = f.read()
+					if merged_content == existing_content:
+						counts['skipped_same'] += 1
+						skipped_same_by_file[target_rel_path] += 1
+						continue
+					if args.dry_run:
+						print(f"{Colors.YELLOW}[DRY RUN]{Colors.RESET} merge {source_file} -> {dest_file}")
+					else:
+						with open(dest_file, 'w') as f:
+							f.write(merged_content)
+						print(f"{Colors.BLUE}[MERGED]{Colors.RESET} {source_file} -> {dest_file}")
+					counts['updated'] += 1
+					updated_by_file[target_rel_path] += 1
+					continue
+
 				is_same = False
 				if dest_exists:
 					is_same = filecmp.cmp(source_file, dest_file, shallow=False)

@@ -1,3 +1,14 @@
+## 2026-03-13
+
+### Additions and New Features
+
+- Added `docs/CLAUDE_HOOK_USAGE_GUIDE.md` to `STYLE_FILES` in `propagate_style_guides.py` so it is copied to target repos.
+- Added `@docs/CLAUDE_HOOK_USAGE_GUIDE.md` reference to template `CLAUDE.md`.
+
+### Behavior or Interface Changes
+
+- Changed `propagate_style_guides.py` to merge `CLAUDE.md` instead of overwriting, preserving repo-specific `@` reference lines in target repos.
+
 ## 2026-02-25
 
 ### Fixes and Maintenance
