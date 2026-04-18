@@ -24,6 +24,12 @@ STYLE_FILES = [
 	'docs/CLAUDE_HOOK_USAGE_GUIDE.md',
 	'CLAUDE.md',
 ]
+# docs/*.md filenames to NOT auto-add to STYLE_FILES.
+# AUTHORS.md is handled by NOEXIST_ONLY_STYLE_FILES; CHANGELOG.md is per-repo.
+AUTO_DISCOVER_DOCS_EXCLUDE = {
+	'AUTHORS.md',
+	'CHANGELOG.md',
+}
 NOEXIST_ONLY_STYLE_FILES = [
 	'AGENTS.md',
 	'docs/AUTHORS.md',
@@ -627,20 +633,42 @@ def build_source_maps(
 	noexist_only_style_files: list[str],
 	devel_scripts: list[str],
 	test_scripts: list[str],
-) -> tuple[dict[str, str], dict[str, str], dict[str, str], dict[str, str], list[str]]:
+) -> tuple[dict[str, str], dict[str, str], dict[str, str], dict[str, str], list[str], list[str]]:
 	"""
 	Build source-file maps for style guides, devel scripts, and test scripts.
 
 	Returns:
-		tuple: (style_map, noexist_style_map, devel_map, test_map, final_test_scripts)
+		tuple: (style_map, noexist_style_map, devel_map, test_map,
+			final_test_scripts, final_styles)
 	"""
 	source_candidates = [
 		os.path.join(source_dir, 'docs'),
 		source_dir,
 	]
 
+	# auto-discover docs/*.md in source dir and append to styles list
+	final_styles = list(styles)
+	source_docs_dir = os.path.join(source_dir, 'docs')
+	if os.path.isdir(source_docs_dir):
+		styles_set = set(final_styles)
+		noexist_basenames = {
+			os.path.basename(p) for p in noexist_only_style_files
+		}
+		for entry in sorted(os.listdir(source_docs_dir)):
+			if not entry.endswith('.md'):
+				continue
+			if entry in AUTO_DISCOVER_DOCS_EXCLUDE:
+				continue
+			if entry in noexist_basenames:
+				continue
+			target_rel_path = f'docs/{entry}'
+			if target_rel_path in styles_set:
+				continue
+			final_styles.append(target_rel_path)
+			styles_set.add(target_rel_path)
+
 	source_map: dict[str, str] = {}
-	for target_rel_path in styles:
+	for target_rel_path in final_styles:
 		source_name = os.path.basename(target_rel_path)
 		source_map[target_rel_path] = resolve_source_file(
 			source_candidates,
@@ -696,6 +724,7 @@ def build_source_maps(
 		devel_source_map,
 		test_source_map,
 		final_test_scripts,
+		final_styles,
 	)
 
 
@@ -917,7 +946,6 @@ def main():
 	source_dir = resolve_source_dir(base_dir, args.source_dir)
 	styles = list(STYLE_FILES)
 	noexist_only_style_files = list(NOEXIST_ONLY_STYLE_FILES)
-	style_target_paths = list(styles)
 	noexist_style_target_paths = list(noexist_only_style_files)
 	devel_scripts = list(DEVEL_SCRIPTS)
 	test_scripts = list(TEST_SCRIPTS)
@@ -927,6 +955,7 @@ def main():
 		devel_source_map,
 		test_source_map,
 		test_scripts,
+		styles,
 	) = build_source_maps(
 		source_dir,
 		styles,
@@ -934,6 +963,7 @@ def main():
 		devel_scripts,
 		test_scripts,
 	)
+	style_target_paths = list(styles)
 
 	counts = {key: 0 for key in COUNTER_EXPECTED}
 	skipped_same_by_file = {filename: 0 for filename in style_target_paths}

@@ -1,3 +1,11 @@
+## 2026-04-18
+
+### Behavior or Interface Changes
+
+- `propagate_style_guides.py` now auto-discovers `docs/*.md` files in the source repo and propagates them with overwrite semantics, mirroring the existing `test_*.py` auto-discovery in `tests/`. Picks up `docs/PLAYWRIGHT_USAGE.md` and `docs/TYPESCRIPT_STYLE.md` without needing to edit `STYLE_FILES`. `AUTHORS.md` and `CHANGELOG.md` are excluded via the new `AUTO_DISCOVER_DOCS_EXCLUDE` set so they remain per-repo.
+- `docs/PLAYWRIGHT_USAGE.md` now directs Playwright test scripts to `tests/` at the repo root instead of `devel/`, matching `docs/TYPESCRIPT_STYLE.md` and `docs/REPO_STYLE.md` pytest conventions. `devel/` is reserved for one-off developer tools, not bulk test files. Python and Node test files may coexist in `tests/`.
+- Expanded the Install section of `docs/PLAYWRIGHT_USAGE.md` to show `npm init -y` and `npm install --save-dev playwright` for repos that do not yet have a `package.json`, so setup from a fresh clone is explicit.
+
 ## 2026-04-01
 
 ### Additions and New Features
