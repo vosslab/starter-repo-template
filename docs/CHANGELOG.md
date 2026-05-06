@@ -1,7 +1,17 @@
 ## 2026-05-06
 
+### Additions and New Features
+
+- Added `docs/E2E_TESTS.md` documenting the convention that end-to-end tests live in `tests_e2e/` outside pytest. Pytest stays the fast lane under `tests/`; E2E scripts run via their own shell or Python runners. Cross-linked from `docs/PYTHON_STYLE.md` and `docs/PYTEST_STYLE.md`.
+
 ### Behavior or Interface Changes
 
+- Established a hard boundary on `assert` placement: `assert` statements are forbidden in plain scripts and library modules and must live only in `tests/test_*.py` or in `tests_e2e/` end-to-end scripts. Reason: module-level asserts run at import time and slow script startup. Rewrote the `## ASSERT` section in `docs/PYTHON_STYLE.md` (removed inline-assert examples), added a "No `assert` in plain scripts" bullet to `## Common misconceptions`, and updated `docs/PYTEST_STYLE.md` `## Test structure` to allow asserts in `tests/` and `tests_e2e/` and to point slow tests at `docs/E2E_TESTS.md`.
+- Added `@docs/E2E_TESTS.md` to `CLAUDE.md` so agents auto-load the E2E rule.
+- Updated `AGENTS.md` to note that slow E2E tests live in `tests_e2e/` and run outside pytest.
+- Updated `README.md` Quick Start to split fast (`pytest tests/`) and slow (`bash tests_e2e/run_all.sh`) test commands, and listed `docs/PYTEST_STYLE.md` and `docs/E2E_TESTS.md` in the Documentation section.
+- Added a GitHub-link compatibility rule to `docs/MARKDOWN_STYLE.md` `## Links`: relative URLs must resolve against the file containing the link (not the repo root). Documented when to use the `docs/` prefix (linking from repo root into `docs/`) versus a bare filename (linking between siblings inside `docs/`).
+- Removed an orphaned editor note from `docs/PYTHON_STYLE.md` that read "Here is a tightened version that keeps the rule and examples, without extra explanation."
 - Split pytest-specific testing guidance out of `docs/PYTHON_STYLE.md` into the new `docs/PYTEST_STYLE.md`, matching the existing pattern of separate tool and language docs.
 - Replaced duplicated pytest failure triage details in `docs/REPO_STYLE.md` with a link to `docs/PYTEST_STYLE.md`.
 - Clarified `docs/PLAYWRIGHT_USAGE.md` so Playwright `.mjs` scripts live in `tests/`, can coexist with pytest `test_*.py` files, and follow the `docs/TYPESCRIPT_STYLE.md` testing convention.
