@@ -9,6 +9,7 @@
 - Standardized repo-owned pytest command examples to use `pytest tests/`, while keeping `source source_me.sh && python...` for normal Python script execution.
 - Documented `docs/CLAUDE_HOOK_USAGE_GUIDE.md` as a generated hook behavior reference instead of a repo style source of truth.
 - Added `docs/PYTEST_STYLE.md` to the centrally maintained docs list in `docs/REPO_STYLE.md`.
+- Added rule to `docs/PYTEST_STYLE.md` against creating permanent pytest files for temporary or scratch code (`_temp.*`, debugging scripts); `tests/` is reserved for code that stays in the repo.
 
 ## 2026-04-18
 
