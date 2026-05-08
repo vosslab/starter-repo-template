@@ -37,20 +37,24 @@ node /tmp/_test_game_ui.mjs
 
 ```bash
 cd /Users/vosslab/nsh/cell-culture-game-claude
-node tests/test_game_ui.mjs
+node tests/playwright/test_game_ui.mjs
 ```
 
-Put Playwright scripts in `tests/` at the repo root.
+Put Playwright scripts in `tests/playwright/`.
 
 ## Script location
 
-Store Playwright scripts in `tests/` with an `.mjs` extension, for example
-`tests/test_game_ui.mjs`. This matches the testing convention in
-[docs/TYPESCRIPT_STYLE.md](TYPESCRIPT_STYLE.md), and it can overlap with pytest files safely:
+Store Playwright scripts in `tests/playwright/` with an `.mjs` extension, for example
+`tests/playwright/test_game_ui.mjs`. Helpers (`tests/playwright/helpers.mjs`) and fixtures
+(`tests/playwright/fixtures/`) live alongside.
 
-- Pytest collects Python files such as `test_*.py`.
-- Playwright helper scripts use `.mjs` and are run directly with `node`.
-- Keeping both under `tests/` makes test and verification scripts easy to find.
+Pytest only collects `test_*.py` files and actively excludes `tests/playwright/`
+via `collect_ignore = ["playwright"]` in `tests/conftest.py`, so the extension
+and subfolder together ensure Playwright scripts stay outside the fast pytest lane.
+
+## Optional: full-path Playwright walkthroughs
+
+Some repos group complete Playwright walkthroughs (multi-step user journeys, recovery scenarios, full protocol runs) in `tests/playwright/e2e/`. This is an **optional sub-grouping**: use it only when you have multiple full-path walkthroughs worth grouping together. If you have just one or two, keep them flat in `tests/playwright/`. The same E2E exclusion applies: both `tests/playwright/` and its children are excluded from pytest collection.
 
 ## Packages
 
@@ -93,7 +97,7 @@ await browser.close();
 Run with:
 
 ```bash
-node tests/my_test.mjs
+node tests/playwright/my_test.mjs
 ```
 
 ## Common patterns
@@ -155,7 +159,9 @@ Should show `playwright@x.x.x` under the project.
 
 ## File conventions
 
-- Put Playwright scripts in `tests/` at the repo root.
-- Mixing Playwright `.mjs` files with pytest `test_*.py` files is fine.
-- Use `.mjs` extension for ES module scripts (e.g., `tests/test_game_ui.mjs`).
+- Put Playwright scripts in `tests/playwright/` at the repo root.
+- `tests/playwright/` is tool-named: it groups all browser-driven tests regardless of scope (smoke, layout, regression, walkthroughs). Future browser tools (Cypress, Puppeteer) would each get their own tool-named folder; do NOT lump them under `tests/playwright/`.
+- Filenames inside `tests/playwright/` are unconstrained: `test_*.mjs` for tests, `helpers.mjs` for shared utilities, `build_*.mjs` for bootstrap scripts, `*_walkthrough.mjs` for walkthroughs all coexist legitimately. The only restriction enforced by `tests/test_test_naming_conventions.py` is that any file with a Playwright import must live under `tests/playwright/`.
+- Use `.mjs` extension for ES module scripts (e.g., `tests/playwright/test_game_ui.mjs`).
 - Put screenshots in `test-results/` (gitignored).
+- Note: `tests/conftest.py` declares `collect_ignore = ["e2e", "playwright"]` so pytest never collects anything in this tree, regardless of name.

@@ -49,6 +49,9 @@ TEST_SCRIPTS = [
 	'test_import_dot.py',
 	'test_import_requirements.py',
 	'test_import_star.py',
+	# Centrally-maintained navigational README for tests/. Overwrite-always,
+	# same semantics as the test scripts above; do not edit per-repo.
+	'TESTS_README.md',
 ]
 DEPRECATED_TEST_SCRIPTS = [
 	'run_ascii_compliance.sh',

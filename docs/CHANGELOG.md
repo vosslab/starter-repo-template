@@ -1,3 +1,24 @@
+## 2026-05-08
+
+### Additions and New Features
+
+- Added `tests/test_test_naming_conventions.py` to lint the test folder layout. Five rules: no `test_*.py` under `tests/playwright/` or `tests/e2e/` (collect_ignore would silently skip them, mismatching the name); Python files in `tests/e2e/` must use the `e2e_*.py` prefix; shell files there must use `e2e_*.sh`; any `.mjs` file with a Playwright import must live under `tests/playwright/`.
+- Added `tests/TESTS_README.md` as a navigational quick-reference to the test folder layout, how to run each tier, the `collect_ignore` guard, and the difference between the Playwright tier and the non-browser E2E tier. Cross-links the deeper docs.
+- Added `tests/conftest.py` (was empty) with `collect_ignore = ["e2e", "playwright"]` so pytest does not collect anything in those subtrees regardless of filename.
+
+### Behavior or Interface Changes
+
+- Adopted a two-tier test layout convention to replace the prior `tests_e2e/` top-level folder. Browser-driven tests (Playwright today) live in `tests/playwright/`, with an optional `tests/playwright/e2e/` sub-grouping for full-path walkthroughs. Non-browser whole-system E2E (CLI round trips, build pipelines, shell or Python orchestration) lives in `tests/e2e/`. Reason: Playwright is a tool, E2E is a scope; not every Playwright test is end-to-end (a layout or single-interaction smoke check is browser-driven but not E2E). Naming the folders by execution model (browser vs. non-browser) keeps each test discoverable by what it actually is. Updated `docs/E2E_TESTS.md`, `docs/PLAYWRIGHT_USAGE.md`, `docs/PYTEST_STYLE.md`, `docs/PYTHON_STYLE.md`, `AGENTS.md`, and `README.md` to match.
+- Pytest fast-lane safety now lives in active config: `tests/conftest.py` declares `collect_ignore = ["e2e", "playwright"]`. The filename conventions inside each subfolder remain as a readability layer on top of the active guard, not as the safety mechanism. Note: `collect_ignore` only affects pytest test collection; the repo's other lint tests (ASCII compliance, whitespace, pyflakes, etc.) still scan files in those subfolders via `git ls-files`.
+
+### Fixes and Maintenance
+
+- Fixed `propagate_style_guides.py` so the new `tests/TESTS_README.md` actually ships to consumer repos. The file was added earlier today but not registered with the propagator, so a `propagate_style_guides.py` run would have left consumer repos without it. Added `'TESTS_README.md'` to `TEST_SCRIPTS` (overwrite-always semantics, matching its role as a centrally-maintained navigational README) with an inline comment explaining why a `.md` doc lives in a list otherwise full of test scripts. Verified via `--dry-run` that 28 consumer repos receive the file and the source repo is correctly skipped.
+
+### Decisions and Failures
+
+- Considered three competing layouts before settling on two distinct top-level folders. Rejected `tests_e2e/` (extra top-level), `tests/e2e/` as the single home for Playwright (conflated tool with scope, mislabeled smoke and layout checks as E2E), and `tests_browser/` (extra top-level). Adopted `tests/playwright/` plus `tests/e2e/` because each folder names what unifies its files. Initial dispatches landed `tests/e2e/` as the single Playwright home and had to be reverted before final docs landed.
+
 ## 2026-05-06
 
 ### Additions and New Features
