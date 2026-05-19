@@ -29,6 +29,23 @@ link to that file from `AGENTS.md`.
 Concise `AGENTS.md` files help coding agents perform better because the
 instructions are easier to scan, prioritize, and follow.
 
+## README.md and GitHub About descriptions
+
+- The first paragraph of `README.md` is the source text for the GitHub About description.
+- The first paragraph must remain readable as raw Markdown source text.
+- Repository About descriptions must stay under 250 characters.
+- Agents edit only the first paragraph of `README.md`; the user copies that text into the GitHub About field.
+- Write a clear, searchable hook that helps readers quickly understand the repository.
+- Lead with the repository purpose and the main user benefit.
+- Include one distinguishing detail if space allows.
+- Prefer concrete nouns and plain language.
+- Leave workflow steps, setup instructions, framework lists, and detailed claims for the rest of `README.md`.
+- The first paragraph must be pure prose. Do not use badges, Markdown links, images, code spans, or raw URLs.
+- Avoid repeating information already obvious, do not include repo name.
+
+Preferred structure:
+`[What it is] + [who/use case] + [distinctive detail]`
+
 ## Naming
 - Use SCREAMING_SNAKE_CASE for Markdown docs filenames, with the .md extension
 - For non-Markdown filenames, use only lowercase ASCII letters, numbers, and underscores.
