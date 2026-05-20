@@ -69,9 +69,13 @@ META_FILES = frozenset({
 })
 
 # Dirs that NEVER ship. Walked but never produce routing entries.
+# 'meta' is defense-in-depth: SKIP_WALK_DIRS already trims it during os.walk,
+# but is_in_meta_dir() also checks META_DIRS so any future code path that
+# reaches that check for a meta/... rel-path is still excluded.
 META_DIRS = frozenset({
 	'LICENSES',
 	'templates',
+	'meta',
 	'docs/active_plans',
 	'docs/archive',
 	'experiment_reports',
@@ -110,31 +114,26 @@ AUTO_DISCOVER_DOCS_EXCLUDE = {
 	'CHANGELOG.md',
 }
 
-DEPRECATED_TEST_SCRIPTS = [
-	'run_ascii_compliance.sh',
-	'run_pyflakes.sh',
-	'run_ascii_compliance.py',
-	'test_repo_hygiene.py',
-	'test_pyflakes.py',
-]
+TEMPLATE_ROOT = os.path.dirname(os.path.abspath(__file__))
 
-DEPRECATED_GITIGNORE_ENTRIES = [
-	'shebang_report.txt',
-	'pyflakes.txt',
-	'bandit.txt',
-	'pyright.txt',
-	'ascii_compliance.txt',
-	'report_shebang.txt',
-	'report_pyflakes.txt',
-	'report_ascii_compliance.txt',
-	'report_import_star.txt',
-	'report_import_dot.txt',
-	'report_import_requirements.txt',
-	'report_init_files.txt',
-	'report_bandit.txt',
-	'report_pyright.txt',
-	'_bundle.js',
-]
+
+#============================================
+def load_deprecation_list(rel_path: str) -> list[str]:
+	"""Read newline-delimited deprecation entries from meta/propagation/.
+
+	Skips blank lines and comment lines (those starting with '#').
+	Raises FileNotFoundError if the file is missing; loud failure beats
+	silent missing-deprecation scrub.
+	"""
+	full_path = os.path.join(TEMPLATE_ROOT, rel_path)
+	with open(full_path) as f:
+		return [ln.strip() for ln in f if ln.strip() and not ln.lstrip().startswith('#')]
+
+
+# Deprecation lists live in meta/propagation/ so they are reviewable as plain
+# text and do not require a .py diff for every churn cycle.
+DEPRECATED_TEST_SCRIPTS = load_deprecation_list('meta/propagation/deprecated_tests.txt')
+DEPRECATED_GITIGNORE_ENTRIES = load_deprecation_list('meta/propagation/deprecated_gitignore.txt')
 
 # Template-meta tests: validate the template's own infrastructure
 # (propagate_style_guides, reset_repo, detect_repo_type).
