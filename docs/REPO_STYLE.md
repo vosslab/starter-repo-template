@@ -19,6 +19,16 @@ Five principles guide work in this repo. Cite them by name when making judgment 
 - Keep `README.md` and `AGENTS.md` at the repo root.
 - Determine REPO_ROOT with `git rev-parse --show-toplevel`, not by deriving paths from the current working directory.
 
+## Project type marker
+
+Every repo carries `REPO_TYPE` at the repo root: one lowercase token plus newline. Tokens: `python`, `typescript`, `rust`, `other`. Missing marker defaults to `python`. `propagate_style_guides.py` reads the marker to dispatch the right file overlay; `reset_repo.py` writes it during bootstrap. `REPO_TYPE` is maintained after bootstrap; it controls future propagation behavior, not just initial scaffolding.
+
+## Template layout
+
+The starter template ships universal + Python files at the template root (their final consumer location) and type-specific overlays under `templates/<type>/`. Currently `templates/typescript/` and `templates/rust/` exist; `rust/` is a stub. The propagator resolves universal/python sources at template root and typescript/rust sources under `templates/<type>/`. The template repo refreshes its own root copies via `python3 propagate_style_guides.py --sync-self`. Template-only tooling (e.g., `tools/detect_repo_type.py`) lives under `tools/`; it never propagates and is removed by `reset_repo.py` at consumer bootstrap.
+
+- See [PROPAGATION_RULES.md](PROPAGATION_RULES.md) for the folder convention and manifest rules that route files to consumers.
+
 ## AGENTS.md files
 
 Keep `AGENTS.md` files concise and operational. They should usually be around
