@@ -16,7 +16,8 @@
 		"format": "prettier --write 'src/**/*.{ts,css,html,json}' 'tests/**/*.ts'",
 		"format:check": "prettier --check 'src/**/*.{ts,css,html,json}' 'tests/**/*.ts'",
 		"test:node": "node --test 'tests/test_*.mjs'",
-		"test:playwright": "playwright test"
+		"test:playwright": "playwright test",
+		"pdf": "node tools/html_to_pdf.mjs"
 	},
 	"devDependencies": {
 		"esbuild": "*",
@@ -25,6 +26,7 @@
 		"@eslint/js": "*",
 		"typescript-eslint": "*",
 		"globals": "*",
+		"playwright": "*",
 		"prettier": "*",
 		"@playwright/test": "*"
 	}
