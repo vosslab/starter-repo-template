@@ -86,7 +86,7 @@ def test_typescript_plan_matches_legacy():
 		'AGENTS.md',
 		'source_me.sh',
 	}
-	expected_ts_noexist = {'package.json.template'}
+	expected_ts_noexist = {'package.json'}
 	expected_noexist = expected_universal_noexist | expected_ts_noexist
 
 	expected_universal_devel = {'commit_changelog.py'}

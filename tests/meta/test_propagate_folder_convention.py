@@ -71,14 +71,14 @@ def test_typescript_overlay_routes_to_overwrite():
 
 
 def test_typescript_noexist_routes_to_noexist():
-	"""templates/typescript/noexist/package.json.template routes to noexist_files."""
+	"""templates/typescript/noexist/package.json routes to noexist_files."""
 	with tempfile.TemporaryDirectory() as tmpdir:
 		noexist_dir = os.path.join(tmpdir, 'templates', 'typescript', 'noexist')
 		os.makedirs(noexist_dir)
-		with open(os.path.join(noexist_dir, 'package.json.template'), 'w') as f:
+		with open(os.path.join(noexist_dir, 'package.json'), 'w') as f:
 			f.write('test')
 		plan = propagate.files.compute_propagation_plan(tmpdir, 'typescript')
-		assert 'package.json.template' in plan['noexist_files']
+		assert 'package.json' in plan['noexist_files']
 
 
 def test_python_lang_files_only_for_python():

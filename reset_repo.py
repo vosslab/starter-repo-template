@@ -222,10 +222,17 @@ def git_rm_recursive(path: str, dry_run: bool) -> int:
 	return 1
 
 
-def substitute_and_mv_typescript_template(repo_root: str, dry_run: bool) -> int:
-	"""Substitute __REPO_NAME__ and __REPO_VERSION__ in package.json.template and git mv to package.json."""
-	template_path = os.path.join(repo_root, "package.json.template")
-	if not os.path.isfile(template_path):
+def substitute_typescript_package_json(repo_root: str, dry_run: bool) -> int:
+	"""Substitute __REPO_NAME__ and __REPO_VERSION__ in package.json in-place."""
+	package_json_path = os.path.join(repo_root, "package.json")
+	if not os.path.isfile(package_json_path):
+		return 0
+	with open(package_json_path, "r") as f:
+		content = f.read()
+	# Guard: only substitute when placeholders are present, so an existing
+	# consumer-customized package.json is left untouched (noexist bucket
+	# already protects against overwrite at copy time; this is belt-and-braces).
+	if "__REPO_NAME__" not in content:
 		return 0
 	repo_name = os.path.basename(repo_root)
 	# CalVer: YYYY.M.0 (no leading zero on month per CalVer convention)
@@ -233,21 +240,14 @@ def substitute_and_mv_typescript_template(repo_root: str, dry_run: bool) -> int:
 	repo_version = f"{now.year}.{now.month}.0"
 	if dry_run:
 		dry_run_print(
-			f"substitute __REPO_NAME__ -> {repo_name}, __REPO_VERSION__ -> {repo_version} in {template_path}", dry_run
+			f"substitute __REPO_NAME__ -> {repo_name}, __REPO_VERSION__ -> {repo_version} in {package_json_path}", dry_run
 		)
-		dry_run_print(f"git mv {template_path} package.json", dry_run)
-		return 2
-	else:
-		with open(template_path, "r") as f:
-			content = f.read()
-		content = content.replace("__REPO_NAME__", repo_name)
-		content = content.replace("__REPO_VERSION__", repo_version)
-		with open(template_path, "w") as f:
-			f.write(content)
-		subprocess.run(
-			["git", "mv", template_path, "package.json"], check=True, capture_output=True
-		)
-		return 2
+		return 1
+	content = content.replace("__REPO_NAME__", repo_name)
+	content = content.replace("__REPO_VERSION__", repo_version)
+	with open(package_json_path, "w") as f:
+		f.write(content)
+	return 1
 
 
 def run_propagate(repo_root: str, dry_run: bool) -> int:
@@ -445,12 +445,13 @@ def main():
 	# === phase: cleanup LICENSES/ ===
 	action_count += git_rm_recursive("LICENSES/", args.dry_run)
 
-	# === phase: typescript-specific work ===
-	if project_type == "typescript":
-		action_count += substitute_and_mv_typescript_template(repo_root, args.dry_run)
-
 	# === phase: propagate subprocess ===
 	action_count += run_propagate(repo_root, args.dry_run)
+
+	# === phase: typescript-specific work ===
+	# Must run AFTER propagate so the noexist bucket has placed package.json at repo root.
+	if project_type == "typescript":
+		action_count += substitute_typescript_package_json(repo_root, args.dry_run)
 
 	# === phase: truncate boilerplate ===
 	action_count += truncate_file("README.md", repo_root, args.dry_run)
