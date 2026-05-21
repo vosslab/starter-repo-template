@@ -1,5 +1,3 @@
-Have `devel/commit_changelog.py` check VERSION to make sure it is the current month
+2026-05-21: Rejected audit-suffixed date headings; use audit-labeled bullets instead. See docs/CHANGELOG.md under ## 2026-05-21 / ### Decisions and Failures.
 
-Decide whether to allow "## 2026-05-15 (audit)" instead of only "## 2026-05-15" in changelog
-
-`devel/commit_changelog.py` should show actualy message being sent rather than changelog diff
+devel/bump_version.py = pre-existing helper. Could wire into check_version_freshness() later as auto-bump option (currently plan non-goal). Worth a future follow-on plan.

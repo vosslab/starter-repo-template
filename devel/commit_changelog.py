@@ -12,15 +12,17 @@ files, message review, and final commit confirmation.
 # Standard Library
 import os
 import re
-import shlex
-import subprocess
 import sys
+import time
+import shlex
 import tempfile
+import subprocess
 
 # local repo modules
 import changelog_lib
 
 CHANGELOG_PATHSPEC = "docs/CHANGELOG.md"
+VERSION_PATHSPEC = "VERSION"
 # upper bound on body lines emitted into the seed editor buffer (covers
 # date headings, title bullets, and indented continuations together)
 MAX_BODY_LINES = 25
@@ -28,6 +30,70 @@ MAX_BODY_LINES = 25
 SUBJECT_BUDGET = 72
 # body bullets wrap at ~100 chars for scannability; not a hard git rule
 BODY_LINE_BUDGET = 100
+
+#============================================
+
+def read_version_file() -> str:
+	"""Read VERSION file relative to repo_root and return stripped contents.
+
+	Returns:
+		Stripped contents of the VERSION file.
+
+	Raises:
+		RuntimeError: When the VERSION file does not exist or cannot be read.
+	"""
+	repo_root = changelog_lib.get_git_root()
+	version_path = os.path.join(repo_root, VERSION_PATHSPEC)
+	try:
+		with open(version_path, "r", encoding="utf-8") as f:
+			version_contents = f.read().strip()
+	except FileNotFoundError:
+		raise RuntimeError(f"VERSION file not found at {version_path}.")
+	except IOError as e:
+		raise RuntimeError(f"Failed to read VERSION file: {e}")
+	if not version_contents:
+		raise RuntimeError(f"VERSION file is empty: {version_path}.")
+	return version_contents
+
+#============================================
+
+def current_calver_month() -> str:
+	"""Return the current calendar month in CalVer format (YY.MM).
+
+	Returns:
+		Current month as a zero-padded string in the format YY.MM
+		(for example "26.05").
+	"""
+	return time.strftime("%y.%m")
+
+#============================================
+
+def check_version_freshness() -> bool:
+	"""Check if VERSION file matches the current calendar month.
+
+	Returns the result of a user confirmation prompt when the month
+	does not match. Returns True immediately when the month matches.
+
+	Returns:
+		True if VERSION month matches current month or user confirms to continue.
+		False if user declines to continue.
+	"""
+	version_value = read_version_file()
+	current_month = current_calver_month()
+
+	# Extract the first two dotted segments (YY.MM)
+	version_parts = version_value.split(".")
+	if len(version_parts) < 2:
+		raise RuntimeError(f"VERSION format unrecognized: {version_value}")
+	version_month = f"{version_parts[0]}.{version_parts[1]}"
+
+	# If months match, freshness is confirmed
+	if version_month == current_month:
+		return True
+
+	# Months don't match; prompt the user
+	prompt = f"VERSION is {version_value}, but current month is {current_month}. Continue?"
+	return changelog_lib.confirm(prompt)
 
 #============================================
 
@@ -226,31 +292,6 @@ def strip_git_style_comments(message: str) -> str:
 		out_lines.append(line)
 	cleaned = "\n".join(out_lines).strip()
 	return cleaned
-
-#============================================
-
-def print_diff_to_stderr(diff_text: str, path: str) -> None:
-	"""Print a diff to stderr with a header."""
-	if not diff_text:
-		return
-	changelog_lib.ERR_CONSOLE.print(f"Diff for {path}:", style="bold")
-	for line in diff_text.splitlines():
-		if line.startswith("+++"):
-			changelog_lib.ERR_CONSOLE.print(line, style="bold cyan", markup=False)
-			continue
-		if line.startswith("---"):
-			changelog_lib.ERR_CONSOLE.print(line, style="bold cyan", markup=False)
-			continue
-		if line.startswith("@@"):
-			changelog_lib.ERR_CONSOLE.print(line, style="bold yellow", markup=False)
-			continue
-		if line.startswith("+"):
-			changelog_lib.ERR_CONSOLE.print(line, style="green", markup=False)
-			continue
-		if line.startswith("-"):
-			changelog_lib.ERR_CONSOLE.print(line, style="red", markup=False)
-			continue
-		sys.stderr.write(line + "\n")
 
 #============================================
 
@@ -517,6 +558,10 @@ def main() -> None:
 			changelog_lib.print_warning("Aborted.")
 			return
 
+	if not check_version_freshness():
+		changelog_lib.print_warning("Aborted.")
+		return
+
 	# short-circuit on a clean tree before parsing the whole changelog:
 	# if there is nothing in the working tree or the index for
 	# docs/CHANGELOG.md, there is nothing to commit regardless of which
@@ -548,13 +593,15 @@ def main() -> None:
 		changelog_lib.CONSOLE.print(message, style="yellow")
 		return
 
-	# show the diff for the user's pre-commit visual check; the seed
-	# message itself is built from parsed entries, not from the diff text
-	print_diff_to_stderr(diff_text, changelog_path)
-
+	# build the seed message from parsed entries before any preview output
 	seed_message = make_seed_message_from_entries(new_entries)
 	if seed_message is None:
 		return
+
+	# show the seed message for the user's pre-commit visual check
+	changelog_lib.CONSOLE.print("Seed commit message:", style="bold")
+	changelog_lib.CONSOLE.print(seed_message, markup=False)
+	changelog_lib.CONSOLE.rule()
 
 	action = prompt_message_action("Add to the commit message?")
 	if action == "no":
