@@ -41,7 +41,10 @@ node --test 'tests/test_*.mjs'
 Or the combined gate (preferred):
 
 ```bash
-bash check_codebase.sh
+bash check_codebase.sh                  # full gate
+bash check_codebase.sh --fast           # skip Playwright and build
+bash check_codebase.sh --skip-playwright # skip Playwright only
+bash check_codebase.sh --help           # usage
 ```
 
 ## Adding a new TS test
