@@ -41,11 +41,12 @@ node --test 'tests/test_*.mjs'
 Or the combined gate (preferred):
 
 ```bash
-bash check_codebase.sh                  # full gate
-bash check_codebase.sh --fast           # skip Playwright and build
-bash check_codebase.sh --skip-playwright # skip Playwright only
-bash check_codebase.sh --help           # usage
+bash check_codebase.sh          # full gate
+bash check_codebase.sh --fast   # skip build (inner-loop iteration)
+bash check_codebase.sh --help   # usage
 ```
+
+Playwright walkthroughs are not part of `check_codebase.sh`; run them manually with `npm run test:playwright` after `bash run_web_server.sh`.
 
 ## Adding a new TS test
 

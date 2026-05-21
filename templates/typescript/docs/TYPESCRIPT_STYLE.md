@@ -256,7 +256,7 @@ Single `dist/main.js` + `dist/index.html` + `dist/.nojekyll`. GitHub Pages serve
 
 - `[build_github_pages.sh](../build_github_pages.sh)` (build esbuild bundle).
 - `[run_web_server.sh](../run_web_server.sh)` (serve `dist/` on random port).
-- `[check_codebase.sh](../check_codebase.sh)` (orchestrates typecheck, lint, format-check, tests, and build via npm scripts; supports `--fast` and `--skip-playwright`).
+- `[check_codebase.sh](../check_codebase.sh)` (orchestrates typecheck, lint, format-check, tests, and build via npm scripts; pass `--fast` to skip the build step; Playwright is not part of this gate).
 - `[dist_clean.sh](../dist_clean.sh)` (wipe `dist/`).
 
 ### Module system

@@ -7,18 +7,19 @@
 #   3. ESLint (zero warnings).
 #   4. Prettier --check.
 #   5. Node unit tests under tests/ (node --test tests/test_*.mjs).
-#   6. Playwright smoke tests if at least one *.spec.{ts,mjs} exists under
-#      tests/playwright/.
-#   7. Production build (npm run build), with post-build artifact checks
+#   6. Production build (npm run build), with post-build artifact checks
 #      on dist/index.html, dist/main.js, and dist/style.css (when
 #      src/style.css existed at the start of the run).
+#
+# Playwright (browser walkthroughs) is intentionally NOT part of this
+# gate; this script checks the codebase only. Run Playwright manually
+# via `npm run test:playwright` after `bash run_web_server.sh`.
 #
 # All steps are invoked via 'npm run --silent <name>' so package.json
 # remains the single source of truth for what each check does.
 #
 # Flags:
-#   --fast              Skip Playwright AND build.
-#   --skip-playwright   Skip Playwright only (build still runs).
+#   --fast              Skip the build step (inner-loop iteration).
 #   -h, --help          Print usage and exit 0.
 #
 # A per-run summary is printed on exit (after preflight succeeds) listing
@@ -30,10 +31,9 @@ set -euo pipefail
 # Usage
 usage() {
 	cat <<'USAGE'
-Usage: check_codebase.sh [--fast] [--skip-playwright] [-h|--help]
+Usage: check_codebase.sh [--fast] [-h|--help]
 
-  --fast              Skip Playwright AND build.
-  --skip-playwright   Skip Playwright only (build still runs).
+  --fast              Skip the build step (inner-loop iteration).
   -h, --help          Print this help and exit 0.
 
 All steps are invoked via 'npm run --silent <name>'; package.json is
@@ -43,15 +43,10 @@ USAGE
 
 # Parse flags
 FAST=0
-SKIP_PLAYWRIGHT=0
 while [ "$#" -gt 0 ]; do
 	case "$1" in
 		--fast)
 			FAST=1
-			shift
-			;;
-		--skip-playwright)
-			SKIP_PLAYWRIGHT=1
 			shift
 			;;
 		-h|--help)
@@ -213,18 +208,7 @@ step_run format:check
 # 5. test:node
 step_run test:node
 
-# 6. test:playwright
-if [ "$FAST" = "1" ]; then
-	step_skip test:playwright "--fast"
-elif [ "$SKIP_PLAYWRIGHT" = "1" ]; then
-	step_skip test:playwright "--skip-playwright"
-elif ! find tests/playwright -type f \( -name '*.spec.ts' -o -name '*.spec.mjs' \) 2>/dev/null | grep -q .; then
-	step_skip test:playwright "no specs found"
-else
-	step_run test:playwright
-fi
-
-# 7. build (with post-build artifact checks)
+# 6. build (with post-build artifact checks)
 if [ "$FAST" = "1" ]; then
 	step_skip build "--fast"
 else
