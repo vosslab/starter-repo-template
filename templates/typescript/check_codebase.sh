@@ -182,7 +182,11 @@ print_summary() {
 		fi
 		i=$((i + 1))
 	done
-	echo "$failed of $total checks failed."
+	if [ "$failed" -eq 0 ]; then
+		echo "PASS: $total checks passed."
+	else
+		echo "FAIL: $failed of $total checks failed."
+	fi
 }
 
 trap print_summary EXIT

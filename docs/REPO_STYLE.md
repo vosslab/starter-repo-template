@@ -95,6 +95,7 @@ Preferred structure:
 - Categories are not required when they would be empty, but every changelog entry must belong to one category.
 - Changelog entries are never removed, but they may be rephrased for accuracy and clarity.
 - Legacy archives that use the older `CHANGELOG_ARCHIVE_NN.md` form must be renamed to the documented `CHANGELOG-YYYY-MM[a-z].md` form. The new name follows the most-recent-month-in-range rule above (use the most recent `## YYYY-MM-DD` heading inside the archive). Use `git mv` so history is preserved. Only one archive naming style should exist in the repo at any time.
+- Automation: [devel/rotate_changelog.py](../devel/rotate_changelog.py) enforces this rotation policy (keeps the two newest day blocks, archives the rest into `docs/CHANGELOG-YYYY-MM[a-z].md`, refuses to clobber boundary dates). [devel/query_changelog.py](../devel/query_changelog.py) searches the active changelog and archives by date range, category, keyword, or source. Both share [devel/changelog_lib.py](../devel/changelog_lib.py) (parser/serializer).
 
 ## Versioning
 - Prefer `pyproject.toml` as the single source of truth when the repo is a single Python package with a single `pyproject.toml`.
