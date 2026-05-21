@@ -18,7 +18,6 @@ import fnmatch
 import argparse
 import datetime
 import dataclasses
-import subprocess
 
 # PIP3 modules
 import rich.console
@@ -38,24 +37,7 @@ CATEGORY_ALIASES = {
 	"test": "Developer Tests and Notes",
 }
 
-ERR_CONSOLE = rich.console.Console(stderr=True)
-
-#============================================
-
-def get_git_root() -> str:
-	"""Return the absolute path of the git repository root."""
-	result = subprocess.run(
-		["git", "rev-parse", "--show-toplevel"],
-		stdout=subprocess.PIPE,
-		stderr=subprocess.PIPE,
-		text=True,
-	)
-	if result.returncode != 0:
-		raise SystemExit("Unable to determine git repository root.")
-	root = result.stdout.strip()
-	if not root:
-		raise SystemExit("Git repository root is empty.")
-	return root
+ERR_CONSOLE = rich.console.Console(stderr=True, highlight=False)
 
 #============================================
 
@@ -347,7 +329,7 @@ def main() -> int:
 	if args.corpus is not None:
 		corpus_dir = args.corpus
 	else:
-		git_root = get_git_root()
+		git_root = changelog_lib.get_git_root()
 		corpus_dir = os.path.join(git_root, "docs")
 	if not os.path.isdir(corpus_dir):
 		parser.error(f"corpus directory not found or not a directory: {corpus_dir}")

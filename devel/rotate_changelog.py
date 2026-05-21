@@ -11,10 +11,6 @@ import os
 import re
 import glob
 import argparse
-import subprocess
-
-# PIP3 modules
-import rich.console
 
 # local repo modules
 import changelog_lib
@@ -23,61 +19,6 @@ THRESHOLD_DEFAULT = 1000
 CHANGELOG_PATH = "docs/CHANGELOG.md"
 ARCHIVE_GLOB = "docs/CHANGELOG-*.md"
 ARCHIVE_NAME_RE = re.compile(r"^CHANGELOG-(\d{4}-\d{2})([a-z])\.md$")
-
-CONSOLE = rich.console.Console()
-ERR_CONSOLE = rich.console.Console(stderr=True)
-
-#============================================
-
-def run_git(args: list[str]) -> subprocess.CompletedProcess:
-	"""Run a git command and return the completed process."""
-	result = subprocess.run(
-		["git"] + args,
-		stdout=subprocess.PIPE,
-		stderr=subprocess.PIPE,
-		text=True,
-	)
-	return result
-
-#============================================
-
-def get_git_root() -> str:
-	"""Return the git repository root path."""
-	result = run_git(["rev-parse", "--show-toplevel"])
-	if result.returncode != 0:
-		raise RuntimeError("Unable to determine git repository root.")
-	root = result.stdout.strip()
-	if not root:
-		raise RuntimeError("Git repository root is empty.")
-	return root
-
-#============================================
-
-def ensure_in_git_repo() -> None:
-	"""Raise if not inside a git work tree."""
-	result = run_git(["rev-parse", "--is-inside-work-tree"])
-	if result.returncode != 0:
-		raise RuntimeError("Not inside a git repository.")
-	if result.stdout.strip() != "true":
-		raise RuntimeError("Not inside a git work tree.")
-
-#============================================
-
-def build_choice_prompt(prompt: str) -> str:
-	"""Build a colored prompt string with y/N choices."""
-	yes_text = "[bold green]y[/bold green]"
-	no_text = "[bold red]N[/bold red]"
-	choice_prompt = f"{prompt} [{yes_text}/{no_text}] "
-	return choice_prompt
-
-#============================================
-
-def confirm(prompt: str) -> bool:
-	"""Ask the user to confirm via a y/N prompt."""
-	choice_prompt = build_choice_prompt(prompt)
-	ans = CONSOLE.input(choice_prompt).strip().lower()
-	confirmed = ans in ("y", "yes")
-	return confirmed
 
 #============================================
 
@@ -185,39 +126,39 @@ def find_boundary_conflict(
 def print_loud_warning(date_str: str, archive_path: str) -> None:
 	"""Print a bold-red warning about a boundary-date conflict."""
 	banner = "!" * 60
-	ERR_CONSOLE.print(banner, style="bold red")
-	ERR_CONSOLE.print(
+	changelog_lib.ERR_CONSOLE.print(banner, style="bold red")
+	changelog_lib.ERR_CONSOLE.print(
 		f"BOUNDARY-DATE CONFLICT: date {date_str} already exists in {archive_path}.",
 		style="bold red",
 	)
-	ERR_CONSOLE.print(
+	changelog_lib.ERR_CONSOLE.print(
 		"REPO_STYLE.md requires each date heading to appear in exactly one file.",
 		style="bold red",
 	)
-	ERR_CONSOLE.print(
+	changelog_lib.ERR_CONSOLE.print(
 		f"This rotation would DROP the {date_str} block from {CHANGELOG_PATH}.",
 		style="bold red",
 	)
-	ERR_CONSOLE.print(banner, style="bold red")
+	changelog_lib.ERR_CONSOLE.print(banner, style="bold red")
 
 #============================================
 
 def print_duplicate_error(dups: list[str]) -> None:
 	"""Print a bold-red error listing duplicate dates in the active file."""
 	banner = "!" * 60
-	ERR_CONSOLE.print(banner, style="bold red")
-	ERR_CONSOLE.print(
+	changelog_lib.ERR_CONSOLE.print(banner, style="bold red")
+	changelog_lib.ERR_CONSOLE.print(
 		f"DUPLICATE DATE HEADINGS in {CHANGELOG_PATH}:",
 		style="bold red",
 	)
 	for date_str in dups:
-		ERR_CONSOLE.print(f"  - duplicate date: {date_str}", style="bold red")
-	ERR_CONSOLE.print(
+		changelog_lib.ERR_CONSOLE.print(f"  - duplicate date: {date_str}", style="bold red")
+	changelog_lib.ERR_CONSOLE.print(
 		"Rotation refuses to operate on a duplicate-date active file; "
 		"writing back could lose data. Fix the duplicates and retry.",
 		style="bold red",
 	)
-	ERR_CONSOLE.print(banner, style="bold red")
+	changelog_lib.ERR_CONSOLE.print(banner, style="bold red")
 
 #============================================
 
@@ -229,13 +170,13 @@ def print_plan(
 		archive_blocks: list[changelog_lib.DayBlock],
 		) -> None:
 	"""Print a plan summary describing what the rotation will do."""
-	CONSOLE.print(f"Active file: {CHANGELOG_PATH} ({line_count} lines)", style="bold")
-	CONSOLE.print(f"Threshold: {threshold} lines")
-	CONSOLE.print(f"Archive path (new): {archive_path}", style="bold")
+	changelog_lib.CONSOLE.print(f"Active file: {CHANGELOG_PATH} ({line_count} lines)", style="bold")
+	changelog_lib.CONSOLE.print(f"Threshold: {threshold} lines")
+	changelog_lib.CONSOLE.print(f"Archive path (new): {archive_path}", style="bold")
 	active_dates = ", ".join(b.date for b in active_blocks) if active_blocks else "(none)"
-	CONSOLE.print(f"Active blocks kept: {active_dates}")
+	changelog_lib.CONSOLE.print(f"Active blocks kept: {active_dates}")
 	archive_dates = ", ".join(b.date for b in archive_blocks) if archive_blocks else "(none)"
-	CONSOLE.print(f"Archive blocks moved: {archive_dates}")
+	changelog_lib.CONSOLE.print(f"Archive blocks moved: {archive_dates}")
 
 #============================================
 
@@ -283,8 +224,8 @@ def main() -> None:
 	"""Orchestrate the rotation."""
 	args = parse_args()
 
-	ensure_in_git_repo()
-	repo_root = get_git_root()
+	changelog_lib.ensure_in_git_repo()
+	repo_root = changelog_lib.get_git_root()
 	os.chdir(repo_root)
 
 	if not os.path.isfile(CHANGELOG_PATH):
@@ -298,7 +239,7 @@ def main() -> None:
 	threshold = args.threshold
 
 	if line_count < threshold and not args.force:
-		CONSOLE.print(
+		changelog_lib.CONSOLE.print(
 			f"Below threshold ({line_count} / {threshold} lines). Nothing to do.",
 			style="yellow",
 		)
@@ -321,15 +262,15 @@ def main() -> None:
 	)
 	# surface parser warnings to stderr before any rotation work
 	for warning in warnings:
-		ERR_CONSOLE.print(warning, style="yellow")
+		changelog_lib.ERR_CONSOLE.print(warning, style="yellow")
 
 	if len(blocks) <= 2:
-		CONSOLE.print("Only two day blocks; cannot rotate.", style="yellow")
+		changelog_lib.CONSOLE.print("Only two day blocks; cannot rotate.", style="yellow")
 		return
 
 	active_blocks, archive_blocks = split_active_archive(blocks)
 	if not archive_blocks:
-		CONSOLE.print("Only two day blocks; cannot rotate.", style="yellow")
+		changelog_lib.CONSOLE.print("Only two day blocks; cannot rotate.", style="yellow")
 		return
 
 	docs_dir = os.path.dirname(CHANGELOG_PATH)
@@ -343,14 +284,14 @@ def main() -> None:
 		dropped_date, conflicting_archive = boundary_conflict
 		print_loud_warning(dropped_date, conflicting_archive)
 		if args.dry_run:
-			CONSOLE.print(
+			changelog_lib.CONSOLE.print(
 				f"Dry run: would drop {dropped_date} from {CHANGELOG_PATH} "
 				f"(already archived in {conflicting_archive}). No files written.",
 				style="bold yellow",
 			)
 			return
 		if not args.yes:
-			ERR_CONSOLE.print(
+			changelog_lib.ERR_CONSOLE.print(
 				"Refusing to drop a boundary date without explicit --yes. Aborting.",
 				style="bold red",
 			)
@@ -361,30 +302,30 @@ def main() -> None:
 	print_plan(line_count, threshold, archive_path, active_blocks, archive_blocks)
 
 	if args.dry_run:
-		CONSOLE.print("Dry run: no files written.", style="yellow")
+		changelog_lib.CONSOLE.print("Dry run: no files written.", style="yellow")
 		return
 
 	if not args.yes:
-		if not confirm("Rotate?"):
-			CONSOLE.print("Aborted.", style="yellow")
+		if not changelog_lib.confirm("Rotate?"):
+			changelog_lib.CONSOLE.print("Aborted.", style="yellow")
 			return
 
 	# write archive first, then rewrite the active file
 	changelog_lib.write_changelog(archive_path, "", archive_blocks)
 	changelog_lib.write_changelog(CHANGELOG_PATH, preamble, active_blocks)
 
-	CONSOLE.print(
+	changelog_lib.CONSOLE.print(
 		f"Rotated: wrote {archive_path} and rewrote {CHANGELOG_PATH}.",
 		style="bold green",
 	)
 	moved_dates = ", ".join(b.date for b in archive_blocks)
-	CONSOLE.print(f"Dates moved: {moved_dates}")
+	changelog_lib.CONSOLE.print(f"Dates moved: {moved_dates}")
 	if dropped_date is not None:
-		CONSOLE.print(
+		changelog_lib.CONSOLE.print(
 			f"Dropped boundary date {dropped_date} from the active file.",
 			style="bold yellow",
 		)
-	CONSOLE.print(
+	changelog_lib.CONSOLE.print(
 		"Reminder: add a rotation entry to docs/CHANGELOG.md per AGENTS.md.",
 		style="yellow",
 	)

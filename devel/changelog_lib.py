@@ -1,13 +1,29 @@
-"""Shared parser/serializer for CHANGELOG.md.
+"""Shared helpers for changelog-oriented developer scripts.
 
-This library owns the day-block data model, regex constants, file I/O,
-the day-block parser, and the day-block-to-entry splitter used by both
-devel/rotate_changelog.py and devel/query_changelog.py.
+Originally a parser/serializer-only library; expanded by user decision
+to absorb the small helper trios (git invocation, console + prompt
+primitives) that the three changelog scripts -- devel/commit_changelog.py,
+devel/rotate_changelog.py, devel/query_changelog.py -- would otherwise
+duplicate. Consolidation into one sibling module is preferred over a
+separate git_helpers.py / console_helpers.py to keep moving parts low.
 
-Out of scope (lives in the calling scripts): CLI argument parsing, git
-invocation, interactive prompts, console styling (rich), and query-side
-filtering. Warnings are returned as a list[str], never printed; the
-caller controls presentation.
+Sections, in order:
+
+- ``# Changelog parsing and serialization`` -- DayBlock / Entry
+  dataclasses, regex constants, ``read_changelog`` / ``write_changelog``,
+  ``parse_day_blocks`` / ``split_day_block`` / ``parse_file``,
+  ``newest_date`` / ``find_duplicate_dates``.
+- ``# Git helpers`` -- ``run_git`` / ``get_git_root`` /
+  ``ensure_in_git_repo``.
+- ``# Console and prompt helpers`` -- ``build_choice_prompt`` /
+  ``confirm`` / ``print_warning`` / ``print_error`` plus the
+  module-level ``CONSOLE`` and ``ERR_CONSOLE`` rich consoles they
+  print through.
+
+Out of scope (stays in calling scripts): CLI argument parsing,
+query-side filtering, and script-specific business logic. Library
+parsers return warnings as ``list[str]``, never printed; the caller
+controls presentation.
 
 This is a library module: no shebang, no executable bit, no
 ``if __name__ == '__main__'`` guard.
@@ -17,6 +33,16 @@ This is a library module: no shebang, no executable bit, no
 import os
 import re
 import dataclasses
+import subprocess
+
+# PIP3 modules
+import rich.console
+
+#============================================
+#============================================
+# Changelog parsing and serialization
+#============================================
+#============================================
 
 #============================================
 # Module constants
@@ -532,3 +558,143 @@ def find_duplicate_dates(blocks: list) -> list:
 			continue
 		seen.add(date_str)
 	return dup_order
+
+#============================================
+#============================================
+# Git helpers
+#============================================
+#============================================
+#
+# Lifted out of devel/commit_changelog.py, devel/rotate_changelog.py,
+# and devel/query_changelog.py to eliminate three-way duplication. All
+# three scripts already import this module for parser access; sharing
+# the git trio here avoids a separate devel/git_helpers.py module per
+# user decision.
+
+def run_git(args: list[str]) -> subprocess.CompletedProcess:
+	"""Run a git command and return the completed process.
+
+	Args:
+		args: Argument list passed to git (no leading "git" token).
+
+	Returns:
+		The ``subprocess.CompletedProcess`` with text-mode stdout/stderr.
+	"""
+	result = subprocess.run(
+		["git"] + args,
+		stdout=subprocess.PIPE,
+		stderr=subprocess.PIPE,
+		text=True,
+	)
+	return result
+
+#============================================
+
+def get_git_root() -> str:
+	"""Return the absolute path of the git repository root.
+
+	Returns:
+		Absolute path of the git repository root, as reported by
+		``git rev-parse --show-toplevel``.
+
+	Raises:
+		RuntimeError: When git rev-parse fails or returns an empty path
+			(not a git work tree, git binary missing, etc.).
+	"""
+	result = run_git(["rev-parse", "--show-toplevel"])
+	if result.returncode != 0:
+		raise RuntimeError("Unable to determine git repository root.")
+	root = result.stdout.strip()
+	if not root:
+		raise RuntimeError("Git repository root is empty.")
+	return root
+
+#============================================
+
+def ensure_in_git_repo() -> None:
+	"""Raise if the current working directory is not inside a git work tree.
+
+	Raises:
+		RuntimeError: When git rev-parse cannot confirm an inside-work-tree
+			environment.
+	"""
+	result = run_git(["rev-parse", "--is-inside-work-tree"])
+	if result.returncode != 0:
+		raise RuntimeError("Not inside a git repository.")
+	if result.stdout.strip() != "true":
+		raise RuntimeError("Not inside a git work tree.")
+
+#============================================
+#============================================
+# Console and prompt helpers
+#============================================
+#============================================
+#
+# Lifted out of devel/commit_changelog.py and devel/rotate_changelog.py
+# to eliminate duplicated rich-console primitives. The two module-level
+# Console instances below are the canonical CONSOLE / ERR_CONSOLE handles
+# the helpers below print through; calling scripts that want raw access
+# (e.g. CONSOLE.print(...) with their own styles) may either reference
+# changelog_lib.CONSOLE directly or keep their own local Console handles.
+
+# highlight=False stops rich from auto-coloring numbers, paths, and
+# similar tokens in plain printed text (the "pink lemonade" effect on
+# some terminals); markup tags like [bold red] still work because
+# markup defaults to True. Per-call markup=False on print_warning /
+# print_error keeps literal [brackets] in user-supplied messages from
+# being interpreted as markup.
+CONSOLE = rich.console.Console(highlight=False)
+ERR_CONSOLE = rich.console.Console(stderr=True, highlight=False)
+
+#============================================
+
+def build_choice_prompt(prompt: str) -> str:
+	"""Build a colored y/N prompt string.
+
+	Args:
+		prompt: Base prompt text.
+
+	Returns:
+		The prompt with a colored ``[y/N]`` suffix appended.
+	"""
+	yes_text = "[bold green]y[/bold green]"
+	no_text = "[bold red]N[/bold red]"
+	choice_prompt = f"{prompt} [{yes_text}/{no_text}] "
+	return choice_prompt
+
+#============================================
+
+def confirm(prompt: str) -> bool:
+	"""Ask the user to confirm via a y/N prompt.
+
+	Args:
+		prompt: Prompt text shown before the choices.
+
+	Returns:
+		True when the answer is ``y`` or ``yes`` (case-insensitive).
+	"""
+	choice_prompt = build_choice_prompt(prompt)
+	ans = CONSOLE.input(choice_prompt).strip().lower()
+	confirmed = ans in ("y", "yes")
+	return confirmed
+
+#============================================
+
+def print_warning(message: str) -> None:
+	"""Print a warning message in yellow on stdout.
+
+	``highlight=False`` and ``markup=False`` keep rich from auto-coloring
+	numbers/paths or interpreting ``[brackets]`` in arbitrary user-facing
+	text. Matches the unified print-helper convention across devel/.
+	"""
+	CONSOLE.print(message, style="yellow", highlight=False, markup=False)
+
+#============================================
+
+def print_error(message: str) -> None:
+	"""Print an error message in bold red on stderr.
+
+	Same ``highlight=False`` / ``markup=False`` discipline as
+	``print_warning``; see that docstring.
+	"""
+	ERR_CONSOLE.print(message, style="bold red", highlight=False, markup=False)
