@@ -72,4 +72,16 @@ The `ROUTING_OVERRIDES` dict in `propagate/model.py` controls which files ship a
 
 ## What never propagates
 
-Listed in `META_FILES` / `META_DIRS` / `META_TEST_PREFIXES`. Includes the propagator entry script `propagate_style_guides.py`, reset_repo.py, README.md, VERSION, Brewfile, .gitignore, REPO_TYPE, pip_extras.txt (root META_FILES); `propagate/` helper package, `tools/` (detect_repo_type.py and other template-only tooling), `meta/` (this doc and other template-meta), `templates/` (only contents under `templates/<type>/` ship), `LICENSES/`, `docs/active_plans/`, `docs/archive/`, `experiment_reports/`, `__pycache__/`, `.git/` (META_DIRS). Tests starting with `test_propagate_`, `test_reset_repo_`, or `test_detect_repo_type` never ship (META_TEST_PREFIXES).
+Listed in `META_FILES` / `META_DIRS` / `META_TEST_PREFIXES`. Includes the propagator entry script `propagate_style_guides.py`, reset_repo.py, README.md, VERSION, Brewfile, .gitignore, REPO_TYPE, pip_extras.txt (root META_FILES); `propagate/` helper package, `tools/` (detect_repo_type.py and other template-only tooling), `meta/` (this doc and other template-meta), `templates/` (only contents under `templates/<type>/` ship), `LICENSES/`, `docs/active_plans/`, `docs/archive/`, `experiment_reports/`, `__pycache__/`, `.git/` (META_DIRS). Tests are excluded via two mechanisms: `tests/meta/` is excluded as a whole via `SKIP_WALK_DIRS` containing `'meta'`, and tests starting with `test_propagate_`, `test_reset_repo_`, or `test_detect_repo_type` are also excluded via `META_TEST_PREFIXES`.
+
+## Link bucket isolation
+
+A file may only link to targets that propagate with it. The rule prevents universal docs from hardcoding links to template-specific overlays, which would silently break when those overlays do not ship to a given repo type.
+
+Allowed link transitions:
+
+- `universal` -> `universal` only. Universal files (docs, tests, devel scripts) link only to other universal targets that ship to every repo type.
+- `overlay-<type>` -> `universal` or `overlay-<type>` (same type). TypeScript-specific docs may link to universal docs or other TypeScript overlay docs, but not to Rust overlays or other types.
+- `meta` -> any bucket in the template. Meta files (template-only tooling and documentation) never ship to consumers, so they may link anywhere.
+
+Enforcement: [../../tests/meta/test_link_bucket_isolation.py](../../tests/meta/test_link_bucket_isolation.py) walks all tracked `*.md` files, classifies each file's bucket, resolves local links, and hard-fails on disallowed transitions.

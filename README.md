@@ -14,6 +14,12 @@ Only `README.md` and `docs/CHANGELOG.md` are intentionally repository-specific; 
 - [docs/AUTHORS.md](docs/AUTHORS.md): Canonical authorship and attribution metadata for template maintenance.
 - [docs/CHANGELOG.md](docs/CHANGELOG.md): Repository-specific history of updates to this template.
 
+## Template layout
+
+The starter template ships universal + Python files at the template root (their final consumer location) and type-specific overlays under `templates/<type>/`. Currently `templates/typescript/` and `templates/rust/` exist; `rust/` is a stub. The propagator resolves universal/python sources at template root and typescript/rust sources under `templates/<type>/`. Template-only tooling (e.g., `tools/detect_repo_type.py`) lives under `tools/`; it never propagates and is removed by `reset_repo.py` at consumer bootstrap.
+
+- See [meta/docs/PROPAGATION_RULES.md](meta/docs/PROPAGATION_RULES.md) for the folder convention and manifest rules that route files to consumers.
+
 ## Quick start
 
 Bootstrap a fresh clone (sets project type + licenses, installs canonical files):

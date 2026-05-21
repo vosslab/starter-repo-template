@@ -23,12 +23,6 @@ Five principles guide work in this repo. Cite them by name when making judgment 
 
 Every repo carries `REPO_TYPE` at the repo root: one lowercase token plus newline. Tokens: `python`, `typescript`, `rust`, `other`. Missing marker triggers detection via `tools/detect_repo_type.py`; if detection is unavailable or ambiguous, falls back to `LANG_UNKNOWN`. Files gated by `ROUTING_OVERRIDES` (language- or `requires_repo_file`-tagged) do not ship to `LANG_UNKNOWN` repos; universal walker-routed files (`docs/`, `tests/`, `devel/`) still ship. The propagator (`propagate_style_guides.py` entry script + `propagate/` package: `repo.read_repo_type` reads the marker, `files.compute_propagation_plan` dispatches overlays) routes files by repo type; `reset_repo.py` writes the marker during bootstrap. `REPO_TYPE` is maintained after bootstrap; it controls future propagation behavior, not just initial scaffolding. Note: `other`-typed repos no longer receive `docs/PYTHON_STYLE.md`, as this historical exception was removed when `ROUTING_OVERRIDES` replaced the legacy language-file manifest.
 
-## Template layout
-
-The starter template ships universal + Python files at the template root (their final consumer location) and type-specific overlays under `templates/<type>/`. Currently `templates/typescript/` and `templates/rust/` exist; `rust/` is a stub. The propagator resolves universal/python sources at template root and typescript/rust sources under `templates/<type>/`. Template-only tooling (e.g., `tools/detect_repo_type.py`) lives under `tools/`; it never propagates and is removed by `reset_repo.py` at consumer bootstrap.
-
-- See [../meta/docs/PROPAGATION_RULES.md](../meta/docs/PROPAGATION_RULES.md) for the folder convention and manifest rules that route files to consumers.
-
 ## AGENTS.md files
 
 Keep `AGENTS.md` files concise and operational. They should usually be around
