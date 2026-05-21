@@ -9,7 +9,11 @@ tests_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 repo_root = os.path.dirname(tests_dir)
 sys.path.insert(0, repo_root)
 
-import propagate_style_guides
+import propagate.console
+import propagate.files
+import propagate.model
+import propagate.repo
+import propagate_style_guides  # For apply_file_bucket and exit_code_for
 
 
 class TestCopyFileSafe:
@@ -21,7 +25,7 @@ class TestCopyFileSafe:
 		dst = tmp_path / "dest.txt"
 		src.write_text("hello", encoding='utf-8')
 
-		result = propagate_style_guides.copy_file_safe(str(src), str(dst), dry_run=False)
+		result = propagate.files.copy_file_safe(str(src), str(dst), dry_run=False)
 
 		assert result is True
 		assert dst.read_text(encoding='utf-8') == "hello"
@@ -32,7 +36,7 @@ class TestCopyFileSafe:
 		dst = tmp_path / "dest.txt"
 		src.write_text("hello", encoding='utf-8')
 
-		result = propagate_style_guides.copy_file_safe(str(src), str(dst), dry_run=True)
+		result = propagate.files.copy_file_safe(str(src), str(dst), dry_run=True)
 
 		assert result is False
 		assert not dst.exists()
@@ -49,7 +53,7 @@ class TestCopyFileSafe:
 		# Make source executable
 		os.chmod(src, os.stat(src).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
-		propagate_style_guides.copy_file_safe(str(src), str(dst), dry_run=False)
+		propagate.files.copy_file_safe(str(src), str(dst), dry_run=False)
 
 		dst_mode = os.stat(dst).st_mode
 		assert dst_mode & stat.S_IXUSR == stat.S_IXUSR
@@ -62,7 +66,7 @@ class TestCopyFileSafe:
 		dst = tmp_path / "dest.txt"
 		src.write_text("hello", encoding='utf-8')
 
-		propagate_style_guides.copy_file_safe(str(src), str(dst), dry_run=True, action='update')
+		propagate.files.copy_file_safe(str(src), str(dst), dry_run=True, action='update')
 
 		captured = capsys.readouterr()
 		assert "update" in captured.out
@@ -76,7 +80,7 @@ class TestMakeDirSafe:
 		new_dir = tmp_path / "newdir"
 		assert not new_dir.exists()
 
-		result = propagate_style_guides.make_dir_safe(str(new_dir), dry_run=False)
+		result = propagate.files.make_dir_safe(str(new_dir), dry_run=False)
 
 		assert result is True
 		assert new_dir.is_dir()
@@ -86,7 +90,7 @@ class TestMakeDirSafe:
 		new_dir = tmp_path / "newdir"
 		assert not new_dir.exists()
 
-		result = propagate_style_guides.make_dir_safe(str(new_dir), dry_run=True)
+		result = propagate.files.make_dir_safe(str(new_dir), dry_run=True)
 
 		assert result is False
 		assert not new_dir.exists()
@@ -100,7 +104,7 @@ class TestMakeDirSafe:
 		new_dir.mkdir()
 
 		# Should not raise even though dir exists
-		result = propagate_style_guides.make_dir_safe(str(new_dir), dry_run=False)
+		result = propagate.files.make_dir_safe(str(new_dir), dry_run=False)
 
 		assert result is True
 		assert new_dir.is_dir()
@@ -124,7 +128,7 @@ __pycache__/
 """
 		file_path.write_text(content, encoding='utf-8')
 
-		result = propagate_style_guides.load_gitignore_block(str(file_path))
+		result = propagate.files.load_gitignore_block(str(file_path))
 
 		assert result == ['*.pyc', '__pycache__/', '.env']
 
@@ -133,7 +137,7 @@ __pycache__/
 		file_path = tmp_path / "gitignore.txt"
 		file_path.write_text("", encoding='utf-8')
 
-		result = propagate_style_guides.load_gitignore_block(str(file_path))
+		result = propagate.files.load_gitignore_block(str(file_path))
 
 		assert result == []
 
@@ -146,13 +150,13 @@ __pycache__/
 # Comment 3"""
 		file_path.write_text(content, encoding='utf-8')
 
-		result = propagate_style_guides.load_gitignore_block(str(file_path))
+		result = propagate.files.load_gitignore_block(str(file_path))
 
 		assert result == []
 
 	def test_load_gitignore_block_missing_file(self):
 		"""Test loading non-existent file returns empty list."""
-		result = propagate_style_guides.load_gitignore_block('/nonexistent/path.txt')
+		result = propagate.files.load_gitignore_block('/nonexistent/path.txt')
 
 		assert result == []
 
@@ -164,7 +168,7 @@ class TestWriteRepoTypeMarker:
 		"""Test actual marker write."""
 		file_path = tmp_path / "REPO_TYPE"
 
-		result = propagate_style_guides.write_repo_type_marker(str(file_path), 'typescript', dry_run=False)
+		result = propagate.repo.write_repo_type_marker(str(file_path), 'typescript', dry_run=False)
 
 		assert result is True
 		assert file_path.read_text(encoding='utf-8') == 'typescript\n'
@@ -173,7 +177,7 @@ class TestWriteRepoTypeMarker:
 		"""Test dry-run mode."""
 		file_path = tmp_path / "REPO_TYPE"
 
-		result = propagate_style_guides.write_repo_type_marker(str(file_path), 'rust', dry_run=True)
+		result = propagate.repo.write_repo_type_marker(str(file_path), 'rust', dry_run=True)
 
 		assert result is False
 		assert not file_path.exists()
@@ -184,7 +188,7 @@ class TestWriteRepoTypeMarker:
 		"""Test all valid token types."""
 		for token in ('python', 'typescript', 'rust', 'other'):
 			file_path = tmp_path / f"REPO_TYPE_{token}"
-			propagate_style_guides.write_repo_type_marker(str(file_path), token, dry_run=False)
+			propagate.repo.write_repo_type_marker(str(file_path), token, dry_run=False)
 			assert file_path.read_text(encoding='utf-8') == f'{token}\n'
 
 
@@ -193,39 +197,39 @@ class TestParseRepoTypeChoice:
 
 	def test_parse_repo_type_choice_single_letters(self):
 		"""Test single-letter choices."""
-		assert propagate_style_guides.parse_repo_type_choice('p') == 'python'
-		assert propagate_style_guides.parse_repo_type_choice('t') == 'typescript'
-		assert propagate_style_guides.parse_repo_type_choice('r') == 'rust'
-		assert propagate_style_guides.parse_repo_type_choice('o') == 'other'
+		assert propagate.repo.parse_repo_type_choice('p') == 'python'
+		assert propagate.repo.parse_repo_type_choice('t') == 'typescript'
+		assert propagate.repo.parse_repo_type_choice('r') == 'rust'
+		assert propagate.repo.parse_repo_type_choice('o') == 'other'
 
 	def test_parse_repo_type_choice_full_words(self):
 		"""Test full-word choices."""
-		assert propagate_style_guides.parse_repo_type_choice('python') == 'python'
-		assert propagate_style_guides.parse_repo_type_choice('typescript') == 'typescript'
-		assert propagate_style_guides.parse_repo_type_choice('rust') == 'rust'
-		assert propagate_style_guides.parse_repo_type_choice('other') == 'other'
+		assert propagate.repo.parse_repo_type_choice('python') == 'python'
+		assert propagate.repo.parse_repo_type_choice('typescript') == 'typescript'
+		assert propagate.repo.parse_repo_type_choice('rust') == 'rust'
+		assert propagate.repo.parse_repo_type_choice('other') == 'other'
 
 	def test_parse_repo_type_choice_case_insensitive(self):
 		"""Test case insensitivity."""
-		assert propagate_style_guides.parse_repo_type_choice('P') == 'python'
-		assert propagate_style_guides.parse_repo_type_choice('PYTHON') == 'python'
-		assert propagate_style_guides.parse_repo_type_choice('TypeScript') == 'typescript'
+		assert propagate.repo.parse_repo_type_choice('P') == 'python'
+		assert propagate.repo.parse_repo_type_choice('PYTHON') == 'python'
+		assert propagate.repo.parse_repo_type_choice('TypeScript') == 'typescript'
 
 	def test_parse_repo_type_choice_unknown_returns_default(self):
 		"""Test unknown input returns default."""
-		assert propagate_style_guides.parse_repo_type_choice('invalid', 'python') == 'python'
-		assert propagate_style_guides.parse_repo_type_choice('xyz', 'rust') == 'rust'
-		assert propagate_style_guides.parse_repo_type_choice('invalid', None) is None
+		assert propagate.repo.parse_repo_type_choice('invalid', 'python') == 'python'
+		assert propagate.repo.parse_repo_type_choice('xyz', 'rust') == 'rust'
+		assert propagate.repo.parse_repo_type_choice('invalid', None) is None
 
 	def test_parse_repo_type_choice_empty_returns_default(self):
 		"""Test empty string returns default."""
-		assert propagate_style_guides.parse_repo_type_choice('', 'python') == 'python'
-		assert propagate_style_guides.parse_repo_type_choice('', None) is None
+		assert propagate.repo.parse_repo_type_choice('', 'python') == 'python'
+		assert propagate.repo.parse_repo_type_choice('', None) is None
 
 	def test_parse_repo_type_choice_whitespace(self):
 		"""Test whitespace handling."""
-		assert propagate_style_guides.parse_repo_type_choice('  p  ') == 'python'
-		assert propagate_style_guides.parse_repo_type_choice('  python  ') == 'python'
+		assert propagate.repo.parse_repo_type_choice('  p  ') == 'python'
+		assert propagate.repo.parse_repo_type_choice('  python  ') == 'python'
 
 
 class TestReplaceManagedBlock:
@@ -244,7 +248,7 @@ class TestReplaceManagedBlock:
 		new_block = ['new pattern 1', 'new pattern 2', 'new pattern 3']
 		header = '# === UNIVERSAL ==='
 
-		result = propagate_style_guides.replace_managed_block(lines, header, new_block)
+		result = propagate.files.replace_managed_block(lines, header, new_block)
 
 		assert result == [
 			'user content',
@@ -262,7 +266,7 @@ class TestReplaceManagedBlock:
 		new_block = ['pattern 1', 'pattern 2']
 		header = '# === UNIVERSAL ==='
 
-		result = propagate_style_guides.replace_managed_block(lines, header, new_block)
+		result = propagate.files.replace_managed_block(lines, header, new_block)
 
 		assert result == [
 			'user content 1',
@@ -278,7 +282,7 @@ class TestReplaceManagedBlock:
 		new_block = ['pattern 1']
 		header = '# === UNIVERSAL ==='
 
-		result = propagate_style_guides.replace_managed_block(lines, header, new_block)
+		result = propagate.files.replace_managed_block(lines, header, new_block)
 
 		assert result == ['# === UNIVERSAL ===', 'pattern 1']
 
@@ -294,7 +298,7 @@ class TestReplaceManagedBlock:
 		new_block = ['new python pattern']
 		header = '# === PYTHON ==='
 
-		result = propagate_style_guides.replace_managed_block(lines, header, new_block)
+		result = propagate.files.replace_managed_block(lines, header, new_block)
 
 		assert result == [
 			'# === UNIVERSAL ===',
@@ -313,8 +317,8 @@ class TestReplaceManagedBlock:
 		new_block = ['new pattern 1', 'new pattern 2']
 		header = '# === UNIVERSAL ==='
 
-		result1 = propagate_style_guides.replace_managed_block(lines, header, new_block)
-		result2 = propagate_style_guides.replace_managed_block(result1, header, new_block)
+		result1 = propagate.files.replace_managed_block(lines, header, new_block)
+		result2 = propagate.files.replace_managed_block(result1, header, new_block)
 
 		assert result1 == result2
 
@@ -326,9 +330,9 @@ class TestCopyIfChanged:
 		"""Test returns skipped_source and suppresses output when source missing + counters passed."""
 		source = tmp_path / "missing.txt"
 		dest = tmp_path / "dest.txt"
-		counters = propagate_style_guides.init_counters()
+		counters = propagate.console.init_counters()
 
-		result = propagate_style_guides.copy_if_changed(str(source), str(dest), dry_run=False, counters=counters)
+		result = propagate.files.copy_if_changed(str(source), str(dest), dry_run=False, counters=counters)
 
 		assert result == 'skipped_source'
 		assert not dest.exists()
@@ -342,7 +346,7 @@ class TestCopyIfChanged:
 		source = tmp_path / "missing.txt"
 		dest = tmp_path / "dest.txt"
 
-		result = propagate_style_guides.copy_if_changed(str(source), str(dest), dry_run=False, counters=None)
+		result = propagate.files.copy_if_changed(str(source), str(dest), dry_run=False, counters=None)
 
 		assert result == 'skipped_source'
 		captured = capsys.readouterr()
@@ -357,7 +361,7 @@ class TestCopyIfChanged:
 		source.write_text("hello", encoding='utf-8')
 		counters = None
 
-		result = propagate_style_guides.copy_if_changed(str(source), str(dest), dry_run=False, counters=counters)
+		result = propagate.files.copy_if_changed(str(source), str(dest), dry_run=False, counters=counters)
 
 		assert result == 'copied'
 		assert dest.read_text(encoding='utf-8') == "hello"
@@ -372,9 +376,9 @@ class TestCopyIfChanged:
 		content = "identical content"
 		source.write_text(content, encoding='utf-8')
 		dest.write_text(content, encoding='utf-8')
-		counters = propagate_style_guides.init_counters()
+		counters = propagate.console.init_counters()
 
-		result = propagate_style_guides.copy_if_changed(str(source), str(dest), dry_run=False, counters=counters)
+		result = propagate.files.copy_if_changed(str(source), str(dest), dry_run=False, counters=counters)
 
 		assert result == 'no_change'
 		assert counters['unchanged'] == 1
@@ -390,7 +394,7 @@ class TestCopyIfChanged:
 		source.write_text(content, encoding='utf-8')
 		dest.write_text(content, encoding='utf-8')
 
-		result = propagate_style_guides.copy_if_changed(str(source), str(dest), dry_run=False, counters=None)
+		result = propagate.files.copy_if_changed(str(source), str(dest), dry_run=False, counters=None)
 
 		assert result == 'no_change'
 		captured = capsys.readouterr()
@@ -404,7 +408,7 @@ class TestCopyIfChanged:
 		dest.write_text("old content", encoding='utf-8')
 		counters = None
 
-		result = propagate_style_guides.copy_if_changed(str(source), str(dest), dry_run=False, counters=counters)
+		result = propagate.files.copy_if_changed(str(source), str(dest), dry_run=False, counters=counters)
 
 		assert result == 'updated'
 		assert dest.read_text(encoding='utf-8') == "new content"
@@ -419,7 +423,7 @@ class TestCopyIfChanged:
 		source.write_text("hello", encoding='utf-8')
 		counters = None
 
-		result = propagate_style_guides.copy_if_changed(str(source), str(dest), dry_run=True, counters=counters)
+		result = propagate.files.copy_if_changed(str(source), str(dest), dry_run=True, counters=counters)
 
 		# dry-run should still return 'copied' (the action it would take)
 		assert result == 'copied'
@@ -435,7 +439,7 @@ class TestCopyIfChanged:
 		source.write_text("hello", encoding='utf-8')
 		counters = None
 
-		result = propagate_style_guides.copy_if_changed(str(source), str(dest), dry_run=False, counters=counters)
+		result = propagate.files.copy_if_changed(str(source), str(dest), dry_run=False, counters=counters)
 
 		assert result == 'copied'
 		assert dest.exists()
@@ -451,7 +455,7 @@ class TestCopyIfChanged:
 		os.chmod(source, os.stat(source).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 		counters = None
-		propagate_style_guides.copy_if_changed(str(source), str(dest), dry_run=False, counters=counters)
+		propagate.files.copy_if_changed(str(source), str(dest), dry_run=False, counters=counters)
 
 		dest_mode = os.stat(dest).st_mode
 		assert dest_mode & stat.S_IXUSR == stat.S_IXUSR
@@ -487,21 +491,20 @@ class TestApplyFileBucket:
 		}
 
 		# Create context and counters
-		context = propagate_style_guides.PropagateContext(
+		context = propagate.model.PropagateContext(
 			base_dir=str(tmp_path),
 			source_dir=str(source_dir),
 			template_root=str(source_dir),
 			repo_name=None,
 			dry_run=False,
 			bootstrap=False,
-			sync_self=False,
 			auto_discover=False,
 			fix_permissions=False,
 			write_marker=False,
 			skip_confirm=False,
 			verbose_paths=False,
 		)
-		counters = propagate_style_guides.init_counters()
+		counters = propagate.console.init_counters()
 
 		# Mock source_path_for_bucket to return our source file
 		def mock_source_path(source_dir, bucket, file_rel, repo_type):
@@ -509,10 +512,10 @@ class TestApplyFileBucket:
 				return str(source_file)
 			raise FileNotFoundError()
 
-		monkeypatch.setattr(propagate_style_guides, 'source_path_for_bucket', mock_source_path)
+		monkeypatch.setattr(propagate.model, 'source_path_for_bucket', mock_source_path)
 
 		# Mock merge_claude_md to return same content (no change)
-		monkeypatch.setattr(propagate_style_guides, 'merge_claude_md', lambda src, dst: dest_file.read_text(encoding='utf-8'))
+		monkeypatch.setattr(propagate.files, 'merge_claude_md', lambda src, dst: dest_file.read_text(encoding='utf-8'))
 
 		# Call apply_file_bucket
 		updates, copies, skips = propagate_style_guides.apply_file_bucket(
@@ -550,21 +553,20 @@ class TestApplyFileBucket:
 		}
 
 		# Context with bootstrap=False
-		context = propagate_style_guides.PropagateContext(
+		context = propagate.model.PropagateContext(
 			base_dir=str(tmp_path),
 			source_dir=str(source_dir),
 			template_root=str(source_dir),
 			repo_name=None,
 			dry_run=False,
 			bootstrap=False,
-			sync_self=False,
 			auto_discover=False,
 			fix_permissions=False,
 			write_marker=False,
 			skip_confirm=False,
 			verbose_paths=False,
 		)
-		counters = propagate_style_guides.init_counters()
+		counters = propagate.console.init_counters()
 
 		# Mock source_path_for_bucket
 		def mock_source_path(source_dir, bucket, file_rel, repo_type):
@@ -572,10 +574,10 @@ class TestApplyFileBucket:
 				return str(source_file)
 			raise FileNotFoundError()
 
-		monkeypatch.setattr(propagate_style_guides, 'source_path_for_bucket', mock_source_path)
+		monkeypatch.setattr(propagate.model, 'source_path_for_bucket', mock_source_path)
 
 		# Mock repo_is_on_path to return False
-		monkeypatch.setattr(propagate_style_guides, 'repo_is_on_path', lambda x: False)
+		monkeypatch.setattr(propagate.repo, 'repo_is_on_path', lambda x: False)
 
 		# Call apply_file_bucket
 		updates, copies, skips = propagate_style_guides.apply_file_bucket(
@@ -609,21 +611,20 @@ class TestApplyFileBucket:
 		}
 
 		# Context
-		context = propagate_style_guides.PropagateContext(
+		context = propagate.model.PropagateContext(
 			base_dir=str(tmp_path),
 			source_dir=str(source_dir),
 			template_root=str(source_dir),
 			repo_name=None,
 			dry_run=False,
 			bootstrap=False,
-			sync_self=False,
 			auto_discover=False,
 			fix_permissions=False,
 			write_marker=False,
 			skip_confirm=False,
 			verbose_paths=False,
 		)
-		counters = propagate_style_guides.init_counters()
+		counters = propagate.console.init_counters()
 
 		# Mock source_path_for_bucket
 		def mock_source_path(source_dir, bucket, file_rel, repo_type):
@@ -631,10 +632,10 @@ class TestApplyFileBucket:
 				return str(source_file)
 			raise FileNotFoundError()
 
-		monkeypatch.setattr(propagate_style_guides, 'source_path_for_bucket', mock_source_path)
+		monkeypatch.setattr(propagate.model, 'source_path_for_bucket', mock_source_path)
 
 		# Mock repo_is_on_path to return True (repo is on PATH)
-		monkeypatch.setattr(propagate_style_guides, 'repo_is_on_path', lambda x: True)
+		monkeypatch.setattr(propagate.repo, 'repo_is_on_path', lambda x: True)
 
 		# Call apply_file_bucket
 		updates, copies, skips = propagate_style_guides.apply_file_bucket(
@@ -676,21 +677,20 @@ class TestApplyFileBucket:
 		}
 
 		# Context
-		context = propagate_style_guides.PropagateContext(
+		context = propagate.model.PropagateContext(
 			base_dir=str(tmp_path),
 			source_dir=str(source_dir),
 			template_root=str(source_dir),
 			repo_name=None,
 			dry_run=False,
 			bootstrap=False,
-			sync_self=False,
 			auto_discover=False,
 			fix_permissions=False,
 			write_marker=False,
 			skip_confirm=False,
 			verbose_paths=False,
 		)
-		counters = propagate_style_guides.init_counters()
+		counters = propagate.console.init_counters()
 
 		# Mock source_path_for_bucket
 		def mock_source_path(source_dir, bucket, file_rel, repo_type):
@@ -698,7 +698,7 @@ class TestApplyFileBucket:
 				return str(source_file)
 			raise FileNotFoundError()
 
-		monkeypatch.setattr(propagate_style_guides, 'source_path_for_bucket', mock_source_path)
+		monkeypatch.setattr(propagate.model, 'source_path_for_bucket', mock_source_path)
 
 		# Mock target_path_for_bucket
 		def mock_target_path(repo_dir, bucket, file_rel):
@@ -706,7 +706,7 @@ class TestApplyFileBucket:
 				return str(devel_dir / file_rel)
 			raise ValueError()
 
-		monkeypatch.setattr(propagate_style_guides, 'target_path_for_bucket', mock_target_path)
+		monkeypatch.setattr(propagate.model, 'target_path_for_bucket', mock_target_path)
 
 		# Call apply_file_bucket
 		updates, copies, skips = propagate_style_guides.apply_file_bucket(
@@ -740,21 +740,20 @@ class TestApplyFileBucket:
 		}
 
 		# Context
-		context = propagate_style_guides.PropagateContext(
+		context = propagate.model.PropagateContext(
 			base_dir=str(tmp_path),
 			source_dir=str(source_dir),
 			template_root=str(source_dir),
 			repo_name=None,
 			dry_run=False,
 			bootstrap=False,
-			sync_self=False,
 			auto_discover=False,
 			fix_permissions=False,
 			write_marker=False,
 			skip_confirm=False,
 			verbose_paths=False,
 		)
-		counters = propagate_style_guides.init_counters()
+		counters = propagate.console.init_counters()
 
 		# Mock source_path_for_bucket
 		def mock_source_path(source_dir, bucket, file_rel, repo_type):
@@ -762,7 +761,7 @@ class TestApplyFileBucket:
 				return str(source_file)
 			raise FileNotFoundError()
 
-		monkeypatch.setattr(propagate_style_guides, 'source_path_for_bucket', mock_source_path)
+		monkeypatch.setattr(propagate.model, 'source_path_for_bucket', mock_source_path)
 
 		# Mock target_path_for_bucket
 		def mock_target_path(repo_dir, bucket, file_rel):
@@ -770,7 +769,7 @@ class TestApplyFileBucket:
 				return str(tests_dir / file_rel)
 			raise ValueError()
 
-		monkeypatch.setattr(propagate_style_guides, 'target_path_for_bucket', mock_target_path)
+		monkeypatch.setattr(propagate.model, 'target_path_for_bucket', mock_target_path)
 
 		# Call apply_file_bucket
 		updates, copies, skips = propagate_style_guides.apply_file_bucket(

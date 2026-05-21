@@ -1,4 +1,4 @@
-"""Tests that the propagator skips the template repo without --sync-self."""
+"""Tests that the propagator skips the template repo."""
 
 import os
 import sys
@@ -22,51 +22,42 @@ def repo_root():
 
 
 #============================================
-def test_read_repo_type_returns_python_for_template(repo_root):
-	"""Test that read_repo_type returns 'python' for the template repo root."""
+def test_read_repo_type_missing_returns_unknown(repo_root):
+	"""Test that read_repo_type returns LANG_UNKNOWN when marker is missing and detection unavailable/ambiguous.
+
+	LANG_UNKNOWN gates language-specific routing via should_ship_override; universal
+	walker-routed files still ship to the consumer.
+	"""
 	sys.path.insert(0, repo_root)
-	from propagate_style_guides import read_repo_type
-
-	repo_type = read_repo_type(repo_root)
-	assert repo_type == 'python', f"Expected 'python', got {repo_type!r}"
-
-
-#============================================
-def test_read_repo_type_missing_defaults_to_python(repo_root):
-	"""Test that read_repo_type returns 'python' when marker is missing."""
-	sys.path.insert(0, repo_root)
-	from propagate_style_guides import read_repo_type
+	from propagate.repo import read_repo_type
+	from propagate.model import LANG_UNKNOWN
 
 	with tempfile.TemporaryDirectory() as tmp_path:
 		repo_type = read_repo_type(tmp_path)
-		assert repo_type == 'python', f"Expected 'python', got {repo_type!r}"
+		assert repo_type == LANG_UNKNOWN, f"Expected {LANG_UNKNOWN!r}, got {repo_type!r}"
 
 
 #============================================
 def test_read_repo_type_unknown_token_raises(repo_root):
 	"""Test that read_repo_type raises ValueError for unknown tokens."""
 	sys.path.insert(0, repo_root)
-	from propagate_style_guides import read_repo_type
+	from propagate.repo import read_repo_type
 
 	with tempfile.TemporaryDirectory() as tmp_path:
 		marker_path = os.path.join(tmp_path, 'REPO_TYPE')
 		with open(marker_path, 'w', encoding='utf-8') as f:
 			f.write('garbage\n')
 
-		try:
+		with pytest.raises(ValueError, match='unknown REPO_TYPE token.*garbage'):
 			read_repo_type(tmp_path)
-			assert False, "Expected ValueError to be raised"
-		except ValueError as exc:
-			assert 'unknown REPO_TYPE token' in str(exc)
-			assert 'garbage' in str(exc)
 
 
 #============================================
-def test_propagator_self_skips_without_sync_self(repo_root):
-	"""Test that propagator skips template root when --sync-self is not passed."""
+def test_propagator_self_skips(repo_root):
+	"""Test that propagator skips template root unconditionally."""
 	# Import the actual list from the propagator to verify the skip
 	sys.path.insert(0, repo_root)
-	from propagate_style_guides import DEFAULT_REPO_SKIP_NAMES
+	from propagate.model import DEFAULT_REPO_SKIP_NAMES
 
 	# Verify that the template repo is in the skip list
 	# The template repo basename should be in DEFAULT_REPO_SKIP_NAMES

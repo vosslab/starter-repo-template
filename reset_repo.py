@@ -458,8 +458,9 @@ def main():
 
 	# === phase: git rm cleanup ===
 	action_count += git_rm("propagate_style_guides.py", args.dry_run)
+	action_count += git_rm_recursive("propagate/", args.dry_run)
 	action_count += git_rm_recursive("tools/", args.dry_run)
-	action_count += git_rm("docs/PROPAGATION_RULES.md", args.dry_run)
+	action_count += git_rm_recursive("meta/", args.dry_run)
 
 	if project_type != "python":
 		action_count += git_rm("devel/submit_to_pypi.py", args.dry_run)

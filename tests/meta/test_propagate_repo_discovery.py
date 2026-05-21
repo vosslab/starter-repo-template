@@ -62,8 +62,9 @@ def test_propagate_repo_discovery_depth_and_skip(tmp_path):
 	repo_names = [os.path.basename(r) for r in repos]
 	assert 'starter-repo-template' not in repo_names, f"starter-repo-template should be skipped; got {repo_names}"
 
-	# Test explicit --repo overrides skip list
-	target = pg.resolve_target_repo(str(tmp_path), 'starter-repo-template')
+	# Test explicit --repo overrides skip list (resolve_target_repo is in propagate.repo)
+	import propagate.repo
+	target = propagate.repo.resolve_target_repo(str(tmp_path), 'starter-repo-template')
 	assert target == str(skip_repo), f"explicit --repo should override skip list; got {target}"
 
 

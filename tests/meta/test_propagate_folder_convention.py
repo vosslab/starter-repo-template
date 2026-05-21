@@ -6,7 +6,8 @@ import tempfile
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-import propagate_style_guides
+import propagate.model
+import propagate.files
 
 
 def test_universal_doc_routes_overwrite():
@@ -15,7 +16,7 @@ def test_universal_doc_routes_overwrite():
 		os.makedirs(os.path.join(tmpdir, 'docs'))
 		with open(os.path.join(tmpdir, 'docs', 'FOO.md'), 'w') as f:
 			f.write('test')
-		plan = propagate_style_guides.compute_propagation_plan(tmpdir, 'python')
+		plan = propagate.files.compute_propagation_plan(tmpdir, 'python')
 		assert 'docs/FOO.md' in plan['overwrite_files']
 
 
@@ -24,27 +25,27 @@ def test_meta_file_excluded_basename_form():
 	with tempfile.TemporaryDirectory() as tmpdir:
 		with open(os.path.join(tmpdir, 'README.md'), 'w') as f:
 			f.write('test')
-		plan = propagate_style_guides.compute_propagation_plan(tmpdir, 'python')
+		plan = propagate.files.compute_propagation_plan(tmpdir, 'python')
 		assert 'README.md' not in plan['overwrite_files']
 
 
-def test_meta_file_excluded_path_form():
-	"""META_FILES entry by relative path (e.g. docs/PROPAGATION_RULES.md) excludes the file. Regression: bare-basename check missed path-form entries."""
+def test_meta_dir_excludes_nested_files():
+	"""Files under meta/ (META_DIRS entry) never ship, regardless of depth."""
 	with tempfile.TemporaryDirectory() as tmpdir:
-		os.makedirs(os.path.join(tmpdir, 'docs'))
-		with open(os.path.join(tmpdir, 'docs', 'PROPAGATION_RULES.md'), 'w') as f:
+		os.makedirs(os.path.join(tmpdir, 'meta', 'docs'))
+		with open(os.path.join(tmpdir, 'meta', 'docs', 'PROPAGATION_RULES.md'), 'w') as f:
 			f.write('test')
-		plan = propagate_style_guides.compute_propagation_plan(tmpdir, 'python')
-		assert 'docs/PROPAGATION_RULES.md' not in plan['overwrite_files']
+		plan = propagate.files.compute_propagation_plan(tmpdir, 'python')
+		assert 'meta/docs/PROPAGATION_RULES.md' not in plan['overwrite_files']
 
 
-def test_meta_file_excluded_path_form_tools():
-	"""tools/detect_repo_type.py (path-form META_FILES) excluded. Second regression for path-form coverage."""
+def test_meta_dir_excludes_tools_nested():
+	"""Files under tools/ (META_DIRS entry) never ship, regardless of file name."""
 	with tempfile.TemporaryDirectory() as tmpdir:
 		os.makedirs(os.path.join(tmpdir, 'tools'))
 		with open(os.path.join(tmpdir, 'tools', 'detect_repo_type.py'), 'w') as f:
 			f.write('test')
-		plan = propagate_style_guides.compute_propagation_plan(tmpdir, 'python')
+		plan = propagate.files.compute_propagation_plan(tmpdir, 'python')
 		assert 'tools/detect_repo_type.py' not in plan['overwrite_files']
 
 
@@ -54,7 +55,7 @@ def test_meta_test_prefix_excluded():
 		os.makedirs(os.path.join(tmpdir, 'tests'))
 		with open(os.path.join(tmpdir, 'tests', 'test_propagate_x.py'), 'w') as f:
 			f.write('test')
-		plan = propagate_style_guides.compute_propagation_plan(tmpdir, 'python')
+		plan = propagate.files.compute_propagation_plan(tmpdir, 'python')
 		assert 'test_propagate_x.py' not in plan['test_files']
 
 
@@ -65,7 +66,7 @@ def test_typescript_overlay_routes_to_overwrite():
 		os.makedirs(type_dir)
 		with open(os.path.join(type_dir, 'foo.ts'), 'w') as f:
 			f.write('test')
-		plan = propagate_style_guides.compute_propagation_plan(tmpdir, 'typescript')
+		plan = propagate.files.compute_propagation_plan(tmpdir, 'typescript')
 		assert 'foo.ts' in plan['overwrite_files']
 
 
@@ -76,26 +77,26 @@ def test_typescript_noexist_routes_to_noexist():
 		os.makedirs(noexist_dir)
 		with open(os.path.join(noexist_dir, 'package.json.template'), 'w') as f:
 			f.write('test')
-		plan = propagate_style_guides.compute_propagation_plan(tmpdir, 'typescript')
+		plan = propagate.files.compute_propagation_plan(tmpdir, 'typescript')
 		assert 'package.json.template' in plan['noexist_files']
 
 
 def test_python_lang_files_only_for_python():
-	"""docs/PYTHON_STYLE.md only ships to python and 'other' repos."""
+	"""docs/PYTHON_STYLE.md only ships to python repos."""
 	with tempfile.TemporaryDirectory() as tmpdir:
 		os.makedirs(os.path.join(tmpdir, 'docs'))
 		with open(os.path.join(tmpdir, 'docs', 'PYTHON_STYLE.md'), 'w') as f:
 			f.write('test')
-		plan_py = propagate_style_guides.compute_propagation_plan(tmpdir, 'python')
-		plan_ts = propagate_style_guides.compute_propagation_plan(tmpdir, 'typescript')
-		plan_other = propagate_style_guides.compute_propagation_plan(tmpdir, 'other')
+		plan_py = propagate.files.compute_propagation_plan(tmpdir, 'python')
+		plan_ts = propagate.files.compute_propagation_plan(tmpdir, 'typescript')
+		plan_other = propagate.files.compute_propagation_plan(tmpdir, 'other')
 		assert 'docs/PYTHON_STYLE.md' in plan_py['overwrite_files']
 		assert 'docs/PYTHON_STYLE.md' not in plan_ts['overwrite_files']
-		assert 'docs/PYTHON_STYLE.md' in plan_other['overwrite_files']
+		assert 'docs/PYTHON_STYLE.md' not in plan_other['overwrite_files']
 
 
 def test_other_gets_python_style_only():
-	"""'other' repo type gets PYTHON_STYLE.md but not submit_to_pypi.py."""
+	"""'other' repo type does not get Python-specific files."""
 	with tempfile.TemporaryDirectory() as tmpdir:
 		os.makedirs(os.path.join(tmpdir, 'docs'))
 		os.makedirs(os.path.join(tmpdir, 'devel'))
@@ -103,8 +104,8 @@ def test_other_gets_python_style_only():
 			f.write('test')
 		with open(os.path.join(tmpdir, 'devel', 'submit_to_pypi.py'), 'w') as f:
 			f.write('test')
-		plan = propagate_style_guides.compute_propagation_plan(tmpdir, 'other')
-		assert 'docs/PYTHON_STYLE.md' in plan['overwrite_files']
+		plan = propagate.files.compute_propagation_plan(tmpdir, 'other')
+		assert 'docs/PYTHON_STYLE.md' not in plan['overwrite_files']
 		assert 'submit_to_pypi.py' not in plan['devel_files']
 
 
@@ -113,7 +114,7 @@ def test_universal_noexist_overrides_overwrite():
 	with tempfile.TemporaryDirectory() as tmpdir:
 		with open(os.path.join(tmpdir, 'AGENTS.md'), 'w') as f:
 			f.write('test')
-		plan = propagate_style_guides.compute_propagation_plan(tmpdir, 'python')
+		plan = propagate.files.compute_propagation_plan(tmpdir, 'python')
 		assert 'AGENTS.md' not in plan['overwrite_files']
 		assert 'AGENTS.md' in plan['noexist_files']
 
@@ -123,7 +124,7 @@ def test_root_file_not_in_allowlist_excluded():
 	with tempfile.TemporaryDirectory() as tmpdir:
 		with open(os.path.join(tmpdir, 'random_root.md'), 'w') as f:
 			f.write('test')
-		plan = propagate_style_guides.compute_propagation_plan(tmpdir, 'python')
+		plan = propagate.files.compute_propagation_plan(tmpdir, 'python')
 		assert 'random_root.md' not in plan['overwrite_files']
 
 
@@ -140,7 +141,7 @@ def test_gitignore_blocks_loaded_from_files():
 		os.makedirs(ts_dir)
 		with open(os.path.join(ts_dir, 'gitignore.typescript'), 'w') as f:
 			f.write('node_modules/\ndist/\n')
-		plan = propagate_style_guides.compute_propagation_plan(tmpdir, 'typescript')
+		plan = propagate.files.compute_propagation_plan(tmpdir, 'typescript')
 		assert 'report_*.txt' in plan['gitignore_block']
 		assert '.DS_Store' in plan['gitignore_block']
 		assert 'node_modules/' in plan['gitignore_block']

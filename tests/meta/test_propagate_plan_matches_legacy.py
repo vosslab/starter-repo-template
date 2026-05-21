@@ -5,13 +5,14 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-import propagate_style_guides
+import propagate.model
+import propagate.files
 
 
 def test_python_plan_matches_legacy():
 	"""Python type plan matches legacy TYPED_SPEC."""
 	template_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-	plan = propagate_style_guides.compute_propagation_plan(template_root, 'python')
+	plan = propagate.files.compute_propagation_plan(template_root, 'python')
 
 	# Expected universal files
 	expected_universal_overwrite = {
@@ -39,7 +40,7 @@ def test_python_plan_matches_legacy():
 	}
 
 	expected_universal_devel = {'commit_changelog.py'}
-	expected_python_devel = {'submit_to_pypi.py'}
+	expected_python_devel = set()  # submit_to_pypi.py requires pyproject.toml at repo_dir
 	expected_devel = expected_universal_devel | expected_python_devel
 
 	# Check overwrite_files
@@ -58,7 +59,7 @@ def test_python_plan_matches_legacy():
 def test_typescript_plan_matches_legacy():
 	"""TypeScript type plan matches legacy TYPED_SPEC."""
 	template_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-	plan = propagate_style_guides.compute_propagation_plan(template_root, 'typescript')
+	plan = propagate.files.compute_propagation_plan(template_root, 'typescript')
 
 	expected_universal_overwrite = {
 		'docs/REPO_STYLE.md',
@@ -115,7 +116,7 @@ def test_typescript_plan_matches_legacy():
 def test_rust_plan_matches_legacy():
 	"""Rust type plan matches legacy TYPED_SPEC."""
 	template_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-	plan = propagate_style_guides.compute_propagation_plan(template_root, 'rust')
+	plan = propagate.files.compute_propagation_plan(template_root, 'rust')
 
 	expected_universal_overwrite = {
 		'docs/REPO_STYLE.md',
@@ -153,7 +154,7 @@ def test_rust_plan_matches_legacy():
 def test_other_plan_matches_legacy():
 	"""Other type plan matches legacy TYPED_SPEC."""
 	template_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-	plan = propagate_style_guides.compute_propagation_plan(template_root, 'other')
+	plan = propagate.files.compute_propagation_plan(template_root, 'other')
 
 	expected_universal_overwrite = {
 		'docs/REPO_STYLE.md',
@@ -163,8 +164,8 @@ def test_other_plan_matches_legacy():
 		'docs/E2E_TESTS.md',
 		'CLAUDE.md',
 	}
-	# 'other' type gets PYTHON_STYLE.md only (per legacy spec)
-	expected_other_overwrite = {'docs/PYTHON_STYLE.md'}
+	# 'other' type no longer gets PYTHON_STYLE.md (language rule is PYTHON, not 'other')
+	expected_other_overwrite = set()
 	expected_overwrite = expected_universal_overwrite | expected_other_overwrite
 
 	expected_universal_noexist = {

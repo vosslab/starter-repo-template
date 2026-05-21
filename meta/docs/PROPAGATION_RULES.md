@@ -1,0 +1,75 @@
+# Propagation rules
+
+Where to drop a file so the propagator ships it to the right repos.
+
+## Hardcoding principles
+
+Manifests in `propagate/model.py` follow three categories:
+
+- **Good hardcoding** -- root files with special semantics, noexist files, routing overrides. These need explicit intent because no directory convention can express them.
+- **Expected hardcoding** -- root allowlist, root meta files. Root has mixed semantics (some ship, some don't, some need bootstrap-time customization); per-file lists are correct.
+- **Bad hardcoding** -- files classifiable by directory listed individually. Move them to a META_DIRS entry. Example: `tools/detect_repo_type.py` lived in META_FILES; now `tools` is in META_DIRS and the file entry is gone.
+
+The cleaner principle:
+
+1. **Directory convention when possible.** If every file under a directory shares the same routing, put the directory name in META_DIRS / SKIP_WALK_DIRS, not each file.
+2. **Explicit list when root-level meaning is ambiguous.** Root files (`README.md`, `VERSION`, `Brewfile`, `.gitignore`, `REPO_TYPE`) need per-repo customization; list them in META_FILES.
+3. **Override table only for true routing exceptions.** Language gates and `requires_repo_file` gates that can't be expressed by location go in ROUTING_OVERRIDES.
+
+Do not try to eliminate all hardcoding. Root has mixed semantics; explicit lists are correct there.
+
+## Folder convention
+
+| Want to ... | Put the file under | Ships to |
+|---|---|---|
+| Doc that every repo gets | docs/ | every repo, overwrite |
+| Universal pytest helper | tests/ (test_*.py or helper) | every repo, overwrite |
+| Helper script in devel/ | devel/ | every repo, overwrite |
+| Starter file that must not clobber existing | templates/<type>/noexist/<consumer-path> | only when missing |
+| TypeScript-only file | templates/typescript/<consumer-path> | typescript repos only |
+| Rust-only file | templates/rust/<consumer-path> | rust repos only |
+| Language-specific file | add path to ROUTING_OVERRIDES in propagate/model.py | language-specific behavior |
+| Root-level file like AGENTS.md | template root + add to ROOT_PROPAGATE_ALLOWLIST | every repo, overwrite |
+| Universal gitignore blocks | templates/gitignore.universal | every repo, merged into .gitignore under `# === UNIVERSAL ===` |
+| Template-only tooling | tools/<file> | never (template-meta) |
+
+## Precedence
+
+File routing honors a strict precedence order; earlier rules win on conflict:
+
+1. **META_FILES / META_DIRS** - Files in these block-lists never ship to any consumer, even if matched by other rules.
+2. **ROUTING_OVERRIDES** - Files with language-specific or requirement-based routing rules. Each override can specify a required language or a required file at the consumer repo. Allows fine-grained control over which files ship to which repo types.
+3. **UNIVERSAL_NOEXIST** - Files in this list override the universal overwrite default; they move to noexist_files instead.
+4. **Typed noexist** - Templates/<type>/noexist/<path> overrides typed overlay overwrite; same path in noexist always wins.
+5. **Typed overlay shadows universal** - When both universal and typed overlay define the same consumer destination, the typed version ships. The propagator prints `[OVERLAY-OVERRIDE] <consumer-path>: typed overlay shadows universal source` to stdout for visibility.
+
+## Exceptions in the manifest
+
+Most additions are drop-and-go. The propagator keeps four short manifests in `propagate/model.py`:
+
+- `ROOT_PROPAGATE_ALLOWLIST` -- root files that DO ship. Default: CLAUDE.md, AGENTS.md, source_me.sh. Add here when introducing a new root-level file all repos need.
+- `UNIVERSAL_NOEXIST` -- universal files that ship only when missing at consumer. Default: AGENTS.md, source_me.sh, docs/AUTHORS.md.
+
+The two sets compose: `ROOT_PROPAGATE_ALLOWLIST` decides IF a root file ships; `UNIVERSAL_NOEXIST` then decides HOW (overwrite vs noexist-only). Overlap is intentional: `AGENTS.md` and `source_me.sh` appear in both - allowlisted to ship, then routed noexist-only so they don't clobber consumer customizations. `CLAUDE.md` is allowlist-only, so it overwrites.
+- `ROUTING_OVERRIDES` -- files with language-specific or requirement-based routing rules. Maps file path to a dict with optional `language` and `requires_repo_file` fields. Examples: `docs/PYTHON_STYLE.md` ships only to python repos; `devel/submit_to_pypi.py` ships to python repos that have `pyproject.toml`.
+- `META_FILES` / `META_DIRS` / `META_TEST_PREFIXES` -- block-lists for files that NEVER ship (propagator itself, reset_repo, LICENSES/, etc.).
+
+## Examples
+
+- Adding `docs/SHELL_STYLE.md` -- drop in `docs/`, no manifest edit. Every repo gets it.
+- Adding `tests/test_security_audit.py` -- drop in `tests/`, every repo gets it.
+- Adding `templates/typescript/.eslintignore` -- drop under `templates/typescript/`. TypeScript repos get it at consumer root.
+- Adding a new starter `Makefile` that must not clobber existing ones -- drop at `templates/<type>/noexist/Makefile` (per type) or add path to `UNIVERSAL_NOEXIST` + place at template root.
+- Adding `docs/FOO_PACKAGE_GUIDE.md` that only python-package repos need -- drop at `docs/FOO_PACKAGE_GUIDE.md` AND add `'docs/FOO_PACKAGE_GUIDE.md': {'language': LANG_PYTHON}` to `ROUTING_OVERRIDES`.
+
+## Routing override gates
+
+The `ROUTING_OVERRIDES` dict in `propagate/model.py` controls which files ship and to which repos:
+
+- **`language` gate** - Only ships when the consumer repo's `repo_type` matches the specified language. Example: `'docs/PYTHON_STYLE.md': {'language': LANG_PYTHON}` ships only to python repos.
+- **`requires_repo_file` gate** - Only ships when a required file exists at the consumer repo. Example: `'devel/submit_to_pypi.py': {'language': LANG_PYTHON, 'requires_repo_file': 'pyproject.toml'}` ships to python repos that have a `pyproject.toml` file. This prevents shipping utilities for features the repo doesn't yet have.
+- **`bucket` field** - Optional shorthand bucket name that expands to `<bucket>_files` at dispatch. Example: `'bucket': 'noexist'` routes the file to the `noexist_files` bucket. This overrides the default bucket assignment and enables fine-grained file-placement control.
+
+## What never propagates
+
+Listed in `META_FILES` / `META_DIRS` / `META_TEST_PREFIXES`. Includes the propagator entry script `propagate_style_guides.py`, reset_repo.py, README.md, VERSION, Brewfile, .gitignore, REPO_TYPE, pip_extras.txt (root META_FILES); `propagate/` helper package, `tools/` (detect_repo_type.py and other template-only tooling), `meta/` (this doc and other template-meta), `templates/` (only contents under `templates/<type>/` ship), `LICENSES/`, `docs/active_plans/`, `docs/archive/`, `experiment_reports/`, `__pycache__/`, `.git/` (META_DIRS). Tests starting with `test_propagate_`, `test_reset_repo_`, or `test_detect_repo_type` never ship (META_TEST_PREFIXES).
