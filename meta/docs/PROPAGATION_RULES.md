@@ -54,8 +54,6 @@ Every file the propagator ships is classified into one of four policy categories
 - **NOEXIST** -- starter seed; consumer owns the file thereafter. Use when the consumer reasonably extends the file with project-specific content the template cannot anticipate (e.g., `AGENTS.md`, `source_me.sh`, `tsconfig.json`, deploy scripts).
 - **META** -- never ships, any bucket, any repo type. Use for template-only infrastructure (propagator itself, reset_repo, README, VERSION) and per-repo content the template cannot author (CHANGELOG, .gitignore, REPO_TYPE).
 
-Per-file verdicts for the current ship list live in [active_audits/propagate_classification.md](active_audits/propagate_classification.md). Full-set membership is pinned by `tests/meta/test_propagate_plan_matches_legacy.py`; the META-leak invariant is pinned by `tests/meta/test_no_meta_leaks.py`.
-
 ## Exceptions in the manifest
 
 Most additions are drop-and-go. The propagator keeps five short manifests in `propagate/model.py`:
