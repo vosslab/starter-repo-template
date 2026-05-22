@@ -315,39 +315,68 @@ def get_cached_diff(path: str) -> str:
 
 #============================================
 
-def get_last_changelog_commit_date() -> str | None:
-	"""Return YYYY-MM-DD of the last commit touching docs/CHANGELOG.md.
+def get_last_changelog_commit_sha() -> str | None:
+	"""Return the full SHA of the last commit touching docs/CHANGELOG.md.
 
-	Uses ``git log -1 --format=%cI`` (committer date, ISO 8601). Returns
-	``None`` when the changelog has no prior commit (first-time use).
+	Returns ``None`` when the changelog has no prior commit (first-time
+	use).
 	"""
 	result = changelog_lib.run_git(
-		["log", "-1", "--format=%cI", "--", CHANGELOG_PATHSPEC]
+		["log", "-1", "--format=%H", "--", CHANGELOG_PATHSPEC]
 	)
 	if result.returncode != 0:
 		raise RuntimeError(result.stderr.strip() or "git log failed.")
 	stdout = result.stdout.strip()
 	if not stdout:
 		return None
-	# leading 10 chars of ISO timestamp is the YYYY-MM-DD calendar day
-	return stdout[:10]
+	return stdout
 
 #============================================
 
-def select_new_entries(cutoff_date: str | None) -> tuple[list, list[str]]:
-	"""Parse docs/CHANGELOG.md and return entries dated >= cutoff_date.
+def get_changelog_text_at(sha: str) -> str:
+	"""Return docs/CHANGELOG.md contents at ``sha`` via git show.
+
+	Raises:
+		RuntimeError: When git show fails (missing object, shallow
+			clone that does not contain the SHA, etc.). The caller
+			must not silently fall back to "all entries are new" --
+			that would resurrect the bug this helper exists to fix.
+	"""
+	result = changelog_lib.run_git(
+		["show", f"{sha}:{CHANGELOG_PATHSPEC}"]
+	)
+	if result.returncode != 0:
+		raise RuntimeError(
+			result.stderr.strip()
+			or f"git show failed for {sha}:{CHANGELOG_PATHSPEC}"
+		)
+	return result.stdout
+
+#============================================
+
+def select_new_entries(prior_sha: str | None) -> tuple[list, list[str]]:
+	"""Return entries present in current CHANGELOG but not at ``prior_sha``.
+
+	Replaces the prior date-window filter (which re-emitted bullets that
+	had already been committed earlier the same day when the user added
+	more bullets under the same ``## YYYY-MM-DD`` heading). Selection
+	now diffs the parsed entry set against the entry set in the file at
+	the last changelog-touching commit, keyed by ``(date, title)``.
 
 	Args:
-		cutoff_date: YYYY-MM-DD string or None. When None, every entry
-			is returned (first-time use case).
+		prior_sha: Full SHA of the last commit touching
+			docs/CHANGELOG.md, or ``None`` for first-time use.
 
 	Returns:
 		A tuple ``(entries, warnings)``. ``entries`` is a list of
-		``changelog_lib.Entry`` records. ``warnings`` is the
-		deduplicated list of warning messages emitted by the library
-		parser; caller prints them once.
+		``changelog_lib.Entry`` records in current-file order.
+		``warnings`` is the deduplicated list of parser warnings on the
+		CURRENT file; prior-file warnings are intentionally suppressed
+		(they would re-print stale parse complaints on every commit).
 	"""
-	_blocks, entries, warnings = changelog_lib.parse_file(CHANGELOG_PATHSPEC)
+	_blocks, current_entries, warnings = changelog_lib.parse_file(
+		CHANGELOG_PATHSPEC
+	)
 	# deduplicate warning messages on identical text
 	seen: set[str] = set()
 	unique_warnings: list[str] = []
@@ -356,11 +385,32 @@ def select_new_entries(cutoff_date: str | None) -> tuple[list, list[str]]:
 			continue
 		seen.add(warning)
 		unique_warnings.append(warning)
-	if cutoff_date is None:
-		return (entries, unique_warnings)
-	# YYYY-MM-DD strings sort lexicographically the same as calendar dates
-	new_entries = [entry for entry in entries if entry.date >= cutoff_date]
+	if prior_sha is None:
+		return (current_entries, unique_warnings)
+	prior_text = get_changelog_text_at(prior_sha)
+	_p_blocks, prior_entries, _p_warnings = changelog_lib.parse_text(
+		prior_text, source=f"{prior_sha[:8]}:{CHANGELOG_PATHSPEC}"
+	)
+	new_entries = compute_new_entries(current_entries, prior_entries)
 	return (new_entries, unique_warnings)
+
+#============================================
+
+def compute_new_entries(current_entries: list, prior_entries: list) -> list:
+	"""Return current_entries whose (date, title) is not in prior_entries.
+
+	Preserves current-entry order. Identity key is ``(date, title)``;
+	bullets may be rephrased per repo norms, so a title edit looks "new"
+	here and the user prunes in the editor buffer.
+	"""
+	prior_keys: set[tuple[str, str]] = {
+		(entry.date, entry.title) for entry in prior_entries
+	}
+	new_entries = [
+		entry for entry in current_entries
+		if (entry.date, entry.title) not in prior_keys
+	]
+	return new_entries
 
 #============================================
 
@@ -574,20 +624,23 @@ def main() -> None:
 		changelog_lib.CONSOLE.print(message, style="yellow")
 		return
 
-	# parse-based new-entry selection: build the seed from changelog_lib's
-	# Entry records dated on or after the last changelog-touching commit
-	cutoff_date = get_last_changelog_commit_date()
-	new_entries, warnings = select_new_entries(cutoff_date)
+	# parse-based new-entry selection: build the seed from current entries
+	# whose (date, title) does not appear in the changelog at the last
+	# commit that touched it. This avoids re-emitting bullets that were
+	# already committed earlier the same day when more bullets land under
+	# the same ## YYYY-MM-DD heading.
+	prior_sha = get_last_changelog_commit_sha()
+	new_entries, warnings = select_new_entries(prior_sha)
 	# print parse warnings once (deduplicated upstream)
 	for warning in warnings:
 		changelog_lib.print_warning(warning)
 
 	if not new_entries:
-		if cutoff_date is None:
+		if prior_sha is None:
 			message = f"No entries in {changelog_path}. Nothing to commit."
 		else:
 			message = (
-				f"No new entries since last commit (cutoff {cutoff_date}). "
+				f"No new entries since commit {prior_sha[:8]}. "
 				"Nothing to commit."
 			)
 		changelog_lib.CONSOLE.print(message, style="yellow")

@@ -1,10 +1,12 @@
 """Tests for devel/commit_changelog.py deterministic helpers.
 
 Narrow coverage of pure-function paths where a real bug could plausibly
-slip through: the cleaner composition pipeline, and the message-builder
+slip through: the cleaner composition pipeline, the message-builder
 branches (empty, single entry, single-day vs multi-day grouping, body
-continuation). The git-touching helpers (`get_last_changelog_commit_date`,
-`select_new_entries`) are exercised by interactive smoke runs, not pytest.
+continuation), and the entry-selection set-difference (driven against
+fabricated prior/current changelog strings, no git, no filesystem).
+The git-touching wrappers (`get_last_changelog_commit_sha`,
+`get_changelog_text_at`) are exercised by interactive smoke runs.
 """
 
 # Standard Library
@@ -91,6 +93,78 @@ def test_make_seed_message_emits_indented_continuation_when_body_present():
 	bullet_idx = next(i for i, ln in enumerate(lines)
 			if ln.startswith("- first line"))
 	assert lines[bullet_idx + 1].startswith("  continuation")
+
+
+#============================================
+# compute_new_entries: set-difference identity logic (the bug fix)
+
+def test_compute_new_entries_empty_prior_returns_all():
+	current = [make_entry("2026-05-21", "a"), make_entry("2026-05-21", "b")]
+	out = commit_changelog.compute_new_entries(current, [])
+	assert [e.title for e in out] == ["a", "b"]
+
+def test_compute_new_entries_same_day_second_commit():
+	# bug repro: prior commit shipped a + b under today; user added c.
+	# the old date-window filter returned a, b, c; the fix returns only c.
+	prior = [make_entry("2026-05-21", "a"), make_entry("2026-05-21", "b")]
+	current = [
+		make_entry("2026-05-21", "a"),
+		make_entry("2026-05-21", "b"),
+		make_entry("2026-05-21", "c"),
+	]
+	out = commit_changelog.compute_new_entries(current, prior)
+	assert [e.title for e in out] == ["c"]
+
+def test_compute_new_entries_no_changes_returns_empty():
+	entries = [make_entry("2026-05-21", "a")]
+	out = commit_changelog.compute_new_entries(entries, entries)
+	assert out == []
+
+def test_compute_new_entries_title_rephrase_treated_as_new():
+	# documented behavior: a rephrased title is a new key.
+	prior = [make_entry("2026-05-21", "original phrasing")]
+	current = [make_entry("2026-05-21", "revised phrasing")]
+	out = commit_changelog.compute_new_entries(current, prior)
+	assert [e.title for e in out] == ["revised phrasing"]
+
+def test_compute_new_entries_preserves_current_order():
+	prior = [make_entry("2026-05-21", "b")]
+	current = [
+		make_entry("2026-05-21", "c"),
+		make_entry("2026-05-21", "b"),
+		make_entry("2026-05-21", "a"),
+	]
+	out = commit_changelog.compute_new_entries(current, prior)
+	assert [e.title for e in out] == ["c", "a"]
+
+
+#============================================
+# parse_text: in-memory parse entry point used by the SHA-anchored selection
+
+def test_parse_text_round_trip_drives_compute_new_entries():
+	# Bug-fix integration: feed prior + current changelog strings through
+	# parse_text and verify the (date, title) set-difference picks only
+	# the newly-added bullet. This is the actual end-to-end path that
+	# select_new_entries follows for non-first-time commits.
+	prior_text = (
+		"## 2026-05-21\n\n"
+		"### Fixes and Maintenance\n\n"
+		"- morning bullet\n"
+	)
+	current_text = (
+		"## 2026-05-21\n\n"
+		"### Fixes and Maintenance\n\n"
+		"- morning bullet\n"
+		"- afternoon bullet\n"
+	)
+	_pb, prior_entries, _pw = changelog_lib.parse_text(
+		prior_text, source="<prior>"
+	)
+	_cb, current_entries, _cw = changelog_lib.parse_text(
+		current_text, source="<current>"
+	)
+	new = commit_changelog.compute_new_entries(current_entries, prior_entries)
+	assert [e.title for e in new] == ["afternoon bullet"]
 
 
 if __name__ == "__main__":

@@ -559,23 +559,34 @@ def split_day_block(block: DayBlock, strict: bool = False) -> tuple:
 #============================================
 # Convenience
 
-def parse_file(path: str, strict: bool = False,
+def parse_text(text: str, source: str = "<unknown>", strict: bool = False,
 		duplicate_policy: str = "warn") -> tuple:
-	"""Read, parse, and split a changelog file in a single call.
+	"""Parse and split a changelog from an in-memory string.
+
+	Same return shape as ``parse_file``. Use this when the source text
+	comes from somewhere other than a filesystem path (for example
+	``git show <sha>:docs/CHANGELOG.md`` output).
 
 	Args:
-		path: Path to the changelog file.
+		text: Full changelog file contents.
+		source: Label used in warning messages and on each resulting
+			record. Defaults to ``"<unknown>"``.
 		strict: Passed to ``split_day_block``.
 		duplicate_policy: Passed to ``parse_day_blocks``.
 
 	Returns:
 		A tuple ``(blocks, entries, warnings)``. ``warnings`` is the
 		concatenation of the parse-time warnings and every block's
-		split-time warnings.
+		split-time warnings. Legacy-flat per-block warnings are
+		collapsed into a single per-source summary line.
+
+	Raises:
+		ValueError: Passthrough from ``parse_day_blocks`` when
+			``duplicate_policy='raise'`` and a duplicate
+			``## YYYY-MM-DD`` heading is encountered.
 	"""
-	text = read_changelog(path)
 	_preamble, blocks, parse_warnings = parse_day_blocks(
-		text, source=path, duplicate_policy=duplicate_policy,
+		text, source=source, duplicate_policy=duplicate_policy,
 	)
 	entries: list = []
 	split_warnings: list = []
@@ -593,10 +604,38 @@ def parse_file(path: str, strict: bool = False,
 	combined_warnings = parse_warnings + non_legacy
 	if legacy_count > 0:
 		combined_warnings.append(
-			f"{path}: legacy flat changelog: {legacy_count} day blocks have "
+			f"{source}: legacy flat changelog: {legacy_count} day blocks have "
 			f"bullets with no category heading (treated as Uncategorized)"
 		)
 	return (blocks, entries, combined_warnings)
+
+#============================================
+
+def parse_file(path: str, strict: bool = False,
+		duplicate_policy: str = "warn") -> tuple:
+	"""Read, parse, and split a changelog file in a single call.
+
+	Thin wrapper around ``parse_text``: reads ``path``, then delegates.
+
+	Args:
+		path: Path to the changelog file.
+		strict: Passed to ``split_day_block``.
+		duplicate_policy: Passed to ``parse_day_blocks``.
+
+	Returns:
+		A tuple ``(blocks, entries, warnings)``. ``warnings`` is the
+		concatenation of the parse-time warnings and every block's
+		split-time warnings.
+
+	Raises:
+		FileNotFoundError: When ``path`` does not exist.
+		ValueError: Passthrough from ``parse_day_blocks`` when
+			``duplicate_policy='raise'`` and a duplicate
+			``## YYYY-MM-DD`` heading is encountered.
+	"""
+	text = read_changelog(path)
+	return parse_text(text, source=path, strict=strict,
+		duplicate_policy=duplicate_policy)
 
 #============================================
 
