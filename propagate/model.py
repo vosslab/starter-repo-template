@@ -47,6 +47,7 @@ ROOT_PROPAGATE_ALLOWLIST = frozenset({
 	'CLAUDE.md',
 	'AGENTS.md',
 	'source_me.sh',
+	'dist_clean.sh',
 })
 
 # Language type constants

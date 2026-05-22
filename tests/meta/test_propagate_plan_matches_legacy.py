@@ -22,6 +22,7 @@ def test_python_plan_matches_legacy():
 		'docs/PYTEST_STYLE.md',
 		'docs/E2E_TESTS.md',
 		'CLAUDE.md',
+		'dist_clean.sh',
 	}
 	# Python-specific
 	expected_python_overwrite = {
@@ -68,6 +69,7 @@ def test_typescript_plan_matches_legacy():
 		'docs/PYTEST_STYLE.md',
 		'docs/E2E_TESTS.md',
 		'CLAUDE.md',
+		'dist_clean.sh',
 	}
 	expected_ts_overwrite = {
 		'docs/TYPESCRIPT_STYLE.md',
@@ -77,7 +79,6 @@ def test_typescript_plan_matches_legacy():
 		'build_github_pages.sh',
 		'run_web_server.sh',
 		'check_codebase.sh',
-		'dist_clean.sh',
 	}
 	expected_overwrite = expected_universal_overwrite | expected_ts_overwrite
 
@@ -125,6 +126,7 @@ def test_rust_plan_matches_legacy():
 		'docs/PYTEST_STYLE.md',
 		'docs/E2E_TESTS.md',
 		'CLAUDE.md',
+		'dist_clean.sh',
 	}
 	expected_overwrite = expected_universal_overwrite
 
@@ -163,6 +165,7 @@ def test_other_plan_matches_legacy():
 		'docs/PYTEST_STYLE.md',
 		'docs/E2E_TESTS.md',
 		'CLAUDE.md',
+		'dist_clean.sh',
 	}
 	# 'other' type no longer gets PYTHON_STYLE.md (language rule is PYTHON, not 'other')
 	expected_other_overwrite = set()
