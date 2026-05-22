@@ -62,11 +62,13 @@ def test_make_seed_message_empty_returns_none():
 	assert commit_changelog.make_seed_message_from_entries([]) is None
 
 def test_make_seed_message_single_entry_uses_title_as_subject():
+	# single entry with no body: subject is the title and there is no
+	# body block (the title bullet would just duplicate the subject)
 	entry = make_entry("2026-05-21", "Fix link in docs/FILE.md")
 	out = commit_changelog.make_seed_message_from_entries([entry])
 	lines = out.splitlines()
 	assert lines[0] == "Fix link in docs/FILE.md"
-	assert "- Fix link in docs/FILE.md" in lines
+	assert "- Fix link in docs/FILE.md" not in lines
 
 def test_make_seed_message_multi_day_emits_date_headings():
 	entries = [
@@ -85,14 +87,30 @@ def test_make_seed_message_single_day_omits_heading():
 	out = commit_changelog.make_seed_message_from_entries(entries)
 	assert "## 2026-05-21" not in out
 
-def test_make_seed_message_emits_indented_continuation_when_body_present():
+def test_make_seed_message_single_entry_emits_body_as_paragraph():
+	# single entry with a body: subject is the title; body is rendered as
+	# a plain paragraph after the blank line (no `- title` repetition,
+	# no two-space indent -- that shape is reserved for multi-entry lists)
 	entry = make_entry("2026-05-21", "first line of bullet",
 			body="continuation text on second line")
 	out = commit_changelog.make_seed_message_from_entries([entry])
 	lines = out.splitlines()
-	bullet_idx = next(i for i, ln in enumerate(lines)
-			if ln.startswith("- first line"))
-	assert lines[bullet_idx + 1].startswith("  continuation")
+	assert lines[0] == "first line of bullet"
+	assert lines[1] == ""
+	assert lines[2].startswith("continuation text")
+	assert not any(ln.startswith("- first line") for ln in lines)
+
+def test_make_seed_message_multi_entry_keeps_bulleted_body():
+	# multi-entry seeds keep the `- title` bullet list (each entry must
+	# be individually scannable in the editor buffer)
+	entries = [
+		make_entry("2026-05-21", "alpha"),
+		make_entry("2026-05-21", "beta"),
+	]
+	out = commit_changelog.make_seed_message_from_entries(entries)
+	lines = out.splitlines()
+	assert "- alpha" in lines
+	assert "- beta" in lines
 
 
 #============================================

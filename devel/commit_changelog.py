@@ -18,6 +18,9 @@ import shlex
 import tempfile
 import subprocess
 
+# PIP3 modules
+import rich.panel
+
 # local repo modules
 import changelog_lib
 
@@ -496,30 +499,40 @@ def make_seed_message_from_entries(entries: list) -> str | None:
 	emit_date_headings = len(distinct_dates) > 1
 
 	body_lines: list[str] = []
-	for entry in entries:
-		if len(body_lines) >= MAX_BODY_LINES:
-			break
-		if emit_date_headings:
-			# entries may arrive interleaved by date; scan all prior body
-			# lines (not just the last) to ensure exactly one `## DATE`
-			# heading per distinct date across the whole body
-			heading = f"## {entry.date}"
-			prior_heading_present = any(
-				line.startswith(heading) for line in body_lines
-			)
-			if not prior_heading_present:
-				body_lines.append(heading)
-				if len(body_lines) >= MAX_BODY_LINES:
-					break
-		# title line
-		title_line = "- " + clean_entry_text(entry.title, BODY_LINE_BUDGET)
-		body_lines.append(title_line)
-		if len(body_lines) >= MAX_BODY_LINES:
-			break
-		# body continuation, if present
-		if entry.body:
-			body_line = "  " + clean_entry_text(entry.body, BODY_LINE_BUDGET)
-			body_lines.append(body_line)
+	# single-entry special case: the subject already states the title, so
+	# repeating it as a `- title` bullet is pure noise. Emit only the
+	# entry body (when present) as a wrapped paragraph; otherwise no body
+	# block at all. Multi-entry seeds keep the bulleted list shape so each
+	# entry is individually scannable in the editor buffer.
+	if num_entries == 1:
+		only_entry = entries[0]
+		if only_entry.body:
+			body_lines.append(clean_entry_text(only_entry.body, BODY_LINE_BUDGET))
+	else:
+		for entry in entries:
+			if len(body_lines) >= MAX_BODY_LINES:
+				break
+			if emit_date_headings:
+				# entries may arrive interleaved by date; scan all prior body
+				# lines (not just the last) to ensure exactly one `## DATE`
+				# heading per distinct date across the whole body
+				heading = f"## {entry.date}"
+				prior_heading_present = any(
+					line.startswith(heading) for line in body_lines
+				)
+				if not prior_heading_present:
+					body_lines.append(heading)
+					if len(body_lines) >= MAX_BODY_LINES:
+						break
+			# title line
+			title_line = "- " + clean_entry_text(entry.title, BODY_LINE_BUDGET)
+			body_lines.append(title_line)
+			if len(body_lines) >= MAX_BODY_LINES:
+				break
+			# body continuation, if present
+			if entry.body:
+				body_line = "  " + clean_entry_text(entry.body, BODY_LINE_BUDGET)
+				body_lines.append(body_line)
 
 	body = "\n".join(body_lines).strip()
 	if body:
@@ -651,10 +664,18 @@ def main() -> None:
 	if seed_message is None:
 		return
 
-	# show the seed message for the user's pre-commit visual check
-	changelog_lib.CONSOLE.print("Seed commit message:", style="bold")
-	changelog_lib.CONSOLE.print(seed_message, markup=False)
-	changelog_lib.CONSOLE.rule()
+	# show the seed message in a bordered panel so the editor preview
+	# is visually distinct from surrounding console output (warnings,
+	# git status, prompts). title="Seed commit message"; rstrip on the
+	# panel body to prevent rich from rendering a trailing blank row.
+	panel = rich.panel.Panel(
+		seed_message.rstrip("\n"),
+		title="Seed commit message",
+		title_align="left",
+		border_style="cyan",
+		expand=False,
+	)
+	changelog_lib.CONSOLE.print(panel, markup=False)
 
 	action = prompt_message_action("Add to the commit message?")
 	if action == "no":
