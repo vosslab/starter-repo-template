@@ -31,6 +31,7 @@ Do not try to eliminate all hardcoding. Root has mixed semantics; explicit lists
 | Language-specific file | add path to ROUTING_OVERRIDES in propagate/model.py | language-specific behavior |
 | Root-level file like AGENTS.md | template root + add to ROOT_PROPAGATE_ALLOWLIST | every repo, overwrite |
 | Universal gitignore blocks | templates/gitignore.universal | every repo, merged into .gitignore under `# === UNIVERSAL ===` |
+| Fenced merge (template owns a region, consumer owns the rest) | template root + add to `MERGE_FILES` | every repo, fenced merge (see [MERGE_BUCKET_SPEC.md](MERGE_BUCKET_SPEC.md)) |
 | Template-only tooling | tools/<file> | never (template-meta) |
 
 ## Precedence
@@ -38,19 +39,32 @@ Do not try to eliminate all hardcoding. Root has mixed semantics; explicit lists
 File routing honors a strict precedence order; earlier rules win on conflict:
 
 1. **META_FILES / META_DIRS** - Files in these block-lists never ship to any consumer, even if matched by other rules.
-2. **ROUTING_OVERRIDES** - Files with language-specific or requirement-based routing rules. Each override can specify a required language or a required file at the consumer repo. Allows fine-grained control over which files ship to which repo types.
-3. **UNIVERSAL_NOEXIST** - Files in this list override the universal overwrite default; they move to noexist_files instead.
-4. **Typed noexist** - Templates/<type>/noexist/<path> overrides typed overlay overwrite; same path in noexist always wins.
-5. **Typed overlay shadows universal** - When both universal and typed overlay define the same consumer destination, the typed version ships. The propagator prints `[OVERLAY-OVERRIDE] <consumer-path>: typed overlay shadows universal source` to stdout for visibility.
+2. **MERGE_FILES** - Files in this set route to the `merge_files` bucket regardless of where the walker would otherwise place them. Post-walker step 6 in `compute_propagation_plan` moves matching entries out of `overwrite_files` / `noexist_files` into `merge_files`. See [MERGE_BUCKET_SPEC.md](MERGE_BUCKET_SPEC.md).
+3. **ROUTING_OVERRIDES** - Files with language-specific or requirement-based routing rules. Each override can specify a required language or a required file at the consumer repo. Allows fine-grained control over which files ship to which repo types.
+4. **UNIVERSAL_NOEXIST** - Files in this list override the universal overwrite default; they move to noexist_files instead.
+5. **Typed noexist** - Templates/<type>/noexist/<path> overrides typed overlay overwrite; same path in noexist always wins.
+6. **Typed overlay shadows universal** - When both universal and typed overlay define the same consumer destination, the typed version ships. The propagator prints `[OVERLAY-OVERRIDE] <consumer-path>: typed overlay shadows universal source` to stdout for visibility.
+
+## Classification criterion
+
+Every file the propagator ships is classified into one of four policy categories. The classification rule for new files:
+
+- **OVERWRITE** -- template centrally owns the file; consumer divergence is a bug to erase on next sync. Use for style guides, shared lint tests, shared helper scripts, and the universal clean sweep.
+- **MERGE** -- the template owns a fenced region of the file; the consumer owns everything outside the fences. Use when the file has both template-owned and consumer-owned content (e.g., `CLAUDE.md`'s `@`-imports block). Requires comment syntax in the file's language; pure JSON cannot MERGE. See [MERGE_BUCKET_SPEC.md](MERGE_BUCKET_SPEC.md) for fence convention.
+- **NOEXIST** -- starter seed; consumer owns the file thereafter. Use when the consumer reasonably extends the file with project-specific content the template cannot anticipate (e.g., `AGENTS.md`, `source_me.sh`, `tsconfig.json`, deploy scripts).
+- **META** -- never ships, any bucket, any repo type. Use for template-only infrastructure (propagator itself, reset_repo, README, VERSION) and per-repo content the template cannot author (CHANGELOG, .gitignore, REPO_TYPE).
+
+Per-file verdicts for the current ship list live in [active_audits/propagate_classification.md](active_audits/propagate_classification.md). Full-set membership is pinned by `tests/meta/test_propagate_plan_matches_legacy.py`; the META-leak invariant is pinned by `tests/meta/test_no_meta_leaks.py`.
 
 ## Exceptions in the manifest
 
-Most additions are drop-and-go. The propagator keeps four short manifests in `propagate/model.py`:
+Most additions are drop-and-go. The propagator keeps five short manifests in `propagate/model.py`:
 
 - `ROOT_PROPAGATE_ALLOWLIST` -- root files that DO ship. Default: CLAUDE.md, AGENTS.md, source_me.sh. Add here when introducing a new root-level file all repos need.
 - `UNIVERSAL_NOEXIST` -- universal files that ship only when missing at consumer. Default: AGENTS.md, source_me.sh, docs/AUTHORS.md.
 
-The two sets compose: `ROOT_PROPAGATE_ALLOWLIST` decides IF a root file ships; `UNIVERSAL_NOEXIST` then decides HOW (overwrite vs noexist-only). Overlap is intentional: `AGENTS.md` and `source_me.sh` appear in both - allowlisted to ship, then routed noexist-only so they don't clobber consumer customizations. `CLAUDE.md` is allowlist-only, so it overwrites.
+The two sets compose: `ROOT_PROPAGATE_ALLOWLIST` decides IF a root file ships; `UNIVERSAL_NOEXIST` then decides HOW (overwrite vs noexist-only). Overlap is intentional: `AGENTS.md` and `source_me.sh` appear in both - allowlisted to ship, then routed noexist-only so they don't clobber consumer customizations. `CLAUDE.md` is allowlisted and routed via `MERGE_FILES` (fenced merge), so the template owns the fenced region and the consumer owns content outside it.
+- `MERGE_FILES` -- files routed to the fenced-merge bucket. Default: CLAUDE.md. Template owns content between `# === TEMPLATE-MANAGED START ===` / `END` fences (per [MERGE_BUCKET_SPEC.md](MERGE_BUCKET_SPEC.md) fence-by-language table); consumer owns everything outside.
 - `ROUTING_OVERRIDES` -- files with language-specific or requirement-based routing rules. Maps file path to a dict with optional `language` and `requires_repo_file` fields. Examples: `docs/PYTHON_STYLE.md` ships only to python repos; `devel/submit_to_pypi.py` ships to python repos that have `pyproject.toml`.
 - `META_FILES` / `META_DIRS` / `META_TEST_PREFIXES` -- block-lists for files that NEVER ship (propagator itself, reset_repo, LICENSES/, etc.).
 

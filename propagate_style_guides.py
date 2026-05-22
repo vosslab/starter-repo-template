@@ -169,9 +169,14 @@ def apply_file_bucket(bucket_name: str, spec: dict, repo_dir: str, repo_type: st
 	bucket_copies = 0
 	bucket_skips = 0
 
+	# Defense in depth: assert no dispatcher entry is META even if the walker
+	# was bypassed (plan read from disk, user-supplied paths, etc.).
+	for entry in spec.get(bucket_name, []):
+		propagate.files.assert_not_meta(entry)
+
 	if bucket_name == 'overwrite_files':
 		# ============ OVERWRITE BUCKET ============
-		# Overwrite: copy to repo at exact path; CLAUDE.md merges to preserve user @ lines.
+		# Overwrite: copy to repo at exact path.
 		for file_rel in spec['overwrite_files']:
 			source_file = propagate.model.find_source_for_bucket(context.source_dir, 'overwrite_files', file_rel, repo_type)
 			if source_file is None:
@@ -184,22 +189,6 @@ def apply_file_bucket(bucket_name: str, spec: dict, repo_dir: str, repo_type: st
 			if os.path.abspath(dest_file) == os.path.abspath(source_file):
 				propagate.console.log_action("skip", f"self: {dest_file}", counters)
 				continue
-
-			# Special case: CLAUDE.md merges to preserve user @ lines
-			if file_rel == 'CLAUDE.md':
-				dest_exists = os.path.isfile(dest_file)
-				if dest_exists:
-					merged_content = propagate.files.merge_claude_md(source_file, dest_file)
-					existing_content = propagate.files.read_text(dest_file)
-					if merged_content == existing_content:
-						propagate.console.log_action("no change", dest_file, counters)
-						continue
-					propagate.files.write_text(dest_file, merged_content, context.dry_run, action='merge')
-					if not context.dry_run:
-						formatted_path = propagate.model.format_path_pair(source_file, dest_file, repo_dir, context)
-						propagate.console.log_action("merge", formatted_path)
-						counters['merged_count'] += 1
-					continue
 
 			# Regular overwrite: use copy_if_changed
 			def _format_overwrite_path(s: str, d: str) -> str:
@@ -282,6 +271,30 @@ def apply_file_bucket(bucket_name: str, spec: dict, repo_dir: str, repo_type: st
 				# On dry-run, result is still the action we would take
 				if result == 'updated':
 					bucket_updates += 1
+
+	elif bucket_name == 'merge_files':
+		# ============ MERGE BUCKET ============
+		# Merge: replace template-managed fenced region in consumer file; preserve consumer
+		# additions outside the fences. See meta/docs/MERGE_BUCKET_SPEC.md.
+		for file_rel in spec['merge_files']:
+			# Merge sources live at template_root paths (same lookup shape as overwrite_files).
+			source_file = propagate.model.find_source_for_bucket(context.source_dir, 'overwrite_files', file_rel, repo_type)
+			if source_file is None:
+				counters['errors'] += 1
+				propagate.console.log_action("error", f"source missing for merge_files:{file_rel}")
+				continue
+
+			dest_file = os.path.join(repo_dir, file_rel)
+
+			if os.path.abspath(dest_file) == os.path.abspath(source_file):
+				propagate.console.log_action("skip", f"self: {dest_file}", counters)
+				continue
+
+			outcome = propagate.files.merge_file_safe(source_file, dest_file, context.dry_run, counters)
+			if outcome == 'merged':
+				bucket_updates += 1
+			elif outcome == 'created':
+				bucket_copies += 1
 
 	elif bucket_name == 'test_files':
 		# ============ TEST BUCKET ============
@@ -494,6 +507,11 @@ def process_repo(repo_dir: str, context: 'propagate.model.PropagateContext', cou
 	repo_skips += skips
 
 	updates, copies, skips = apply_file_bucket('noexist_files', spec, repo_dir, repo_type, context, counters)
+	repo_updates += updates
+	repo_copies += copies
+	repo_skips += skips
+
+	updates, copies, skips = apply_file_bucket('merge_files', spec, repo_dir, repo_type, context, counters)
 	repo_updates += updates
 	repo_copies += copies
 	repo_skips += skips

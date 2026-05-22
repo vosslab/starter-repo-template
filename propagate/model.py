@@ -42,7 +42,7 @@ DEFAULT_REPO_SKIP_NAMES = frozenset({
 # MAY ship; UNIVERSAL_NOEXIST then refines HOW it ships (overwrite vs noexist-only).
 # Overlap is expected: AGENTS.md and source_me.sh appear in both -- allowlisted
 # to ship, then routed noexist-only so they don't clobber consumer customizations.
-# CLAUDE.md is allowlisted but not in UNIVERSAL_NOEXIST, so it overwrites.
+# CLAUDE.md is allowlisted and routed via MERGE_FILES (fenced merge), not overwrite.
 ROOT_PROPAGATE_ALLOWLIST = frozenset({
 	'CLAUDE.md',
 	'AGENTS.md',
@@ -71,6 +71,14 @@ ROUTING_OVERRIDES = {
 	'devel/submit_to_pypi.py': {'language': LANG_PYTHON, 'requires_repo_file': 'pyproject.toml'},
 }
 
+# Files merged via fence markers (MERGE bucket). Template owns the fenced region;
+# consumer owns content outside. See meta/docs/MERGE_BUCKET_SPEC.md for fence
+# convention, semantics, and error cases.
+MERGE_FILES = frozenset({
+	'CLAUDE.md',
+})
+
+
 # Files that ship only when absent at consumer (universal noexist).
 # Overrides the docs/ universal-overwrite default. Example: docs/AUTHORS.md is universal but ships noexist-only.
 # Path is repo-root-relative.
@@ -80,6 +88,8 @@ UNIVERSAL_NOEXIST = frozenset({
 	'AGENTS.md',
 	'source_me.sh',
 	'docs/AUTHORS.md',
+	# Consumer-owned test-suite README; template seed exists but must not clobber consumer edits.
+	'tests/TESTS_README.md',
 })
 
 
@@ -93,6 +103,7 @@ META_FILES = frozenset({
 	'REPO_TYPE',
 	'Brewfile',
 	'pip_extras.txt',
+	'docs/CHANGELOG.md',
 })
 
 # Dirs that NEVER ship. Walked but never produce routing entries.
@@ -148,6 +159,10 @@ META_TEST_PREFIXES = (
 
 
 
+
+#============================================
+# Source/target path resolution
+#============================================
 
 def source_path_for_bucket(template_root: str, bucket: str, file_rel: str, repo_type: str = 'universal') -> str:
 	"""

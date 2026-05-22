@@ -466,68 +466,6 @@ class TestCopyIfChanged:
 class TestApplyFileBucket:
 	"""Test apply_file_bucket helper covering per-bucket special cases."""
 
-	def test_overwrite_bucket_claude_md_merge(self, tmp_path, capsys, monkeypatch):
-		"""Test overwrite bucket: CLAUDE.md merge branch when file_rel == 'CLAUDE.md'."""
-		# Setup
-		repo_dir = tmp_path / "repo"
-		repo_dir.mkdir()
-		source_dir = tmp_path / "source"
-		source_dir.mkdir()
-
-		# Create CLAUDE.md source file
-		source_file = source_dir / "CLAUDE.md"
-		source_file.write_text("@lines\n\nContent here.", encoding='utf-8')
-
-		# Create CLAUDE.md dest file (exists)
-		dest_file = repo_dir / "CLAUDE.md"
-		dest_file.write_text("@lines\n\nContent here.", encoding='utf-8')
-
-		# Create spec with overwrite_files containing CLAUDE.md
-		spec = {
-			'overwrite_files': ['CLAUDE.md'],
-			'noexist_files': [],
-			'devel_files': [],
-			'test_files': [],
-		}
-
-		# Create context and counters
-		context = propagate.model.PropagateContext(
-			base_dir=str(tmp_path),
-			source_dir=str(source_dir),
-			template_root=str(source_dir),
-			repo_name=None,
-			dry_run=False,
-			bootstrap=False,
-			auto_discover=False,
-			fix_permissions=False,
-			write_marker=False,
-			skip_confirm=False,
-			verbose_paths=False,
-		)
-		counters = propagate.console.init_counters()
-
-		# Mock source_path_for_bucket to return our source file
-		def mock_source_path(source_dir, bucket, file_rel, repo_type):
-			if file_rel == 'CLAUDE.md':
-				return str(source_file)
-			raise FileNotFoundError()
-
-		monkeypatch.setattr(propagate.model, 'source_path_for_bucket', mock_source_path)
-
-		# Mock merge_claude_md to return same content (no change)
-		monkeypatch.setattr(propagate.files, 'merge_claude_md', lambda src, dst: dest_file.read_text(encoding='utf-8'))
-
-		# Call apply_file_bucket
-		updates, copies, skips = propagate_style_guides.apply_file_bucket(
-			'overwrite_files', spec, str(repo_dir), 'python', context, counters
-		)
-
-		# Verify: should hit CLAUDE.md merge logic
-		# NO CHANGE suppression status handled separately
-		assert updates == 0
-		assert copies == 0
-		assert skips == 0
-
 	def test_noexist_bucket_skip_policy(self, tmp_path, capsys, monkeypatch):
 		"""Test noexist bucket: skip when dest exists and --bootstrap not set."""
 		# Setup
@@ -568,13 +506,13 @@ class TestApplyFileBucket:
 		)
 		counters = propagate.console.init_counters()
 
-		# Mock source_path_for_bucket
+		# Mock find_source_for_bucket (None-returning variant used by apply_file_bucket)
 		def mock_source_path(source_dir, bucket, file_rel, repo_type):
 			if file_rel == 'source_me.sh':
 				return str(source_file)
-			raise FileNotFoundError()
+			return None
 
-		monkeypatch.setattr(propagate.model, 'source_path_for_bucket', mock_source_path)
+		monkeypatch.setattr(propagate.model, 'find_source_for_bucket', mock_source_path)
 
 		# Mock repo_is_on_path to return False
 		monkeypatch.setattr(propagate.repo, 'repo_is_on_path', lambda x: False)
@@ -626,13 +564,13 @@ class TestApplyFileBucket:
 		)
 		counters = propagate.console.init_counters()
 
-		# Mock source_path_for_bucket
+		# Mock find_source_for_bucket (None-returning variant used by apply_file_bucket)
 		def mock_source_path(source_dir, bucket, file_rel, repo_type):
 			if file_rel == 'source_me.sh':
 				return str(source_file)
-			raise FileNotFoundError()
+			return None
 
-		monkeypatch.setattr(propagate.model, 'source_path_for_bucket', mock_source_path)
+		monkeypatch.setattr(propagate.model, 'find_source_for_bucket', mock_source_path)
 
 		# Mock repo_is_on_path to return True (repo is on PATH)
 		monkeypatch.setattr(propagate.repo, 'repo_is_on_path', lambda x: True)
@@ -692,13 +630,13 @@ class TestApplyFileBucket:
 		)
 		counters = propagate.console.init_counters()
 
-		# Mock source_path_for_bucket
+		# find_source_for_bucket is the variant used by apply_file_bucket; return None on miss.
 		def mock_source_path(source_dir, bucket, file_rel, repo_type):
 			if file_rel == 'helper.py':
 				return str(source_file)
-			raise FileNotFoundError()
+			return None
 
-		monkeypatch.setattr(propagate.model, 'source_path_for_bucket', mock_source_path)
+		monkeypatch.setattr(propagate.model, 'find_source_for_bucket', mock_source_path)
 
 		# Mock target_path_for_bucket
 		def mock_target_path(repo_dir, bucket, file_rel):
@@ -755,13 +693,13 @@ class TestApplyFileBucket:
 		)
 		counters = propagate.console.init_counters()
 
-		# Mock source_path_for_bucket
+		# find_source_for_bucket is the variant used by apply_file_bucket; return None on miss.
 		def mock_source_path(source_dir, bucket, file_rel, repo_type):
 			if file_rel == 'test_auto.py':
 				return str(source_file)
-			raise FileNotFoundError()
+			return None
 
-		monkeypatch.setattr(propagate.model, 'source_path_for_bucket', mock_source_path)
+		monkeypatch.setattr(propagate.model, 'find_source_for_bucket', mock_source_path)
 
 		# Mock target_path_for_bucket
 		def mock_target_path(repo_dir, bucket, file_rel):

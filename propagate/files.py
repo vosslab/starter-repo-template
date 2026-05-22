@@ -9,6 +9,42 @@ import propagate.model
 
 
 #============================================
+# META leak guard
+#============================================
+
+def assert_not_meta(file_rel: str) -> None:
+	"""
+	Fail loud if a file path would land in any propagation bucket despite being META.
+
+	Called at every plan-construction append site and at the top of the propagator's
+	apply_file_bucket dispatcher. Catches both plan-construction leaks (new walker
+	branch forgets to filter META) and plan-injection leaks (future feature reads
+	a plan from disk or accepts user-supplied paths).
+
+	Args:
+		file_rel: Repo-root-relative file path about to be added to a bucket
+		          or about to be copied.
+
+	Raises:
+		RuntimeError: file_rel matches META_FILES by basename or rel-path,
+		              OR any path component matches META_DIRS.
+	"""
+	basename = os.path.basename(file_rel)
+	if file_rel in propagate.model.META_FILES or basename in propagate.model.META_FILES:
+		raise RuntimeError(
+			f"META leak: {file_rel!r} is in META_FILES and must never ship. "
+			"Fix the upstream walker or dispatcher branch that produced this entry."
+		)
+	parts = file_rel.split(os.sep)
+	for part in parts:
+		if part in propagate.model.META_DIRS:
+			raise RuntimeError(
+				f"META leak: {file_rel!r} traverses META_DIRS component {part!r} "
+				"and must never ship. Fix the upstream walker or dispatcher branch."
+			)
+
+
+#============================================
 # Routing overrides
 #============================================
 
@@ -361,45 +397,148 @@ def replace_managed_block(lines: list[str], header: str, block_lines: list[str])
 
 
 #============================================
-def merge_claude_md(source_file: str, dest_file: str) -> str:
+# MERGE bucket: fenced-marker merge (see meta/docs/MERGE_BUCKET_SPEC.md)
+#============================================
+
+# Fence styles by language. First match wins per file; mixing styles is an error.
+FENCE_STYLES = (
+	('# === TEMPLATE-MANAGED START ===', '# === TEMPLATE-MANAGED END ==='),
+	('// === TEMPLATE-MANAGED START ===', '// === TEMPLATE-MANAGED END ==='),
+	('<!-- === TEMPLATE-MANAGED START === -->', '<!-- === TEMPLATE-MANAGED END === -->'),
+)
+
+
+def _find_fences(text: str) -> tuple | None:
 	"""
-	Merge source CLAUDE.md with destination CLAUDE.md, preserving extra @ lines.
+	Locate the fenced template-managed region in text.
 
-	Reads both files, finds any @ reference lines in the destination that are
-	not present in the source, and appends them to the source content.
-
-	Args:
-		source_file (str): Path to the template CLAUDE.md.
-		dest_file (str): Path to the destination CLAUDE.md.
-
-	Returns:
-		str: Merged file content with extra destination @ lines preserved.
+	Returns (start_idx, end_idx, style_idx, lines) when exactly one valid pair found.
+	Returns None when text has no fence markers (plain shape).
+	Raises ValueError with an actionable message for malformed fence states:
+	missing start, missing end, duplicate markers, mixed styles, or end-before-start.
 	"""
-	with open(source_file, 'r') as f:
-		source_lines = f.read().splitlines()
-	with open(dest_file, 'r') as f:
-		dest_lines = f.read().splitlines()
-	source_refs = set()
-	for line in source_lines:
-		stripped = line.strip()
-		if stripped.startswith('@'):
-			source_refs.add(stripped)
-	extra_lines = []
-	for line in dest_lines:
-		stripped = line.strip()
-		if stripped.startswith('@') and stripped not in source_refs:
-			extra_lines.append(line)
-	merged = source_lines[:]
-	if extra_lines:
-		while merged and merged[-1].strip() == '':
-			merged.pop()
-		for line in extra_lines:
-			merged.append(line)
-		merged.append('')
-	merged_text = '\n'.join(merged)
-	if not merged_text.endswith('\n'):
-		merged_text += '\n'
-	return merged_text
+	# Use split('\n') not splitlines(): a trailing '\n' produces a final empty element that
+	# '\n'.join(...) restores, preserving exact byte-for-byte round-trip on unchanged input.
+	lines = text.split('\n')
+	style_hits = []
+	for style_idx, (start_mark, end_mark) in enumerate(FENCE_STYLES):
+		start_count = sum(1 for ln in lines if ln.strip() == start_mark)
+		end_count = sum(1 for ln in lines if ln.strip() == end_mark)
+		if start_count or end_count:
+			style_hits.append((style_idx, start_count, end_count, start_mark, end_mark))
+
+	if not style_hits:
+		return None
+
+	if len(style_hits) > 1:
+		raise ValueError("fence style mismatch: multiple fence comment styles present")
+
+	style_idx, start_count, end_count, start_mark, end_mark = style_hits[0]
+	if start_count > 1:
+		raise ValueError("duplicate fence marker: more than one start fence")
+	if end_count > 1:
+		raise ValueError("duplicate fence marker: more than one end fence")
+	if start_count == 0:
+		raise ValueError("missing start fence")
+	if end_count == 0:
+		raise ValueError("missing end fence")
+
+	start_idx = next(i for i, ln in enumerate(lines) if ln.strip() == start_mark)
+	end_idx = next(i for i, ln in enumerate(lines) if ln.strip() == end_mark)
+	if end_idx < start_idx:
+		raise ValueError("fence markers out of order (end before start)")
+
+	return (start_idx, end_idx, style_idx, lines)
+
+
+def merge_file_safe(source: str, dest: str, dry_run: bool, counters: dict) -> str:
+	"""
+	Merge a template-managed region into a consumer file.
+
+	Outcomes returned:
+		'created'   -- dest missing; wrote template verbatim. counters['created_count'] += 1.
+		'merged'    -- dest fenced; replaced managed region; consumer additions preserved.
+		              counters['merged_count'] += 1.
+		'unchanged' -- merge produced byte-identical result. counters['unchanged'] += 1.
+		'error'     -- consumer or template in invalid fence state; dest untouched.
+		              counters['errors'] += 1.
+
+	Error conditions (dest is NOT modified):
+		- template lacks both fences (configuration bug at template side)
+		- consumer has fences in invalid state (missing one, duplicates, wrong order,
+		  mixed styles, or plain shape with no fences at all)
+		- consumer and template use different fence styles
+	"""
+	if not os.path.isfile(source):
+		counters['errors'] += 1
+		propagate.console.log_action("error", f"merge source missing: {source}")
+		return 'error'
+
+	src_text = read_text(source)
+	try:
+		src_fences = _find_fences(src_text)
+	except ValueError as exc:
+		counters['errors'] += 1
+		propagate.console.log_action("error", f"merge template fence error in {source}: {exc}")
+		return 'error'
+
+	if src_fences is None:
+		counters['errors'] += 1
+		propagate.console.log_action("error", f"merge template missing fences: {source}")
+		return 'error'
+
+	# Dest missing: write template verbatim (template carries both fences + managed content).
+	if not os.path.isfile(dest):
+		dest_parent = os.path.dirname(dest)
+		if dest_parent and not os.path.isdir(dest_parent):
+			make_dir_safe(dest_parent, dry_run)
+		write_text(dest, src_text, dry_run, action='create')
+		if not dry_run:
+			propagate.console.log_action("create", dest)
+			counters['created_count'] += 1
+		return 'created'
+
+	dest_text = read_text(dest)
+	try:
+		dest_fences = _find_fences(dest_text)
+	except ValueError as exc:
+		counters['errors'] += 1
+		propagate.console.log_action("error", f"{dest}: {exc}")
+		return 'error'
+
+	if dest_fences is None:
+		counters['errors'] += 1
+		propagate.console.log_action("error", f"{dest}: consumer not at fenced shape; add fences once, then re-sync")
+		return 'error'
+
+	src_start, src_end, src_style_idx, src_lines = src_fences
+	dest_start, dest_end, dest_style_idx, dest_lines = dest_fences
+
+	if src_style_idx != dest_style_idx:
+		counters['errors'] += 1
+		propagate.console.log_action("error", f"{dest}: fence style mismatch with template")
+		return 'error'
+
+	# Build merged: dest content outside fences + template's fenced region (incl. both fences).
+	managed_region = src_lines[src_start:src_end + 1]
+	new_lines = dest_lines[:dest_start] + managed_region + dest_lines[dest_end + 1:]
+	merged = '\n'.join(new_lines)
+
+	# Preserve dest's trailing-newline state.
+	if dest_text.endswith('\n') and not merged.endswith('\n'):
+		merged += '\n'
+	elif not dest_text.endswith('\n') and merged.endswith('\n'):
+		merged = merged.rstrip('\n')
+
+	if merged == dest_text:
+		propagate.console.log_action("no change", dest, counters)
+		return 'unchanged'
+
+	write_text(dest, merged, dry_run, action='merge')
+	if not dry_run:
+		propagate.console.log_action("merge", dest)
+		counters['merged_count'] += 1
+	return 'merged'
 
 
 #============================================
@@ -407,10 +546,9 @@ def merge_conftest(source_file: str, dest_file: str) -> str | None:
 	"""
 	Inject the canonical collect_ignore block into a destination conftest.py.
 
-	Mirrors merge_claude_md: source is canonical for the collect_ignore line,
-	but any other content the repo has added (imports, fixtures, etc.) is
-	preserved. Returns the merged text when the destination needs an update,
-	or None when no change is needed.
+	Source is canonical for the collect_ignore line; any other consumer content
+	(imports, fixtures, etc.) is preserved. Returns merged text when an update
+	is needed, or None when no change is needed.
 
 	Args:
 		source_file (str): Path to the canonical tests/conftest.py.
@@ -751,6 +889,7 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 	plan = {
 		'overwrite_files': [],
 		'noexist_files': [],
+		'merge_files': [],
 		'devel_files': [],
 		'test_files': [],
 		'gitignore_block': [],
@@ -767,13 +906,6 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 			if part in propagate.model.META_DIRS:
 				return True
 		return False
-
-	# Special docs/ files that should never ship (per docs/REPO_STYLE.md)
-	BLOCKED_DOCS_FILES = frozenset({
-		'docs/CHANGELOG.md',
-		'docs/active_plans',
-		'docs/archive',
-	})
 
 	# 1. Walk universal files at template root
 	if repo_type in ('python', 'other', 'typescript', 'rust', 'unknown'):
@@ -793,16 +925,13 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 				file_rel = os.path.join(rel_root, name) if rel_root else name
 
 				# Skip META_FILES (matches by full rel-path OR bare basename for
-				# entries that may appear at any depth).
+				# entries that may appear at any depth). docs/active_plans and
+				# docs/archive are caught by is_in_meta_dir().
 				if file_rel in propagate.model.META_FILES or name in propagate.model.META_FILES:
 					continue
 
 				# Skip if under a meta directory
 				if is_in_meta_dir(file_rel):
-					continue
-
-				# Skip blocked docs files
-				if file_rel in BLOCKED_DOCS_FILES or any(file_rel.startswith(f + '/') for f in BLOCKED_DOCS_FILES):
 					continue
 
 				# Apply routing overrides (language and requirement-based gates)
@@ -815,15 +944,18 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 				if rule is not None and 'bucket' in rule:
 					bucket_name = rule['bucket'] + '_files'
 					if file_rel not in plan[bucket_name]:
+						assert_not_meta(file_rel)
 						plan[bucket_name].append(file_rel)
 					continue
 
 				# Route by prefix/location
 				if file_rel.startswith('docs/'):
+					assert_not_meta(file_rel)
 					plan['overwrite_files'].append(file_rel)
 				elif file_rel.startswith('devel/'):
 					bare_name = os.path.basename(file_rel)
 					if bare_name not in plan['devel_files']:
+						assert_not_meta(bare_name)
 						plan['devel_files'].append(bare_name)
 				elif file_rel.startswith('tests/'):
 					bare_name = os.path.basename(file_rel)
@@ -836,8 +968,10 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 						bare_name.startswith(('check_', 'fix_')) or \
 						bare_name in ('git_file_utils.py',):
 						if file_rel not in plan['test_files']:
+							assert_not_meta(file_rel)
 							plan['test_files'].append(file_rel)
 				elif file_rel in propagate.model.ROOT_PROPAGATE_ALLOWLIST:
+					assert_not_meta(file_rel)
 					plan['overwrite_files'].append(file_rel)
 
 
@@ -859,18 +993,37 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 
 				file_rel = os.path.join(rel_root, name) if rel_root else name
 
+				# META guard: typed overlays must filter template-internal files so a stray
+				# templates/<type>/README.md (or any META name) cannot ship to consumers.
+				if name in propagate.model.META_FILES or file_rel in propagate.model.META_FILES:
+					continue
+				if is_in_meta_dir(file_rel):
+					continue
+
 				# Route by subdirectory
 				if file_rel.startswith('noexist/'):
 					# Strip 'noexist/' prefix for the consumer path
 					consumer_path = file_rel[8:]  # len('noexist/') = 8
-					if consumer_path and consumer_path not in plan['noexist_files']:
+					# META filter on consumer_path so a typed-noexist entry whose
+					# stripped path collides with a META name cannot ship.
+					if not consumer_path:
+						continue
+					consumer_basename = os.path.basename(consumer_path)
+					if consumer_path in propagate.model.META_FILES or consumer_basename in propagate.model.META_FILES:
+						continue
+					if is_in_meta_dir(consumer_path):
+						continue
+					if consumer_path not in plan['noexist_files']:
+						assert_not_meta(consumer_path)
 						plan['noexist_files'].append(consumer_path)
 				elif file_rel.startswith('devel/'):
 					bare_name = os.path.basename(file_rel)
 					if bare_name not in plan['devel_files']:
+						assert_not_meta(bare_name)
 						plan['devel_files'].append(bare_name)
 				elif file_rel.startswith('tests/'):
 					if file_rel not in plan['test_files']:
+						assert_not_meta(file_rel)
 						plan['test_files'].append(file_rel)
 				elif name.startswith('gitignore.'):
 					# Skip; will be loaded separately
@@ -880,6 +1033,7 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 					# rule 5: typed overlay shadows universal
 					if file_rel in plan['overwrite_files']:
 						plan['overwrite_files'].remove(file_rel)
+					assert_not_meta(file_rel)
 					plan['overwrite_files'].append(file_rel)
 
 	# 3. Load gitignore blocks from files
@@ -897,10 +1051,13 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 	plan['gitignore_block'] = list(dict.fromkeys(gitignore_block))
 
 	# 4. Apply UNIVERSAL_NOEXIST overrides
-	# Any path in UNIVERSAL_NOEXIST must move from overwrite to noexist
+	# Any path in UNIVERSAL_NOEXIST must move from overwrite/test buckets to noexist.
+	# Covers tests/TESTS_README.md, which the tests-walker routes to test_files by default.
 	for path in propagate.model.UNIVERSAL_NOEXIST:
 		if path in plan['overwrite_files']:
 			plan['overwrite_files'].remove(path)
+		if path in plan['test_files']:
+			plan['test_files'].remove(path)
 		if path not in plan['noexist_files']:
 			plan['noexist_files'].append(path)
 
@@ -909,5 +1066,16 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 	for path in list(plan['noexist_files']):
 		if path in plan['overwrite_files']:
 			plan['overwrite_files'].remove(path)
+
+	# 6. Apply MERGE_FILES routing. MERGE wins over OVERWRITE and NOEXIST for the same path.
+	# META still wins over MERGE: assert_not_meta() fails loud if a MERGE-tagged file is META.
+	for path in propagate.model.MERGE_FILES:
+		if path in plan['overwrite_files']:
+			plan['overwrite_files'].remove(path)
+		if path in plan['noexist_files']:
+			plan['noexist_files'].remove(path)
+		if path not in plan['merge_files']:
+			assert_not_meta(path)
+			plan['merge_files'].append(path)
 
 	return plan

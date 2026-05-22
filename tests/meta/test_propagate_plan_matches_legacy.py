@@ -21,8 +21,6 @@ def test_python_plan_matches_legacy():
 		'docs/CLAUDE_HOOK_USAGE_GUIDE.md',
 		'docs/PYTEST_STYLE.md',
 		'docs/E2E_TESTS.md',
-		'CLAUDE.md',
-		'dist_clean.sh',
 	}
 	# Python-specific
 	expected_python_overwrite = {
@@ -30,23 +28,30 @@ def test_python_plan_matches_legacy():
 	}
 	expected_overwrite = expected_universal_overwrite | expected_python_overwrite
 
+	expected_merge = {'CLAUDE.md'}
+
 	expected_universal_noexist = {
 		'docs/AUTHORS.md',
 		'AGENTS.md',
 		'source_me.sh',
+		'tests/TESTS_README.md',
 	}
 	expected_noexist = expected_universal_noexist | {
 		'pip_requirements-dev.txt',
 		'pip_requirements.txt',
 	}
 
-	expected_universal_devel = {'commit_changelog.py'}
+	expected_universal_devel = {'commit_changelog.py', 'dist_clean.sh'}
 	expected_python_devel = set()  # submit_to_pypi.py requires pyproject.toml at repo_dir
 	expected_devel = expected_universal_devel | expected_python_devel
 
 	# Check overwrite_files
 	for expected in expected_overwrite:
 		assert expected in plan['overwrite_files'], f"Missing {expected} in overwrite_files"
+
+	# Check merge_files
+	for expected in expected_merge:
+		assert expected in plan['merge_files'], f"Missing {expected} in merge_files"
 
 	# Check noexist_files
 	for expected in expected_noexist:
@@ -68,38 +73,40 @@ def test_typescript_plan_matches_legacy():
 		'docs/CLAUDE_HOOK_USAGE_GUIDE.md',
 		'docs/PYTEST_STYLE.md',
 		'docs/E2E_TESTS.md',
-		'CLAUDE.md',
-		'dist_clean.sh',
 	}
 	expected_ts_overwrite = {
 		'docs/TYPESCRIPT_STYLE.md',
 		'docs/PLAYWRIGHT_USAGE.md',
-		'tsconfig.json',
 		'eslint.config.js',
-		'build_github_pages.sh',
-		'run_web_server.sh',
 		'check_codebase.sh',
 	}
 	expected_overwrite = expected_universal_overwrite | expected_ts_overwrite
+
+	expected_merge = {'CLAUDE.md'}
 
 	expected_universal_noexist = {
 		'docs/AUTHORS.md',
 		'AGENTS.md',
 		'source_me.sh',
+		'tests/TESTS_README.md',
 	}
-	expected_ts_noexist = {'package.json'}
+	expected_ts_noexist = {'package.json', 'build_github_pages.sh', 'run_web_server.sh', 'tsconfig.json'}
 	expected_noexist = expected_universal_noexist | expected_ts_noexist
 
-	expected_universal_devel = {'commit_changelog.py'}
+	expected_universal_devel = {'commit_changelog.py', 'dist_clean.sh'}
 	expected_ts_devel = {'setup_playwright.sh'}
 	expected_devel = expected_universal_devel | expected_ts_devel
 
-	expected_universal_test = {'tests/TESTS_README.md'}
-	expected_test = expected_universal_test
+	# tests/TESTS_README.md moved from test_files to noexist_files in M2/2A; no other universal test_files have explicit expectations.
+	expected_test = set()
 
 	# Check overwrite_files
 	for expected in expected_overwrite:
 		assert expected in plan['overwrite_files'], f"Missing {expected} in overwrite_files"
+
+	# Check merge_files
+	for expected in expected_merge:
+		assert expected in plan['merge_files'], f"Missing {expected} in merge_files"
 
 	# Check noexist_files
 	for expected in expected_noexist:
@@ -125,24 +132,29 @@ def test_rust_plan_matches_legacy():
 		'docs/CLAUDE_HOOK_USAGE_GUIDE.md',
 		'docs/PYTEST_STYLE.md',
 		'docs/E2E_TESTS.md',
-		'CLAUDE.md',
-		'dist_clean.sh',
 	}
 	expected_overwrite = expected_universal_overwrite
+
+	expected_merge = {'CLAUDE.md'}
 
 	expected_universal_noexist = {
 		'docs/AUTHORS.md',
 		'AGENTS.md',
 		'source_me.sh',
+		'tests/TESTS_README.md',
 	}
 	expected_noexist = expected_universal_noexist
 
-	expected_universal_devel = {'commit_changelog.py'}
+	expected_universal_devel = {'commit_changelog.py', 'dist_clean.sh'}
 	expected_devel = expected_universal_devel
 
 	# Check overwrite_files
 	for expected in expected_overwrite:
 		assert expected in plan['overwrite_files'], f"Missing {expected} in overwrite_files"
+
+	# Check merge_files
+	for expected in expected_merge:
+		assert expected in plan['merge_files'], f"Missing {expected} in merge_files"
 
 	# Check noexist_files
 	for expected in expected_noexist:
@@ -164,26 +176,31 @@ def test_other_plan_matches_legacy():
 		'docs/CLAUDE_HOOK_USAGE_GUIDE.md',
 		'docs/PYTEST_STYLE.md',
 		'docs/E2E_TESTS.md',
-		'CLAUDE.md',
-		'dist_clean.sh',
 	}
 	# 'other' type no longer gets PYTHON_STYLE.md (language rule is PYTHON, not 'other')
 	expected_other_overwrite = set()
 	expected_overwrite = expected_universal_overwrite | expected_other_overwrite
 
+	expected_merge = {'CLAUDE.md'}
+
 	expected_universal_noexist = {
 		'docs/AUTHORS.md',
 		'AGENTS.md',
 		'source_me.sh',
+		'tests/TESTS_README.md',
 	}
 	expected_noexist = expected_universal_noexist
 
-	expected_universal_devel = {'commit_changelog.py'}
+	expected_universal_devel = {'commit_changelog.py', 'dist_clean.sh'}
 	expected_devel = expected_universal_devel
 
 	# Check overwrite_files
 	for expected in expected_overwrite:
 		assert expected in plan['overwrite_files'], f"Missing {expected} in overwrite_files"
+
+	# Check merge_files
+	for expected in expected_merge:
+		assert expected in plan['merge_files'], f"Missing {expected} in merge_files"
 
 	# Check noexist_files
 	for expected in expected_noexist:
