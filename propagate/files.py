@@ -987,10 +987,10 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 				rel_root = ''
 
 			for name in files:
-				# Skip .gitkeep and other meta dotfiles, but allow .prettierrc.json, etc.
-				if name == '.gitkeep' or (name.startswith('.') and not name.endswith('.json')):
-					continue
-
+				# Ship every file under the typed overlay; META filter below handles exclusions.
+				# No .gitkeep filter needed -- the repo deliberately holds zero .gitkeep files
+				# (verified via `find templates -name '.gitkeep'`); add one back here only if
+				# .gitkeep placeholders are reintroduced.
 				file_rel = os.path.join(rel_root, name) if rel_root else name
 
 				# META guard: typed overlays must filter template-internal files so a stray

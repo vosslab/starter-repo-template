@@ -36,11 +36,7 @@ Run the fast test suite:
 pytest tests/
 ```
 
-Run non-browser end-to-end tests separately (see [docs/E2E_TESTS.md](docs/E2E_TESTS.md)):
-
-```bash
-bash tests/e2e/run_all.sh
-```
+Non-browser end-to-end tests live under `tests/e2e/` per [docs/E2E_TESTS.md](docs/E2E_TESTS.md) when present; this repo does not currently ship any. Each runner is self-contained -- invoke them individually with `bash tests/e2e/e2e_<name>.sh`.
 
 Run browser-driven Playwright tests (see [templates/typescript/docs/PLAYWRIGHT_USAGE.md](templates/typescript/docs/PLAYWRIGHT_USAGE.md)):
 

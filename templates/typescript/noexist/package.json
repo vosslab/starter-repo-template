@@ -10,6 +10,7 @@
 		"serve": "./run_web_server.sh",
 		"check": "./check_codebase.sh",
 		"clean": "./dist_clean.sh",
+		"format:write": "npx prettier --write '**/*.{ts,tsx,mts,cts,js,mjs,cjs}'",
 		"test:playwright": "playwright test",
 		"pdf": "node tools/html_to_pdf.mjs"
 	},

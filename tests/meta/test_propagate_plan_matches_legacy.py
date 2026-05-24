@@ -79,6 +79,8 @@ def test_typescript_plan_matches_legacy():
 		'docs/PLAYWRIGHT_USAGE.md',
 		'eslint.config.js',
 		'check_codebase.sh',
+		'.prettierrc',
+		'.prettierignore',
 	}
 	expected_overwrite = expected_universal_overwrite | expected_ts_overwrite
 
@@ -90,7 +92,7 @@ def test_typescript_plan_matches_legacy():
 		'source_me.sh',
 		'tests/TESTS_README.md',
 	}
-	expected_ts_noexist = {'package.json', 'build_github_pages.sh', 'run_web_server.sh', 'tsconfig.json'}
+	expected_ts_noexist = {'package.json', 'build_github_pages.sh', 'run_web_server.sh', 'tsconfig.json', 'tsconfig.lint.json'}
 	expected_noexist = expected_universal_noexist | expected_ts_noexist
 
 	expected_universal_devel = {'commit_changelog.py', 'dist_clean.sh'}

@@ -1,55 +1,26 @@
 # TypeScript test suite
 
-These tests ship to every `REPO_TYPE=typescript` consumer via `propagate_style_guides.py`. They enforce the canonical TS toolchain shape (tsconfig fields, ESLint config, package.json scripts/deps) and act as the consumer-side fast lane for type checking + lint.
+These tests ship to every `REPO_TYPE=typescript` consumer via `propagate_style_guides.py`. The canonical correctness gate for the TS toolchain (typecheck, lint, format, Node tests) is `bash check_codebase.sh` -- pytest under `tests/` is reserved for cross-ecosystem checks (markdown links, ASCII compliance, etc.) propagated from the template root, not for shadowing the JS/TS toolchain.
 
-## Skip behavior
+## History
 
-Every `.py` test in this folder reads `REPO_TYPE` at the repo root:
-- Marker missing OR token != `typescript` -> test skips silently.
-- Marker == `typescript` AND `tsconfig.json` missing -> test FAILS (TS-typed repo without tsconfig is broken).
-- Marker == `typescript` AND `npx` not installed -> test skips (local-dev-without-node case; CI must install Node).
+Earlier revisions of this folder shipped pytest mirrors of the JS/TS toolchain (`test_typescript_tsc.py`, `test_typescript_eslint.py`, `test_tsconfig_canonical.py`, `test_package_json_schema.py`, `test_eslint_config_present.py`, `test_smoke.mjs`). Those were removed in the 2026-05-24 sweep: each one either invoked `npx` via subprocess inside the pytest fast lane (PYTEST_STYLE.md violation), asserted hardcoded tsconfig defaults, or duplicated a check that `check_codebase.sh` already runs natively. Using a Python test runner to assert TS-ecosystem shape routed verification through the wrong tool. The TS ecosystem owns its own gates: `tsc`, `eslint`, `prettier`, `node --test`. `check_codebase.sh` wires them all together.
 
-## Files
-
-| File | What it checks |
-|---|---|
-| `test_typescript_tsc.py` | Runs `npx tsc --noEmit -p tsconfig.json`. Asserts exit 0. Catches type errors. |
-| `test_typescript_eslint.py` | Runs `npx eslint --max-warnings 0 'src/**/*.ts' 'tests/**/*.ts' '*.ts'`. Asserts exit 0. Zero-warning gate. |
-| `test_tsconfig_canonical.py` | Loads `tsconfig.json`, asserts each canonical `compilerOptions` field is present with the canonical value (target=es2020, module=esnext, strict=true, noUncheckedIndexedAccess=true, etc.). Allows extra fields; rejects regressions in the strict set. |
-| `test_package_json_schema.py` | Loads `package.json`, asserts required top-level keys (`name`, `type`, `scripts`, `devDependencies`); asserts `type == "module"`; asserts canonical scripts (`build`, `serve`, `check`, `clean`, `typecheck`, `lint`, `format:check`, `test:node`) present; asserts canonical devDeps (`eslint`, `@eslint/js`, `typescript-eslint`, `globals`, `typescript`, `esbuild`, `prettier`, `@playwright/test`) present. Superset OK. |
-| `test_eslint_config_present.py` | Asserts `eslint.config.js` exists at repo root (canonical flat config); asserts `.eslintrc.cjs` does NOT exist (legacy form rejected); asserts ESLint devDeps present in `package.json`. |
-| `test_smoke.mjs` | Minimal Node test (asserts `1 + 1 == 2`) so `node --test tests/test_*.mjs` has at least one passing test on a freshly-bootstrapped repo. Delete or replace once real Node tests exist. |
-
-## `tsconfig.json` (sibling file at template root)
-
-Canonical strict TypeScript config shipped to every TS consumer. Test `test_tsconfig_canonical.py` enforces its content (per-field). Edit the canonical at `templates/typescript/tsconfig.json` in this template repo; propagation overwrites at consumers.
-
-## Run locally
+## Run the gate
 
 From a TS-typed consumer repo:
 
 ```bash
-source source_me.sh && pytest tests/test_typescript_*.py tests/test_tsconfig_canonical.py tests/test_package_json_schema.py tests/test_eslint_config_present.py
-```
-
-For the Node smoke + any real Node tests:
-
-```bash
-node --test 'tests/test_*.mjs'
-```
-
-Or the combined gate (preferred):
-
-```bash
-bash check_codebase.sh          # full gate
-bash check_codebase.sh --fast   # skip build (inner-loop iteration)
+bash check_codebase.sh          # typecheck, typecheck:lint, lint, format:check, css:policy (if present), test:node (if present)
 bash check_codebase.sh --help   # usage
 ```
 
 Playwright walkthroughs are not part of `check_codebase.sh`; run them manually with `npm run test:playwright` after `bash run_web_server.sh`.
 
-## Adding a new TS test
+## Adding a Node test
 
-Drop a `test_<name>.py` in `templates/typescript/tests/` here. It propagates to every TS consumer on next `propagate_style_guides.py` run. Follow the skip-behavior pattern at the top of the existing tests.
+Drop a `test_<name>.mjs` in this folder. Step 6 of `check_codebase.sh` picks them up automatically (`node --import tsx --test 'tests/test_*.mjs'`) when at least one matches.
 
-For a new Node test, drop `test_<name>.mjs` in the same folder.
+## Adding a Python test
+
+Resist. If the check belongs to the JS/TS ecosystem, extend `check_codebase.sh` instead. Pytest in a typescript consumer is intentionally thin.
