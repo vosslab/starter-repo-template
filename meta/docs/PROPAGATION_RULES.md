@@ -31,7 +31,7 @@ Do not try to eliminate all hardcoding. Root has mixed semantics; explicit lists
 | Language-specific file | add path to ROUTING_OVERRIDES in propagate/model.py | language-specific behavior |
 | Root-level file like AGENTS.md | template root + add to ROOT_PROPAGATE_ALLOWLIST | every repo, overwrite |
 | Universal gitignore blocks | templates/gitignore.universal | every repo, merged into .gitignore under `# === UNIVERSAL ===` |
-| Fenced merge (template owns a region, consumer owns the rest) | template root + add to `MERGE_FILES` | every repo, fenced merge (see [MERGE_BUCKET_SPEC.md](MERGE_BUCKET_SPEC.md)) |
+| MERGE bucket (set-union @-import merge with strip list) | template root + add to `MERGE_FILES` | every repo; template @-imports union-added to consumer; strip list at `meta/propagation/deprecated_claude_md.txt` removes retired entries (see [MERGE_BUCKET_SPEC.md](MERGE_BUCKET_SPEC.md)) |
 | Template-only tooling | tools/<file> | never (template-meta) |
 
 ## Precedence
@@ -50,7 +50,7 @@ File routing honors a strict precedence order; earlier rules win on conflict:
 Every file the propagator ships is classified into one of four policy categories. The classification rule for new files:
 
 - **OVERWRITE** -- template centrally owns the file; consumer divergence is a bug to erase on next sync. Use for style guides, shared lint tests, shared helper scripts, and the universal clean sweep.
-- **MERGE** -- the template owns a fenced region of the file; the consumer owns everything outside the fences. Use when the file has both template-owned and consumer-owned content (e.g., `CLAUDE.md`'s `@`-imports block). Requires comment syntax in the file's language; pure JSON cannot MERGE. See [MERGE_BUCKET_SPEC.md](MERGE_BUCKET_SPEC.md) for fence convention.
+- **MERGE** -- template ships an `@`-import set; the propagator union-adds it to the consumer file and strips entries listed in `meta/propagation/deprecated_claude_md.txt`. Consumer-local `@`-imports and non-`@` content are preserved. Currently used by `CLAUDE.md` only. See [MERGE_BUCKET_SPEC.md](MERGE_BUCKET_SPEC.md).
 - **NOEXIST** -- starter seed; consumer owns the file thereafter. Use when the consumer reasonably extends the file with project-specific content the template cannot anticipate (e.g., `AGENTS.md`, `source_me.sh`, `tsconfig.json`, deploy scripts).
 - **META** -- never ships, any bucket, any repo type. Use for template-only infrastructure (propagator itself, reset_repo, README, VERSION) and per-repo content the template cannot author (CHANGELOG, .gitignore, REPO_TYPE).
 
@@ -61,8 +61,9 @@ Most additions are drop-and-go. The propagator keeps five short manifests in `pr
 - `ROOT_PROPAGATE_ALLOWLIST` -- root files that DO ship. Default: CLAUDE.md, AGENTS.md, source_me.sh. Add here when introducing a new root-level file all repos need.
 - `UNIVERSAL_NOEXIST` -- universal files that ship only when missing at consumer. Default: AGENTS.md, source_me.sh, docs/AUTHORS.md.
 
-The two sets compose: `ROOT_PROPAGATE_ALLOWLIST` decides IF a root file ships; `UNIVERSAL_NOEXIST` then decides HOW (overwrite vs noexist-only). Overlap is intentional: `AGENTS.md` and `source_me.sh` appear in both - allowlisted to ship, then routed noexist-only so they don't clobber consumer customizations. `CLAUDE.md` is allowlisted and routed via `MERGE_FILES` (fenced merge), so the template owns the fenced region and the consumer owns content outside it.
-- `MERGE_FILES` -- files routed to the fenced-merge bucket. Default: CLAUDE.md. Template owns content between `# === TEMPLATE-MANAGED START ===` / `END` fences (per [MERGE_BUCKET_SPEC.md](MERGE_BUCKET_SPEC.md) fence-by-language table); consumer owns everything outside.
+The two sets compose: `ROOT_PROPAGATE_ALLOWLIST` decides IF a root file ships; `UNIVERSAL_NOEXIST` then decides HOW (overwrite vs noexist-only). Overlap is intentional: `AGENTS.md` and `source_me.sh` appear in both - allowlisted to ship, then routed noexist-only so they don't clobber consumer customizations. `CLAUDE.md` is allowlisted and routed via `MERGE_FILES` (set-union of `@`-imports plus deprecation-strip list); consumer keeps any local `@`-imports and non-`@` content.
+- `MERGE_FILES` -- files routed to the MERGE bucket. Default: CLAUDE.md. Template `@`-imports are union-added to the consumer file; any consumer line matching `meta/propagation/deprecated_claude_md.txt` is stripped.
+- `meta/propagation/deprecated_claude_md.txt` -- user-editable strip manifest for the CLAUDE.md set-union merge. Lines in this file are removed from every consumer CLAUDE.md on every sync (after comment/blank-line filtering). Add a line when retiring an `@`-import from the template.
 - `ROUTING_OVERRIDES` -- files with language-specific or requirement-based routing rules. Maps file path to a dict with optional `language` and `requires_repo_file` fields. Examples: `docs/PYTHON_STYLE.md` ships only to python repos; `devel/submit_to_pypi.py` ships to python repos that have `pyproject.toml`.
 - `META_FILES` / `META_DIRS` / `META_TEST_PREFIXES` -- block-lists for files that NEVER ship (propagator itself, reset_repo, LICENSES/, etc.).
 

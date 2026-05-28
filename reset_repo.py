@@ -461,7 +461,36 @@ def main():
 	action_count += git_rm("propagate_style_guides.py", args.dry_run)
 	action_count += git_rm_recursive("propagate/", args.dry_run)
 	action_count += git_rm_recursive("tools/", args.dry_run)
-	action_count += git_rm_recursive("meta/", args.dry_run)
+	# Strip every directory named "meta/" anywhere in the tree (template-only
+	# trees: top-level meta/, tests/meta/, any future subtree/meta/). Walk the
+	# git index so only tracked dirs are touched; pick the shallowest "meta"
+	# in each path so a nested case like a/meta/sub/meta/ collapses to a/meta/
+	# and `git rm -r` is not asked to remove the same subtree twice.
+	ls_result = subprocess.run(
+		["git", "ls-files"], check=True, capture_output=True, text=True
+	)
+	tracked = ls_result.stdout.splitlines()
+	meta_dirs: list[str] = []
+	seen = set()
+	for tracked_path in tracked:
+		parts = tracked_path.split("/")
+		for idx, part in enumerate(parts):
+			if part == "meta":
+				meta_dir = "/".join(parts[: idx + 1]) + "/"
+				if meta_dir not in seen:
+					seen.add(meta_dir)
+					meta_dirs.append(meta_dir)
+				break
+	# Drop entries whose ancestor is already in the set (sibling dirs like
+	# meta/ and tests/meta/ are not ancestor-nested and both survive).
+	meta_dirs.sort(key=len)
+	pruned: list[str] = []
+	for candidate in meta_dirs:
+		covered = any(candidate.startswith(ancestor) and candidate != ancestor for ancestor in pruned)
+		if not covered:
+			pruned.append(candidate)
+	for meta_dir in pruned:
+		action_count += git_rm_recursive(meta_dir, args.dry_run)
 
 	if project_type != "python":
 		action_count += git_rm("devel/submit_to_pypi.py", args.dry_run)

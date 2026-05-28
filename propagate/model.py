@@ -42,7 +42,7 @@ DEFAULT_REPO_SKIP_NAMES = frozenset({
 # MAY ship; UNIVERSAL_NOEXIST then refines HOW it ships (overwrite vs noexist-only).
 # Overlap is expected: AGENTS.md and source_me.sh appear in both -- allowlisted
 # to ship, then routed noexist-only so they don't clobber consumer customizations.
-# CLAUDE.md is allowlisted and routed via MERGE_FILES (fenced merge), not overwrite.
+# CLAUDE.md is allowlisted and routed via MERGE_FILES (set-union @-import merge), not overwrite.
 ROOT_PROPAGATE_ALLOWLIST = frozenset({
 	'CLAUDE.md',
 	'AGENTS.md',
@@ -71,9 +71,10 @@ ROUTING_OVERRIDES = {
 	'devel/submit_to_pypi.py': {'language': LANG_PYTHON, 'requires_repo_file': 'pyproject.toml'},
 }
 
-# Files merged via fence markers (MERGE bucket). Template owns the fenced region;
-# consumer owns content outside. See meta/docs/MERGE_BUCKET_SPEC.md for fence
-# convention, semantics, and error cases.
+# Files routed to the MERGE bucket (set-union @-import merge). Template
+# @-imports are union-added to the consumer file; any consumer line listed in
+# meta/propagation/deprecated_claude_md.txt is stripped. Consumer-local
+# @-imports and non-@ content are preserved. See meta/docs/MERGE_BUCKET_SPEC.md.
 MERGE_FILES = frozenset({
 	'CLAUDE.md',
 })

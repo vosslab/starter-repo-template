@@ -396,78 +396,28 @@ def replace_managed_block(lines: list[str], header: str, block_lines: list[str])
 	return result
 
 
+# MERGE bucket: set-union merge for @-import list files. See meta/docs/MERGE_BUCKET_SPEC.md.
+
 #============================================
-# MERGE bucket: fenced-marker merge (see meta/docs/MERGE_BUCKET_SPEC.md)
-#============================================
-
-# Fence styles by language. First match wins per file; mixing styles is an error.
-FENCE_STYLES = (
-	('# === TEMPLATE-MANAGED START ===', '# === TEMPLATE-MANAGED END ==='),
-	('// === TEMPLATE-MANAGED START ===', '// === TEMPLATE-MANAGED END ==='),
-	('<!-- === TEMPLATE-MANAGED START === -->', '<!-- === TEMPLATE-MANAGED END === -->'),
-)
+def _load_claude_md_deprecated() -> list[str]:
+	"""Load the maintainer-curated strip list for CLAUDE.md merges."""
+	return load_deprecation_list('meta/propagation/deprecated_claude_md.txt', _get_template_root())
 
 
-def _find_fences(text: str) -> tuple | None:
+def merge_at_imports_safe(source: str, dest: str, dry_run: bool, counters: dict) -> str:
 	"""
-	Locate the fenced template-managed region in text.
+	Merge a flat @-import list file by set-union additions + deprecation strips.
 
-	Returns (start_idx, end_idx, style_idx, lines) when exactly one valid pair found.
-	Returns None when text has no fence markers (plain shape).
-	Raises ValueError with an actionable message for malformed fence states:
-	missing start, missing end, duplicate markers, mixed styles, or end-before-start.
-	"""
-	# Use split('\n') not splitlines(): a trailing '\n' produces a final empty element that
-	# '\n'.join(...) restores, preserving exact byte-for-byte round-trip on unchanged input.
-	lines = text.split('\n')
-	style_hits = []
-	for style_idx, (start_mark, end_mark) in enumerate(FENCE_STYLES):
-		start_count = sum(1 for ln in lines if ln.strip() == start_mark)
-		end_count = sum(1 for ln in lines if ln.strip() == end_mark)
-		if start_count or end_count:
-			style_hits.append((style_idx, start_count, end_count, start_mark, end_mark))
+	Designed for CLAUDE.md and other files that are nothing more than a list of
+	@filename imports plus optional non-@ commentary. No fences required: the
+	template content set is added on top of consumer content, and any line
+	matching the meta/propagation/deprecated_claude_md.txt list is removed.
 
-	if not style_hits:
-		return None
-
-	if len(style_hits) > 1:
-		raise ValueError("fence style mismatch: multiple fence comment styles present")
-
-	style_idx, start_count, end_count, start_mark, end_mark = style_hits[0]
-	if start_count > 1:
-		raise ValueError("duplicate fence marker: more than one start fence")
-	if end_count > 1:
-		raise ValueError("duplicate fence marker: more than one end fence")
-	if start_count == 0:
-		raise ValueError("missing start fence")
-	if end_count == 0:
-		raise ValueError("missing end fence")
-
-	start_idx = next(i for i, ln in enumerate(lines) if ln.strip() == start_mark)
-	end_idx = next(i for i, ln in enumerate(lines) if ln.strip() == end_mark)
-	if end_idx < start_idx:
-		raise ValueError("fence markers out of order (end before start)")
-
-	return (start_idx, end_idx, style_idx, lines)
-
-
-def merge_file_safe(source: str, dest: str, dry_run: bool, counters: dict) -> str:
-	"""
-	Merge a template-managed region into a consumer file.
-
-	Outcomes returned:
-		'created'   -- dest missing; wrote template verbatim. counters['created_count'] += 1.
-		'merged'    -- dest fenced; replaced managed region; consumer additions preserved.
-		              counters['merged_count'] += 1.
-		'unchanged' -- merge produced byte-identical result. counters['unchanged'] += 1.
-		'error'     -- consumer or template in invalid fence state; dest untouched.
-		              counters['errors'] += 1.
-
-	Error conditions (dest is NOT modified):
-		- template lacks both fences (configuration bug at template side)
-		- consumer has fences in invalid state (missing one, duplicates, wrong order,
-		  mixed styles, or plain shape with no fences at all)
-		- consumer and template use different fence styles
+	Outcomes:
+		'created'   -- dest missing; wrote template verbatim.
+		'merged'    -- consumer file updated (additions, removals, or both).
+		'unchanged' -- no additions, no removals; consumer already in sync.
+		'error'     -- source file missing.
 	"""
 	if not os.path.isfile(source):
 		counters['errors'] += 1
@@ -475,19 +425,7 @@ def merge_file_safe(source: str, dest: str, dry_run: bool, counters: dict) -> st
 		return 'error'
 
 	src_text = read_text(source)
-	try:
-		src_fences = _find_fences(src_text)
-	except ValueError as exc:
-		counters['errors'] += 1
-		propagate.console.log_action("error", f"merge template fence error in {source}: {exc}")
-		return 'error'
 
-	if src_fences is None:
-		counters['errors'] += 1
-		propagate.console.log_action("error", f"merge template missing fences: {source}")
-		return 'error'
-
-	# Dest missing: write template verbatim (template carries both fences + managed content).
 	if not os.path.isfile(dest):
 		dest_parent = os.path.dirname(dest)
 		if dest_parent and not os.path.isdir(dest_parent):
@@ -499,29 +437,43 @@ def merge_file_safe(source: str, dest: str, dry_run: bool, counters: dict) -> st
 		return 'created'
 
 	dest_text = read_text(dest)
-	try:
-		dest_fences = _find_fences(dest_text)
-	except ValueError as exc:
-		counters['errors'] += 1
-		propagate.console.log_action("error", f"{dest}: {exc}")
-		return 'error'
+	deprecated = set(_load_claude_md_deprecated())
 
-	if dest_fences is None:
-		counters['errors'] += 1
-		propagate.console.log_action("error", f"{dest}: consumer not at fenced shape; add fences once, then re-sync")
-		return 'error'
+	# split('\n') (not splitlines) preserves trailing-newline state on round-trip.
+	src_lines = src_text.split('\n')
+	dest_lines = dest_text.split('\n')
 
-	src_start, src_end, src_style_idx, src_lines = src_fences
-	dest_start, dest_end, dest_style_idx, dest_lines = dest_fences
+	consumer_at_imports = {ln.strip() for ln in dest_lines if ln.strip().startswith('@')}
+	pruned_lines = [ln for ln in dest_lines if ln.strip() not in deprecated]
 
-	if src_style_idx != dest_style_idx:
-		counters['errors'] += 1
-		propagate.console.log_action("error", f"{dest}: fence style mismatch with template")
-		return 'error'
+	additions: list[str] = []
+	additions_seen: set[str] = set()
+	for ln in src_lines:
+		stripped = ln.strip()
+		if not stripped.startswith('@'):
+			continue
+		if stripped in consumer_at_imports or stripped in deprecated or stripped in additions_seen:
+			continue
+		additions.append(stripped)
+		additions_seen.add(stripped)
 
-	# Build merged: dest content outside fences + template's fenced region (incl. both fences).
-	managed_region = src_lines[src_start:src_end + 1]
-	new_lines = dest_lines[:dest_start] + managed_region + dest_lines[dest_end + 1:]
+	# Splice additions after the last @-line in the pruned consumer so the
+	# new entries cluster with the existing import block.
+	if additions:
+		insertion_idx = None
+		for idx in range(len(pruned_lines) - 1, -1, -1):
+			if pruned_lines[idx].strip().startswith('@'):
+				insertion_idx = idx + 1
+				break
+		if insertion_idx is None:
+			# No existing @-lines; prepend at top (after any leading blanks).
+			insertion_idx = 0
+			while insertion_idx < len(pruned_lines) and not pruned_lines[insertion_idx].strip():
+				insertion_idx += 1
+		new_lines = pruned_lines[:insertion_idx] + additions + pruned_lines[insertion_idx:]
+	else:
+		new_lines = pruned_lines
+
 	merged = '\n'.join(new_lines)
 
 	# Preserve dest's trailing-newline state.

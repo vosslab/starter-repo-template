@@ -290,7 +290,7 @@ def apply_file_bucket(bucket_name: str, spec: dict, repo_dir: str, repo_type: st
 				propagate.console.log_action("skip", f"self: {dest_file}", counters)
 				continue
 
-			outcome = propagate.files.merge_file_safe(source_file, dest_file, context.dry_run, counters)
+			outcome = propagate.files.merge_at_imports_safe(source_file, dest_file, context.dry_run, counters)
 			if outcome == 'merged':
 				bucket_updates += 1
 			elif outcome == 'created':
