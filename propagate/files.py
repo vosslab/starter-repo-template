@@ -52,7 +52,8 @@ def should_ship_override(file_rel: str, repo_lang: str, repo_dir: str) -> bool |
 	"""
 	Apply routing overrides on top of the walker's default routing.
 
-	Checks ROUTING_OVERRIDES table for language-specific or requirement-based rules.
+	Checks ROUTING_OVERRIDES table for language-specific, requirement-based, or
+	per-destination-repo exclusion rules.
 	Returns None if no override applies (walker's default decision stands).
 
 	Note: this predicate only evaluates the gate fields (`language`, `requires_repo_file`).
@@ -77,6 +78,10 @@ def should_ship_override(file_rel: str, repo_lang: str, repo_dir: str) -> bool |
 		return False
 	required = rule.get('requires_repo_file')
 	if required is not None and not os.path.isfile(os.path.join(repo_dir, required)):
+		return False
+	# Per-destination-repo exclusion: block when this dest repo is on the exclude list
+	exclude_repos = rule.get('exclude_repos')
+	if exclude_repos is not None and os.path.basename(os.path.normpath(repo_dir)) in exclude_repos:
 		return False
 	return True
 

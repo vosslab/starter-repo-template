@@ -102,6 +102,34 @@ class TestShouldShipOverrideNoOverride:
 			assert result is None
 
 
+class TestShouldShipOverrideExcludeRepos:
+	"""Test cases for per-destination-repo exclusion."""
+
+	def test_hook_guide_blocked_from_source_repo(self):
+		"""docs/CLAUDE_HOOK_USAGE_GUIDE.md is blocked for claude-code-permissions-hook."""
+		with tempfile.TemporaryDirectory() as tmpdir:
+			dest = os.path.join(tmpdir, 'claude-code-permissions-hook')
+			os.makedirs(dest)
+			result = should_ship_override('docs/CLAUDE_HOOK_USAGE_GUIDE.md', LANG_PYTHON, dest)
+			assert result is False
+
+	def test_hook_guide_ships_to_other_repo(self):
+		"""docs/CLAUDE_HOOK_USAGE_GUIDE.md ships to any other repo."""
+		with tempfile.TemporaryDirectory() as tmpdir:
+			dest = os.path.join(tmpdir, 'some-other-repo')
+			os.makedirs(dest)
+			result = should_ship_override('docs/CLAUDE_HOOK_USAGE_GUIDE.md', LANG_PYTHON, dest)
+			assert result is True
+
+	def test_hook_guide_exclusion_ignores_trailing_slash(self):
+		"""Trailing slash on repo_dir does not defeat the exclusion."""
+		with tempfile.TemporaryDirectory() as tmpdir:
+			dest = os.path.join(tmpdir, 'claude-code-permissions-hook') + os.sep
+			os.makedirs(dest)
+			result = should_ship_override('docs/CLAUDE_HOOK_USAGE_GUIDE.md', LANG_PYTHON, dest)
+			assert result is False
+
+
 class TestShouldShipOverrideGuardrails:
 	"""Guardrail tests: verify ROUTING_OVERRIDES table structure."""
 
@@ -149,4 +177,13 @@ class TestShouldShipOverrideGuardrails:
 				)
 				assert rule['requires_repo_file'], (
 					f"requires_repo_file cannot be empty for {file_rel!r}"
+				)
+
+			# exclude_repos: if present, must be a non-empty collection of repo names
+			if 'exclude_repos' in rule:
+				assert isinstance(rule['exclude_repos'], (frozenset, set, tuple, list)), (
+					f"exclude_repos for {file_rel!r} must be a set/frozenset/list/tuple"
+				)
+				assert rule['exclude_repos'], (
+					f"exclude_repos cannot be empty for {file_rel!r}"
 				)

@@ -1,3 +1,17 @@
+## 2026-06-03
+
+### Additions and New Features
+
+- Added per-destination-repo exclusion to `ROUTING_OVERRIDES` (`propagate/model.py`) via a new optional `exclude_repos` field (a set/frozenset of repo basenames). `propagate.files.should_ship_override` now returns `False` when `os.path.basename(os.path.normpath(repo_dir))` is in that set, so a file can be blocked from shipping to specific destination repos. First and only use: `docs/CLAUDE_HOOK_USAGE_GUIDE.md` is excluded from `claude-code-permissions-hook`, which is the canonical source of that doc; the mirror must never overwrite the source of truth.
+
+### Decisions and Failures
+
+- Reused the existing `ROUTING_OVERRIDES` table for the exclusion rather than a one-off `if` branch or a new file-based config. Keeps the special case data-driven and co-located with the existing language/requirement gates; user confirmed a hard-coded special case (not a config file) was acceptable.
+
+### Developer Tests and Notes
+
+- Added `TestShouldShipOverrideExcludeRepos` to `tests/meta/test_should_ship_override.py`: blocked for `claude-code-permissions-hook`, ships to other repos, and trailing-slash on `repo_dir` does not defeat the exclusion (covered by `os.path.normpath`). Extended the schema guardrail to validate `exclude_repos` is a non-empty set/frozenset/list/tuple. Gates green: `pytest tests/meta/` 145 passed.
+
 ## 2026-05-28
 
 ### Additions and New Features

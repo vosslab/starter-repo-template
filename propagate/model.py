@@ -59,9 +59,11 @@ LANG_OTHER = 'other'
 LANG_UNKNOWN = 'unknown'
 
 # Routing overrides: files with language-specific or requirement-based routing rules.
-# Maps file_rel -> {language: ..., requires_repo_file: ..., bucket: ...}
+# Maps file_rel -> {language: ..., requires_repo_file: ..., exclude_repos: ..., bucket: ...}
 # language: blocks file unless repo_lang matches
 # requires_repo_file: blocks file unless repo_file exists at repo_dir
+# exclude_repos: blocks file when the destination repo basename is in this set/list
+#   (used for docs that are sourced FROM a specific repo and must never ship back to it)
 # bucket: optional shorthand ('noexist', 'overwrite', ...) appended with '_files' at dispatch;
 #   read by the caller after should_ship_override returns True (not by the predicate itself)
 ROUTING_OVERRIDES = {
@@ -69,6 +71,9 @@ ROUTING_OVERRIDES = {
 	'pip_requirements.txt': {'language': LANG_PYTHON, 'bucket': 'noexist'},
 	'pip_requirements-dev.txt': {'language': LANG_PYTHON, 'bucket': 'noexist'},
 	'devel/submit_to_pypi.py': {'language': LANG_PYTHON, 'requires_repo_file': 'pyproject.toml'},
+	# CLAUDE_HOOK_USAGE_GUIDE.md is sourced from claude-code-permissions-hook;
+	# never copy the mirror back over that repo's source of truth.
+	'docs/CLAUDE_HOOK_USAGE_GUIDE.md': {'exclude_repos': frozenset({'claude-code-permissions-hook'})},
 }
 
 # Files routed to the MERGE bucket (set-union @-import merge). Template
