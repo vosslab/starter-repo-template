@@ -1,13 +1,10 @@
 """Unit tests for propagate_style_guides.py helper functions (Phase A)."""
 
 import os
-import sys
 import stat
+import pathlib
 
-# Import the helpers we're testing
-tests_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-repo_root = os.path.dirname(tests_dir)
-sys.path.insert(0, repo_root)
+import pytest
 
 import propagate.console
 import propagate.files
@@ -19,7 +16,7 @@ import propagate_style_guides  # For apply_file_bucket and exit_code_for
 class TestCopyFileSafe:
 	"""Test copy_file_safe helper."""
 
-	def test_copy_file_safe_real_run(self, tmp_path):
+	def test_copy_file_safe_real_run(self, tmp_path: pathlib.Path) -> None:
 		"""Test actual file copy."""
 		src = tmp_path / "source.txt"
 		dst = tmp_path / "dest.txt"
@@ -30,7 +27,7 @@ class TestCopyFileSafe:
 		assert result is True
 		assert dst.read_text(encoding='utf-8') == "hello"
 
-	def test_copy_file_safe_dry_run(self, tmp_path, capsys):
+	def test_copy_file_safe_dry_run(self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture) -> None:
 		"""Test dry-run mode."""
 		src = tmp_path / "source.txt"
 		dst = tmp_path / "dest.txt"
@@ -44,7 +41,7 @@ class TestCopyFileSafe:
 		assert "dry run" in captured.out
 		assert "copy" in captured.out
 
-	def test_copy_file_safe_preserves_executable_bit(self, tmp_path):
+	def test_copy_file_safe_preserves_executable_bit(self, tmp_path: pathlib.Path) -> None:
 		"""Test that executable bit is preserved."""
 		src = tmp_path / "script.sh"
 		dst = tmp_path / "script_copy.sh"
@@ -60,7 +57,7 @@ class TestCopyFileSafe:
 		assert dst_mode & stat.S_IXGRP == stat.S_IXGRP
 		assert dst_mode & stat.S_IXOTH == stat.S_IXOTH
 
-	def test_copy_file_safe_custom_action(self, tmp_path, capsys):
+	def test_copy_file_safe_custom_action(self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture) -> None:
 		"""Test custom action parameter in dry-run."""
 		src = tmp_path / "source.txt"
 		dst = tmp_path / "dest.txt"
@@ -75,7 +72,7 @@ class TestCopyFileSafe:
 class TestMakeDirSafe:
 	"""Test make_dir_safe helper."""
 
-	def test_make_dir_safe_real_run(self, tmp_path):
+	def test_make_dir_safe_real_run(self, tmp_path: pathlib.Path) -> None:
 		"""Test actual directory creation."""
 		new_dir = tmp_path / "newdir"
 		assert not new_dir.exists()
@@ -85,7 +82,7 @@ class TestMakeDirSafe:
 		assert result is True
 		assert new_dir.is_dir()
 
-	def test_make_dir_safe_dry_run(self, tmp_path, capsys):
+	def test_make_dir_safe_dry_run(self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture) -> None:
 		"""Test dry-run mode."""
 		new_dir = tmp_path / "newdir"
 		assert not new_dir.exists()
@@ -98,7 +95,7 @@ class TestMakeDirSafe:
 		assert "dry run" in captured.out
 		assert "create" in captured.out
 
-	def test_make_dir_safe_idempotent(self, tmp_path):
+	def test_make_dir_safe_idempotent(self, tmp_path: pathlib.Path) -> None:
 		"""Test that creating an existing dir succeeds (exist_ok=True)."""
 		new_dir = tmp_path / "newdir"
 		new_dir.mkdir()
@@ -113,7 +110,7 @@ class TestMakeDirSafe:
 class TestLoadGitignoreBlock:
 	"""Test load_gitignore_block helper."""
 
-	def test_load_gitignore_block_filters_blanks_and_comments(self, tmp_path):
+	def test_load_gitignore_block_filters_blanks_and_comments(self, tmp_path: pathlib.Path) -> None:
 		"""Test that blanks and comments are filtered."""
 		file_path = tmp_path / "gitignore.txt"
 		content = """
@@ -132,7 +129,7 @@ __pycache__/
 
 		assert result == ['*.pyc', '__pycache__/', '.env']
 
-	def test_load_gitignore_block_empty_file(self, tmp_path):
+	def test_load_gitignore_block_empty_file(self, tmp_path: pathlib.Path) -> None:
 		"""Test loading empty file."""
 		file_path = tmp_path / "gitignore.txt"
 		file_path.write_text("", encoding='utf-8')
@@ -141,7 +138,7 @@ __pycache__/
 
 		assert result == []
 
-	def test_load_gitignore_block_only_comments(self, tmp_path):
+	def test_load_gitignore_block_only_comments(self, tmp_path: pathlib.Path) -> None:
 		"""Test file with only comments and blanks."""
 		file_path = tmp_path / "gitignore.txt"
 		content = """# Comment 1
@@ -154,7 +151,7 @@ __pycache__/
 
 		assert result == []
 
-	def test_load_gitignore_block_missing_file(self):
+	def test_load_gitignore_block_missing_file(self) -> None:
 		"""Test loading non-existent file returns empty list."""
 		result = propagate.files.load_gitignore_block('/nonexistent/path.txt')
 
@@ -164,7 +161,7 @@ __pycache__/
 class TestWriteRepoTypeMarker:
 	"""Test write_repo_type_marker helper."""
 
-	def test_write_repo_type_marker_real_run(self, tmp_path):
+	def test_write_repo_type_marker_real_run(self, tmp_path: pathlib.Path) -> None:
 		"""Test actual marker write."""
 		file_path = tmp_path / "REPO_TYPE"
 
@@ -173,7 +170,7 @@ class TestWriteRepoTypeMarker:
 		assert result is True
 		assert file_path.read_text(encoding='utf-8') == 'typescript\n'
 
-	def test_write_repo_type_marker_dry_run(self, tmp_path, capsys):
+	def test_write_repo_type_marker_dry_run(self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture) -> None:
 		"""Test dry-run mode."""
 		file_path = tmp_path / "REPO_TYPE"
 
@@ -184,7 +181,7 @@ class TestWriteRepoTypeMarker:
 		captured = capsys.readouterr()
 		assert "dry run" in captured.out
 
-	def test_write_repo_type_marker_all_tokens(self, tmp_path):
+	def test_write_repo_type_marker_all_tokens(self, tmp_path: pathlib.Path) -> None:
 		"""Test all valid token types."""
 		for token in ('python', 'typescript', 'rust', 'other'):
 			file_path = tmp_path / f"REPO_TYPE_{token}"
@@ -195,38 +192,38 @@ class TestWriteRepoTypeMarker:
 class TestParseRepoTypeChoice:
 	"""Test parse_repo_type_choice helper."""
 
-	def test_parse_repo_type_choice_single_letters(self):
+	def test_parse_repo_type_choice_single_letters(self) -> None:
 		"""Test single-letter choices."""
 		assert propagate.repo.parse_repo_type_choice('p') == 'python'
 		assert propagate.repo.parse_repo_type_choice('t') == 'typescript'
 		assert propagate.repo.parse_repo_type_choice('r') == 'rust'
 		assert propagate.repo.parse_repo_type_choice('o') == 'other'
 
-	def test_parse_repo_type_choice_full_words(self):
+	def test_parse_repo_type_choice_full_words(self) -> None:
 		"""Test full-word choices."""
 		assert propagate.repo.parse_repo_type_choice('python') == 'python'
 		assert propagate.repo.parse_repo_type_choice('typescript') == 'typescript'
 		assert propagate.repo.parse_repo_type_choice('rust') == 'rust'
 		assert propagate.repo.parse_repo_type_choice('other') == 'other'
 
-	def test_parse_repo_type_choice_case_insensitive(self):
+	def test_parse_repo_type_choice_case_insensitive(self) -> None:
 		"""Test case insensitivity."""
 		assert propagate.repo.parse_repo_type_choice('P') == 'python'
 		assert propagate.repo.parse_repo_type_choice('PYTHON') == 'python'
 		assert propagate.repo.parse_repo_type_choice('TypeScript') == 'typescript'
 
-	def test_parse_repo_type_choice_unknown_returns_default(self):
+	def test_parse_repo_type_choice_unknown_returns_default(self) -> None:
 		"""Test unknown input returns default."""
 		assert propagate.repo.parse_repo_type_choice('invalid', 'python') == 'python'
 		assert propagate.repo.parse_repo_type_choice('xyz', 'rust') == 'rust'
 		assert propagate.repo.parse_repo_type_choice('invalid', None) is None
 
-	def test_parse_repo_type_choice_empty_returns_default(self):
+	def test_parse_repo_type_choice_empty_returns_default(self) -> None:
 		"""Test empty string returns default."""
 		assert propagate.repo.parse_repo_type_choice('', 'python') == 'python'
 		assert propagate.repo.parse_repo_type_choice('', None) is None
 
-	def test_parse_repo_type_choice_whitespace(self):
+	def test_parse_repo_type_choice_whitespace(self) -> None:
 		"""Test whitespace handling."""
 		assert propagate.repo.parse_repo_type_choice('  p  ') == 'python'
 		assert propagate.repo.parse_repo_type_choice('  python  ') == 'python'
@@ -235,7 +232,7 @@ class TestParseRepoTypeChoice:
 class TestReplaceManagedBlock:
 	"""Test replace_managed_block helper."""
 
-	def test_replace_managed_block_present(self):
+	def test_replace_managed_block_present(self) -> None:
 		"""Test replacing an existing block with content after."""
 		lines = [
 			'user content',
@@ -260,7 +257,7 @@ class TestReplaceManagedBlock:
 			'python content',
 		]
 
-	def test_replace_managed_block_absent(self):
+	def test_replace_managed_block_absent(self) -> None:
 		"""Test appending when block is absent."""
 		lines = ['user content 1', 'user content 2']
 		new_block = ['pattern 1', 'pattern 2']
@@ -276,7 +273,7 @@ class TestReplaceManagedBlock:
 			'pattern 2',
 		]
 
-	def test_replace_managed_block_empty_list(self):
+	def test_replace_managed_block_empty_list(self) -> None:
 		"""Test with empty line list."""
 		lines = []
 		new_block = ['pattern 1']
@@ -286,7 +283,7 @@ class TestReplaceManagedBlock:
 
 		assert result == ['# === UNIVERSAL ===', 'pattern 1']
 
-	def test_replace_managed_block_multiple_blocks(self):
+	def test_replace_managed_block_multiple_blocks(self) -> None:
 		"""Test that only the named block is replaced."""
 		lines = [
 			'# === UNIVERSAL ===',
@@ -307,7 +304,7 @@ class TestReplaceManagedBlock:
 			'new python pattern',
 		]
 
-	def test_replace_managed_block_idempotent(self):
+	def test_replace_managed_block_idempotent(self) -> None:
 		"""Test idempotency: result is same if called twice."""
 		lines = [
 			'# === UNIVERSAL ===',
@@ -326,7 +323,7 @@ class TestReplaceManagedBlock:
 class TestCopyIfChanged:
 	"""Test copy_if_changed helper."""
 
-	def test_copy_if_changed_source_missing(self, tmp_path, capsys):
+	def test_copy_if_changed_source_missing(self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture) -> None:
 		"""Test returns skipped_source and suppresses output when source missing + counters passed."""
 		source = tmp_path / "missing.txt"
 		dest = tmp_path / "dest.txt"
@@ -341,7 +338,7 @@ class TestCopyIfChanged:
 		# Quiet tag suppressed when counters passed
 		assert "skip" not in captured.out
 
-	def test_copy_if_changed_source_missing_no_counters(self, tmp_path, capsys):
+	def test_copy_if_changed_source_missing_no_counters(self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture) -> None:
 		"""Test source missing prints skip line when counters=None."""
 		source = tmp_path / "missing.txt"
 		dest = tmp_path / "dest.txt"
@@ -354,7 +351,7 @@ class TestCopyIfChanged:
 		assert "source:" in captured.out
 		assert "(not found)" in captured.out
 
-	def test_copy_if_changed_dest_missing_copied(self, tmp_path, capsys):
+	def test_copy_if_changed_dest_missing_copied(self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture) -> None:
 		"""Test returns copied and prints COPIED line when dest missing."""
 		source = tmp_path / "source.txt"
 		dest = tmp_path / "dest.txt"
@@ -369,7 +366,7 @@ class TestCopyIfChanged:
 		assert "copy" in captured.out
 		assert "->" in captured.out
 
-	def test_copy_if_changed_dest_exists_same_no_change(self, tmp_path, capsys):
+	def test_copy_if_changed_dest_exists_same_no_change(self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture) -> None:
 		"""Test returns no_change and suppresses output when files identical + counters passed."""
 		source = tmp_path / "source.txt"
 		dest = tmp_path / "dest.txt"
@@ -386,7 +383,7 @@ class TestCopyIfChanged:
 		# Quiet tag suppressed when counters passed
 		assert "no change" not in captured.out
 
-	def test_copy_if_changed_dest_exists_same_no_change_no_counters(self, tmp_path, capsys):
+	def test_copy_if_changed_dest_exists_same_no_change_no_counters(self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture) -> None:
 		"""Test no_change prints NO CHANGE line when counters=None."""
 		source = tmp_path / "source.txt"
 		dest = tmp_path / "dest.txt"
@@ -400,7 +397,7 @@ class TestCopyIfChanged:
 		captured = capsys.readouterr()
 		assert "no change" in captured.out
 
-	def test_copy_if_changed_dest_exists_differs_updated(self, tmp_path, capsys):
+	def test_copy_if_changed_dest_exists_differs_updated(self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture) -> None:
 		"""Test returns updated and prints UPDATED line when files differ."""
 		source = tmp_path / "source.txt"
 		dest = tmp_path / "dest.txt"
@@ -416,7 +413,7 @@ class TestCopyIfChanged:
 		assert "update" in captured.out
 		assert "->" in captured.out
 
-	def test_copy_if_changed_dry_run_no_copy(self, tmp_path, capsys):
+	def test_copy_if_changed_dry_run_no_copy(self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture) -> None:
 		"""Test dry-run mode does not write but prints dry-run line and returns indicator."""
 		source = tmp_path / "source.txt"
 		dest = tmp_path / "dest.txt"
@@ -432,7 +429,7 @@ class TestCopyIfChanged:
 		captured = capsys.readouterr()
 		assert "dry run" in captured.out
 
-	def test_copy_if_changed_creates_parent_directory(self, tmp_path):
+	def test_copy_if_changed_creates_parent_directory(self, tmp_path: pathlib.Path) -> None:
 		"""Test that parent directory is created if needed."""
 		source = tmp_path / "source.txt"
 		dest = tmp_path / "subdir" / "nested" / "dest.txt"
@@ -445,7 +442,7 @@ class TestCopyIfChanged:
 		assert dest.exists()
 		assert dest.read_text(encoding='utf-8') == "hello"
 
-	def test_copy_if_changed_preserves_executable_bit(self, tmp_path):
+	def test_copy_if_changed_preserves_executable_bit(self, tmp_path: pathlib.Path) -> None:
 		"""Test that executable bit is preserved on copy."""
 		source = tmp_path / "script.sh"
 		dest = tmp_path / "script_copy.sh"
@@ -466,7 +463,7 @@ class TestCopyIfChanged:
 class TestApplyFileBucket:
 	"""Test apply_file_bucket helper covering per-bucket special cases."""
 
-	def test_noexist_bucket_skip_policy(self, tmp_path, capsys, monkeypatch):
+	def test_noexist_bucket_skip_policy(self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch) -> None:
 		"""Test noexist bucket: skip when dest exists and --bootstrap not set."""
 		# Setup
 		repo_dir = tmp_path / "repo"
@@ -507,7 +504,7 @@ class TestApplyFileBucket:
 		counters = propagate.console.init_counters()
 
 		# Mock find_source_for_bucket (None-returning variant used by apply_file_bucket)
-		def mock_source_path(source_dir, bucket, file_rel, repo_type):
+		def mock_source_path(source_dir: str, bucket: str, file_rel: str, repo_type: str) -> str | None:
 			if file_rel == 'source_me.sh':
 				return str(source_file)
 			return None
@@ -528,7 +525,7 @@ class TestApplyFileBucket:
 		assert skips == 1
 		assert counters['skipped_policy'] == 1
 
-	def test_noexist_bucket_source_me_sh_path_skip(self, tmp_path, capsys, monkeypatch):
+	def test_noexist_bucket_source_me_sh_path_skip(self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch) -> None:
 		"""Test noexist bucket: skip source_me.sh when repo is on PATH."""
 		# Setup
 		repo_dir = tmp_path / "repo"
@@ -565,7 +562,7 @@ class TestApplyFileBucket:
 		counters = propagate.console.init_counters()
 
 		# Mock find_source_for_bucket (None-returning variant used by apply_file_bucket)
-		def mock_source_path(source_dir, bucket, file_rel, repo_type):
+		def mock_source_path(source_dir: str, bucket: str, file_rel: str, repo_type: str) -> str | None:
 			if file_rel == 'source_me.sh':
 				return str(source_file)
 			return None
@@ -586,7 +583,7 @@ class TestApplyFileBucket:
 		assert skips == 0
 		assert counters['skipped_path'] == 1
 
-	def test_devel_bucket_no_change_check(self, tmp_path, capsys, monkeypatch):
+	def test_devel_bucket_no_change_check(self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch) -> None:
 		"""Test devel bucket: filecmp no-change check when files identical."""
 		# Setup
 		repo_dir = tmp_path / "repo"
@@ -631,7 +628,7 @@ class TestApplyFileBucket:
 		counters = propagate.console.init_counters()
 
 		# find_source_for_bucket is the variant used by apply_file_bucket; return None on miss.
-		def mock_source_path(source_dir, bucket, file_rel, repo_type):
+		def mock_source_path(source_dir: str, bucket: str, file_rel: str, repo_type: str) -> str | None:
 			if file_rel == 'helper.py':
 				return str(source_file)
 			return None
@@ -639,7 +636,7 @@ class TestApplyFileBucket:
 		monkeypatch.setattr(propagate.model, 'find_source_for_bucket', mock_source_path)
 
 		# Mock target_path_for_bucket
-		def mock_target_path(repo_dir, bucket, file_rel):
+		def mock_target_path(repo_dir: str, bucket: str, file_rel: str) -> str:
 			if bucket == 'devel_files':
 				return str(devel_dir / file_rel)
 			raise ValueError()
@@ -655,7 +652,7 @@ class TestApplyFileBucket:
 		assert updates == 0
 		assert skips == 0
 
-	def test_test_bucket_auto_discovered_files_handled(self, tmp_path, capsys, monkeypatch):
+	def test_test_bucket_auto_discovered_files_handled(self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch) -> None:
 		"""Test test_files bucket: auto-discovered files are handled correctly."""
 		# Setup
 		repo_dir = tmp_path / "repo"
@@ -694,7 +691,7 @@ class TestApplyFileBucket:
 		counters = propagate.console.init_counters()
 
 		# find_source_for_bucket is the variant used by apply_file_bucket; return None on miss.
-		def mock_source_path(source_dir, bucket, file_rel, repo_type):
+		def mock_source_path(source_dir: str, bucket: str, file_rel: str, repo_type: str) -> str | None:
 			if file_rel == 'test_auto.py':
 				return str(source_file)
 			return None
@@ -702,7 +699,7 @@ class TestApplyFileBucket:
 		monkeypatch.setattr(propagate.model, 'find_source_for_bucket', mock_source_path)
 
 		# Mock target_path_for_bucket
-		def mock_target_path(repo_dir, bucket, file_rel):
+		def mock_target_path(repo_dir: str, bucket: str, file_rel: str) -> str:
 			if bucket == 'test_files':
 				return str(tests_dir / file_rel)
 			raise ValueError()
@@ -722,13 +719,13 @@ class TestApplyFileBucket:
 class TestExitCodeFor:
 	"""Test exit_code_for helper."""
 
-	def test_exit_code_for_no_errors(self):
+	def test_exit_code_for_no_errors(self) -> None:
 		"""Test returns 0 when errors counter is 0."""
 		counters = {'errors': 0}
 		result = propagate_style_guides.exit_code_for(counters)
 		assert result == 0
 
-	def test_exit_code_for_one_error(self):
+	def test_exit_code_for_one_error(self) -> None:
 		"""Test returns 1 when errors counter is 1."""
 		counters = {'errors': 1}
 		result = propagate_style_guides.exit_code_for(counters)

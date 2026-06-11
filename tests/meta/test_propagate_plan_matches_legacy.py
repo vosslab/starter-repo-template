@@ -1,17 +1,13 @@
 """Regression: compute_propagation_plan output matches former TYPED_SPEC behavior."""
 
-import os
-import sys
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
+import file_utils
 import propagate.model
 import propagate.files
 
 
-def test_python_plan_matches_legacy():
+def test_python_plan_matches_legacy() -> None:
 	"""Python type plan matches legacy TYPED_SPEC."""
-	template_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+	template_root = file_utils.get_repo_root()
 	plan = propagate.files.compute_propagation_plan(template_root, 'python')
 
 	# Expected universal files
@@ -62,9 +58,9 @@ def test_python_plan_matches_legacy():
 		assert expected in plan['devel_files'], f"Missing {expected} in devel_files"
 
 
-def test_typescript_plan_matches_legacy():
+def test_typescript_plan_matches_legacy() -> None:
 	"""TypeScript type plan matches legacy TYPED_SPEC."""
-	template_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+	template_root = file_utils.get_repo_root()
 	plan = propagate.files.compute_propagation_plan(template_root, 'typescript')
 
 	expected_universal_overwrite = {
@@ -123,9 +119,9 @@ def test_typescript_plan_matches_legacy():
 		assert expected in plan['test_files'], f"Missing {expected} in test_files"
 
 
-def test_rust_plan_matches_legacy():
+def test_rust_plan_matches_legacy() -> None:
 	"""Rust type plan matches legacy TYPED_SPEC."""
-	template_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+	template_root = file_utils.get_repo_root()
 	plan = propagate.files.compute_propagation_plan(template_root, 'rust')
 
 	expected_universal_overwrite = {
@@ -167,9 +163,9 @@ def test_rust_plan_matches_legacy():
 		assert expected in plan['devel_files'], f"Missing {expected} in devel_files"
 
 
-def test_other_plan_matches_legacy():
+def test_other_plan_matches_legacy() -> None:
 	"""Other type plan matches legacy TYPED_SPEC."""
-	template_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+	template_root = file_utils.get_repo_root()
 	plan = propagate.files.compute_propagation_plan(template_root, 'other')
 
 	expected_universal_overwrite = {

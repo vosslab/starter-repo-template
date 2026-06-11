@@ -134,10 +134,10 @@ Preferred structure:
 - Document shared helpers and modules in `docs/USAGE.md` when used across scripts.
 - Use `tests/test_pyflakes_code_lint.py` and `tests/test_ascii_compliance.py` for repo-wide lint checks, with `tests/check_ascii_compliance.py` for single-file ASCII/ISO-8859-1 checks and `tests/fix_ascii_compliance.py` for single-file fixes. `tests/test_markdown_links.py` is the repo-wide check that every local Markdown link is GitHub-browsable and well formed.
 - For smoke tests, reuse stable output folder names (for example `output_smoke/`) instead of creating one-off output directory names; reusing/overwriting avoids repeated delete-approval prompts.
-- In test scripts that need the repository root, import and use the shared `tests/git_file_utils.py` module:
+- In test scripts that need the repository root, import and use the shared `tests/file_utils.py` module:
   ```python
-  import git_file_utils
-  REPO_ROOT = git_file_utils.get_repo_root()
+  import file_utils
+  REPO_ROOT = file_utils.get_repo_root()
   ```
   This module uses `git rev-parse --show-toplevel` and is propagated across repos automatically.
 

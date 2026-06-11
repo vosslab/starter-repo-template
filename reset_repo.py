@@ -96,7 +96,7 @@ def verify_license_copy(repo_root: str, license_type: str, spdx_id: str) -> bool
 	return spdx_id in first_bytes or normalized_spdx in first_bytes
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
 	parser = argparse.ArgumentParser(
 		description="Reset a cloned starter-repo-template to base configuration"
 	)
@@ -406,7 +406,7 @@ def confirm_plan(project_type: str, code_license: str, docs_license: str, stage:
 			sys.exit("Aborted")
 
 
-def main():
+def main() -> None:
 	args = parse_args()
 	repo_root = get_repo_root()
 

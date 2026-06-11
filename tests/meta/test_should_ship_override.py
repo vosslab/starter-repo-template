@@ -5,13 +5,11 @@ Covers language-specific and requirement-based file routing rules.
 """
 
 import os
-import sys
 import tempfile
 
-# Set up import path for propagate package
-tests_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-repo_root = os.path.dirname(tests_dir)
-sys.path.insert(0, repo_root)
+import file_utils
+
+repo_root = file_utils.get_repo_root()
 
 from propagate.files import should_ship_override
 from propagate.model import LANG_PYTHON, LANG_TYPESCRIPT, LANG_OTHER, LANG_UNKNOWN
@@ -20,31 +18,31 @@ from propagate.model import LANG_PYTHON, LANG_TYPESCRIPT, LANG_OTHER, LANG_UNKNO
 class TestShouldShipOverridePythonRepo:
 	"""Test cases for Python repository type."""
 
-	def test_python_style_ships_to_python_repo(self):
+	def test_python_style_ships_to_python_repo(self) -> None:
 		"""docs/PYTHON_STYLE.md ships to python repos."""
 		with tempfile.TemporaryDirectory() as tmpdir:
 			result = should_ship_override('docs/PYTHON_STYLE.md', LANG_PYTHON, tmpdir)
 			assert result is True
 
-	def test_python_style_blocked_from_typescript_repo(self):
+	def test_python_style_blocked_from_typescript_repo(self) -> None:
 		"""docs/PYTHON_STYLE.md is blocked for typescript repos."""
 		with tempfile.TemporaryDirectory() as tmpdir:
 			result = should_ship_override('docs/PYTHON_STYLE.md', LANG_TYPESCRIPT, tmpdir)
 			assert result is False
 
-	def test_pip_requirements_ships_to_python_repo(self):
+	def test_pip_requirements_ships_to_python_repo(self) -> None:
 		"""pip_requirements.txt ships to python repos (bucket: noexist)."""
 		with tempfile.TemporaryDirectory() as tmpdir:
 			result = should_ship_override('pip_requirements.txt', LANG_PYTHON, tmpdir)
 			assert result is True
 
-	def test_pip_requirements_dev_ships_to_python_repo(self):
+	def test_pip_requirements_dev_ships_to_python_repo(self) -> None:
 		"""pip_requirements-dev.txt ships to python repos (bucket: noexist)."""
 		with tempfile.TemporaryDirectory() as tmpdir:
 			result = should_ship_override('pip_requirements-dev.txt', LANG_PYTHON, tmpdir)
 			assert result is True
 
-	def test_submit_to_pypi_requires_pyproject_toml(self):
+	def test_submit_to_pypi_requires_pyproject_toml(self) -> None:
 		"""devel/submit_to_pypi.py requires pyproject.toml to exist."""
 		# Case: pyproject.toml missing
 		with tempfile.TemporaryDirectory() as tmpdir:
@@ -63,13 +61,13 @@ class TestShouldShipOverridePythonRepo:
 class TestShouldShipOverrideOtherRepos:
 	"""Test cases for 'other' and non-python repository types."""
 
-	def test_python_style_blocked_from_other_repo(self):
+	def test_python_style_blocked_from_other_repo(self) -> None:
 		"""docs/PYTHON_STYLE.md is blocked for 'other' repos."""
 		with tempfile.TemporaryDirectory() as tmpdir:
 			result = should_ship_override('docs/PYTHON_STYLE.md', LANG_OTHER, tmpdir)
 			assert result is False
 
-	def test_submit_to_pypi_blocked_from_other_repo(self):
+	def test_submit_to_pypi_blocked_from_other_repo(self) -> None:
 		"""devel/submit_to_pypi.py is blocked for non-python repos."""
 		with tempfile.TemporaryDirectory() as tmpdir:
 			result = should_ship_override('devel/submit_to_pypi.py', LANG_OTHER, tmpdir)
@@ -79,7 +77,7 @@ class TestShouldShipOverrideOtherRepos:
 class TestShouldShipOverrideUnknownRepos:
 	"""Test cases for unknown/unmarked repository type."""
 
-	def test_python_style_blocked_from_unknown_repo(self):
+	def test_python_style_blocked_from_unknown_repo(self) -> None:
 		"""docs/PYTHON_STYLE.md is blocked for unknown repos."""
 		with tempfile.TemporaryDirectory() as tmpdir:
 			result = should_ship_override('docs/PYTHON_STYLE.md', LANG_UNKNOWN, tmpdir)
@@ -89,13 +87,13 @@ class TestShouldShipOverrideUnknownRepos:
 class TestShouldShipOverrideNoOverride:
 	"""Test cases where no override applies."""
 
-	def test_no_override_for_unregistered_file(self):
+	def test_no_override_for_unregistered_file(self) -> None:
 		"""Unregistered files return None (no override)."""
 		with tempfile.TemporaryDirectory() as tmpdir:
 			result = should_ship_override('docs/README.md', LANG_PYTHON, tmpdir)
 			assert result is None
 
-	def test_no_override_for_random_path(self):
+	def test_no_override_for_random_path(self) -> None:
 		"""Random paths not in ROUTING_OVERRIDES return None."""
 		with tempfile.TemporaryDirectory() as tmpdir:
 			result = should_ship_override('src/app.py', LANG_TYPESCRIPT, tmpdir)
@@ -105,7 +103,7 @@ class TestShouldShipOverrideNoOverride:
 class TestShouldShipOverrideExcludeRepos:
 	"""Test cases for per-destination-repo exclusion."""
 
-	def test_hook_guide_blocked_from_source_repo(self):
+	def test_hook_guide_blocked_from_source_repo(self) -> None:
 		"""docs/CLAUDE_HOOK_USAGE_GUIDE.md is blocked for claude-code-permissions-hook."""
 		with tempfile.TemporaryDirectory() as tmpdir:
 			dest = os.path.join(tmpdir, 'claude-code-permissions-hook')
@@ -113,7 +111,7 @@ class TestShouldShipOverrideExcludeRepos:
 			result = should_ship_override('docs/CLAUDE_HOOK_USAGE_GUIDE.md', LANG_PYTHON, dest)
 			assert result is False
 
-	def test_hook_guide_ships_to_other_repo(self):
+	def test_hook_guide_ships_to_other_repo(self) -> None:
 		"""docs/CLAUDE_HOOK_USAGE_GUIDE.md ships to any other repo."""
 		with tempfile.TemporaryDirectory() as tmpdir:
 			dest = os.path.join(tmpdir, 'some-other-repo')
@@ -121,7 +119,7 @@ class TestShouldShipOverrideExcludeRepos:
 			result = should_ship_override('docs/CLAUDE_HOOK_USAGE_GUIDE.md', LANG_PYTHON, dest)
 			assert result is True
 
-	def test_hook_guide_exclusion_ignores_trailing_slash(self):
+	def test_hook_guide_exclusion_ignores_trailing_slash(self) -> None:
 		"""Trailing slash on repo_dir does not defeat the exclusion."""
 		with tempfile.TemporaryDirectory() as tmpdir:
 			dest = os.path.join(tmpdir, 'claude-code-permissions-hook') + os.sep
@@ -133,7 +131,7 @@ class TestShouldShipOverrideExcludeRepos:
 class TestShouldShipOverrideGuardrails:
 	"""Guardrail tests: verify ROUTING_OVERRIDES table structure."""
 
-	def test_all_override_keys_are_valid_paths(self):
+	def test_all_override_keys_are_valid_paths(self) -> None:
 		"""Every ROUTING_OVERRIDES key exists in the template."""
 		from propagate.model import ROUTING_OVERRIDES
 
@@ -147,7 +145,7 @@ class TestShouldShipOverrideGuardrails:
 				f"ROUTING_OVERRIDES key {file_rel!r} does not exist at {full_path}"
 			)
 
-	def test_all_override_values_have_valid_schema(self):
+	def test_all_override_values_have_valid_schema(self) -> None:
 		"""Every ROUTING_OVERRIDES rule has valid schema."""
 		from propagate.model import ROUTING_OVERRIDES
 

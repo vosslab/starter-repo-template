@@ -7,10 +7,9 @@ dedup (duplicate @-imports not re-added), and deprecation strip (lines in
 meta/propagation/deprecated_claude_md.txt removed from consumer).
 """
 
-import os
-import sys
+import pathlib
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+import pytest
 
 import propagate.console
 import propagate.files
@@ -23,12 +22,12 @@ TEMPLATE_BODY = (
 )
 
 
-def _write(path, content):
+def _write(path: pathlib.Path, content: str) -> None:
 	with open(path, 'w', encoding='utf-8') as f:
 		f.write(content)
 
 
-def test_creates_when_dest_missing(tmp_path):
+def test_creates_when_dest_missing(tmp_path: pathlib.Path) -> None:
 	source = tmp_path / "template.md"
 	dest = tmp_path / "consumer" / "consumer.md"
 	_write(source, TEMPLATE_BODY)
@@ -40,7 +39,7 @@ def test_creates_when_dest_missing(tmp_path):
 	assert dest.read_text(encoding='utf-8') == TEMPLATE_BODY
 
 
-def test_unchanged_when_consumer_has_all_template_imports(tmp_path, monkeypatch):
+def test_unchanged_when_consumer_has_all_template_imports(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
 	"""Consumer already carries every template @-import and no deprecated lines."""
 	monkeypatch.setattr(propagate.files, '_load_claude_md_deprecated', lambda: [])
 	source = tmp_path / "template.md"
@@ -54,7 +53,7 @@ def test_unchanged_when_consumer_has_all_template_imports(tmp_path, monkeypatch)
 	assert outcome == 'unchanged'
 
 
-def test_merged_adds_missing_template_imports(tmp_path, monkeypatch):
+def test_merged_adds_missing_template_imports(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
 	"""Consumer missing one template @-import gets it appended; existing entries preserved."""
 	monkeypatch.setattr(propagate.files, '_load_claude_md_deprecated', lambda: [])
 	source = tmp_path / "template.md"
@@ -76,7 +75,7 @@ def test_merged_adds_missing_template_imports(tmp_path, monkeypatch):
 	assert "@docs/LOCAL_NOTES.md" in merged, "consumer-local entry preserved"
 
 
-def test_plain_shape_no_fences_succeeds(tmp_path, monkeypatch):
+def test_plain_shape_no_fences_succeeds(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
 	"""Consumer with no fence markers is acceptable; no error."""
 	monkeypatch.setattr(propagate.files, '_load_claude_md_deprecated', lambda: [])
 	source = tmp_path / "template.md"
@@ -90,7 +89,7 @@ def test_plain_shape_no_fences_succeeds(tmp_path, monkeypatch):
 	assert outcome == 'merged'
 
 
-def test_duplicate_imports_not_readded(tmp_path, monkeypatch):
+def test_duplicate_imports_not_readded(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
 	"""If consumer already contains an @-import, template's matching line is not duplicated."""
 	monkeypatch.setattr(propagate.files, '_load_claude_md_deprecated', lambda: [])
 	source = tmp_path / "template.md"
@@ -105,7 +104,7 @@ def test_duplicate_imports_not_readded(tmp_path, monkeypatch):
 	assert outcome == 'unchanged'
 
 
-def test_deprecated_line_stripped(tmp_path, monkeypatch):
+def test_deprecated_line_stripped(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
 	"""Lines matching the deprecation list are removed from the consumer."""
 	monkeypatch.setattr(
 		propagate.files,
@@ -135,7 +134,7 @@ def test_deprecated_line_stripped(tmp_path, monkeypatch):
 	assert "@docs/PYTHON_STYLE.md" in merged
 
 
-def test_consumer_with_zero_at_imports(tmp_path, monkeypatch):
+def test_consumer_with_zero_at_imports(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
 	"""Consumer has prose but no @-imports; template entries prepend at top."""
 	monkeypatch.setattr(propagate.files, '_load_claude_md_deprecated', lambda: [])
 	source = tmp_path / "template.md"
@@ -152,7 +151,7 @@ def test_consumer_with_zero_at_imports(tmp_path, monkeypatch):
 	assert "Some prose with no @-imports at all." in merged
 
 
-def test_source_missing_returns_error(tmp_path):
+def test_source_missing_returns_error(tmp_path: pathlib.Path) -> None:
 	"""Missing template source surfaces 'error' and leaves the dest untouched."""
 	source = tmp_path / "does_not_exist.md"
 	dest = tmp_path / "consumer.md"
@@ -166,7 +165,7 @@ def test_source_missing_returns_error(tmp_path):
 	assert dest.read_text(encoding='utf-8') == before
 
 
-def test_dry_run_does_not_modify(tmp_path, monkeypatch):
+def test_dry_run_does_not_modify(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
 	"""dry_run=True must not write to the dest file even when a merge would change content."""
 	monkeypatch.setattr(propagate.files, '_load_claude_md_deprecated', lambda: [])
 	source = tmp_path / "template.md"

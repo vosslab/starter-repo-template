@@ -167,7 +167,7 @@ def detect_repo_type(repo_dir: str) -> tuple[str, str, list[str]]:
 
 
 #============================================
-def parse_args():
+def parse_args() -> argparse.Namespace:
 	"""Parse command-line arguments."""
 	parser = argparse.ArgumentParser(
 		description='Detect repository type from contents'
@@ -192,7 +192,7 @@ def parse_args():
 
 
 #============================================
-def main():
+def main() -> None:
 	"""CLI interface for repo type detection."""
 	args = parse_args()
 

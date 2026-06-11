@@ -3,14 +3,11 @@
 import os
 import tempfile
 
-import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
 import propagate.model
 import propagate.files
 
 
-def test_universal_doc_routes_overwrite():
+def test_universal_doc_routes_overwrite() -> None:
 	"""Docs/ file routes to overwrite_files for all repo types."""
 	with tempfile.TemporaryDirectory() as tmpdir:
 		os.makedirs(os.path.join(tmpdir, 'docs'))
@@ -20,7 +17,7 @@ def test_universal_doc_routes_overwrite():
 		assert 'docs/FOO.md' in plan['overwrite_files']
 
 
-def test_meta_file_excluded_basename_form():
+def test_meta_file_excluded_basename_form() -> None:
 	"""META_FILES entry by basename (e.g. README.md) excludes the file."""
 	with tempfile.TemporaryDirectory() as tmpdir:
 		with open(os.path.join(tmpdir, 'README.md'), 'w') as f:
@@ -29,7 +26,7 @@ def test_meta_file_excluded_basename_form():
 		assert 'README.md' not in plan['overwrite_files']
 
 
-def test_meta_dir_excludes_nested_files():
+def test_meta_dir_excludes_nested_files() -> None:
 	"""Files under meta/ (META_DIRS entry) never ship, regardless of depth."""
 	with tempfile.TemporaryDirectory() as tmpdir:
 		os.makedirs(os.path.join(tmpdir, 'meta', 'docs'))
@@ -39,7 +36,7 @@ def test_meta_dir_excludes_nested_files():
 		assert 'meta/docs/PROPAGATION_RULES.md' not in plan['overwrite_files']
 
 
-def test_meta_dir_excludes_tools_nested():
+def test_meta_dir_excludes_tools_nested() -> None:
 	"""Files under tools/ (META_DIRS entry) never ship, regardless of file name."""
 	with tempfile.TemporaryDirectory() as tmpdir:
 		os.makedirs(os.path.join(tmpdir, 'tools'))
@@ -49,7 +46,7 @@ def test_meta_dir_excludes_tools_nested():
 		assert 'tools/detect_repo_type.py' not in plan['overwrite_files']
 
 
-def test_meta_test_prefix_excluded():
+def test_meta_test_prefix_excluded() -> None:
 	"""test_propagate_* files excluded."""
 	with tempfile.TemporaryDirectory() as tmpdir:
 		os.makedirs(os.path.join(tmpdir, 'tests'))
@@ -59,7 +56,7 @@ def test_meta_test_prefix_excluded():
 		assert 'test_propagate_x.py' not in plan['test_files']
 
 
-def test_typescript_overlay_routes_to_overwrite():
+def test_typescript_overlay_routes_to_overwrite() -> None:
 	"""templates/typescript/foo.ts routes to overwrite_files for typescript type."""
 	with tempfile.TemporaryDirectory() as tmpdir:
 		type_dir = os.path.join(tmpdir, 'templates', 'typescript')
@@ -70,7 +67,7 @@ def test_typescript_overlay_routes_to_overwrite():
 		assert 'foo.ts' in plan['overwrite_files']
 
 
-def test_typescript_noexist_routes_to_noexist():
+def test_typescript_noexist_routes_to_noexist() -> None:
 	"""templates/typescript/noexist/package.json routes to noexist_files."""
 	with tempfile.TemporaryDirectory() as tmpdir:
 		noexist_dir = os.path.join(tmpdir, 'templates', 'typescript', 'noexist')
@@ -81,7 +78,7 @@ def test_typescript_noexist_routes_to_noexist():
 		assert 'package.json' in plan['noexist_files']
 
 
-def test_python_lang_files_only_for_python():
+def test_python_lang_files_only_for_python() -> None:
 	"""docs/PYTHON_STYLE.md only ships to python repos."""
 	with tempfile.TemporaryDirectory() as tmpdir:
 		os.makedirs(os.path.join(tmpdir, 'docs'))
@@ -95,7 +92,7 @@ def test_python_lang_files_only_for_python():
 		assert 'docs/PYTHON_STYLE.md' not in plan_other['overwrite_files']
 
 
-def test_other_gets_python_style_only():
+def test_other_gets_python_style_only() -> None:
 	"""'other' repo type does not get Python-specific files."""
 	with tempfile.TemporaryDirectory() as tmpdir:
 		os.makedirs(os.path.join(tmpdir, 'docs'))
@@ -109,7 +106,7 @@ def test_other_gets_python_style_only():
 		assert 'submit_to_pypi.py' not in plan['devel_files']
 
 
-def test_universal_noexist_overrides_overwrite():
+def test_universal_noexist_overrides_overwrite() -> None:
 	"""AGENTS.md in UNIVERSAL_NOEXIST moves to noexist_files, not overwrite."""
 	with tempfile.TemporaryDirectory() as tmpdir:
 		with open(os.path.join(tmpdir, 'AGENTS.md'), 'w') as f:
@@ -119,7 +116,7 @@ def test_universal_noexist_overrides_overwrite():
 		assert 'AGENTS.md' in plan['noexist_files']
 
 
-def test_root_file_not_in_allowlist_excluded():
+def test_root_file_not_in_allowlist_excluded() -> None:
 	"""Root file outside allowlist not in plan."""
 	with tempfile.TemporaryDirectory() as tmpdir:
 		with open(os.path.join(tmpdir, 'random_root.md'), 'w') as f:
@@ -128,7 +125,7 @@ def test_root_file_not_in_allowlist_excluded():
 		assert 'random_root.md' not in plan['overwrite_files']
 
 
-def test_gitignore_blocks_loaded_from_files():
+def test_gitignore_blocks_loaded_from_files() -> None:
 	"""Gitignore blocks loaded from gitignore.universal and templates/<type>/gitignore.<type>."""
 	with tempfile.TemporaryDirectory() as tmpdir:
 		# Universal lives under templates/, not at template root

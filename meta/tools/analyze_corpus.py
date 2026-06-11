@@ -35,6 +35,7 @@ The output report path can be overridden with ``-o/--output``.
 import os
 import sys
 import glob
+import types
 import argparse
 import datetime
 import subprocess
@@ -97,7 +98,7 @@ def parse_legacy_flat_block_count(warning_text: str) -> int:
 
 
 #============================================
-def parse_args():
+def parse_args() -> argparse.Namespace:
 	"""Parse command-line arguments."""
 	parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
 	parser.add_argument(
@@ -115,7 +116,7 @@ def parse_args():
 
 
 #============================================
-def analyze_corpus(corpus_dir: str, lib) -> dict:
+def analyze_corpus(corpus_dir: str, lib: types.ModuleType) -> dict:
 	"""Parse every corpus file and collect aggregate + per-file data."""
 	paths = sorted(glob.glob(os.path.join(corpus_dir, "*CHANGELOG*.md")))
 	totals = {

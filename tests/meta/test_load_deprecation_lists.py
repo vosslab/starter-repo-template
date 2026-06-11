@@ -5,9 +5,7 @@ propagation-plan exclusion (meta/propagation/ must never ship to consumers).
 """
 
 import os
-import sys
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+import pathlib
 
 import propagate.files
 import propagate.model
@@ -16,7 +14,7 @@ import propagate.model
 # ============================================
 # Loader behavior
 # ============================================
-def test_load_deprecation_list_round_trip(tmp_path):
+def test_load_deprecation_list_round_trip(tmp_path: pathlib.Path) -> None:
 	"""Loader strips blanks and comment lines, returns the remaining entries."""
 	fixture = tmp_path / 'sample.txt'
 	fixture.write_text('# comment\n\nfoo\nbar\n# trailing\n')
@@ -26,7 +24,7 @@ def test_load_deprecation_list_round_trip(tmp_path):
 	assert result == ['foo', 'bar']
 
 
-def test_load_deprecation_list_skips_indented_comments(tmp_path):
+def test_load_deprecation_list_skips_indented_comments(tmp_path: pathlib.Path) -> None:
 	"""Lines with leading whitespace before # are still treated as comments."""
 	fixture = tmp_path / 'indented.txt'
 	fixture.write_text('foo\n   # indented comment\nbar\n')
@@ -38,12 +36,12 @@ def test_load_deprecation_list_skips_indented_comments(tmp_path):
 # ============================================
 # Real-file loads
 # ============================================
-def test_deprecated_test_scripts_loaded():
+def test_deprecated_test_scripts_loaded() -> None:
 	"""Real file loads as a non-empty list."""
 	assert len(propagate.files.DEPRECATED_TEST_SCRIPTS) > 0
 
 
-def test_deprecated_gitignore_entries_loaded():
+def test_deprecated_gitignore_entries_loaded() -> None:
 	"""Real file loads as a non-empty list."""
 	assert len(propagate.files.DEPRECATED_GITIGNORE_ENTRIES) > 0
 
@@ -51,7 +49,7 @@ def test_deprecated_gitignore_entries_loaded():
 # ============================================
 # Entry-shape sanity (catches silent typos)
 # ============================================
-def test_deprecated_test_scripts_entries_are_bare_filenames():
+def test_deprecated_test_scripts_entries_are_bare_filenames() -> None:
 	"""Test-script entries must be bare filenames: no path separators, no whitespace."""
 	for entry in propagate.files.DEPRECATED_TEST_SCRIPTS:
 		assert entry, 'Empty entry in DEPRECATED_TEST_SCRIPTS'
@@ -60,7 +58,7 @@ def test_deprecated_test_scripts_entries_are_bare_filenames():
 		assert entry == entry.strip(), f'Leading/trailing whitespace: {entry!r}'
 
 
-def test_deprecated_gitignore_entries_have_no_whitespace():
+def test_deprecated_gitignore_entries_have_no_whitespace() -> None:
 	"""Gitignore entries must have no leading/trailing whitespace."""
 	for entry in propagate.files.DEPRECATED_GITIGNORE_ENTRIES:
 		assert entry, 'Empty entry in DEPRECATED_GITIGNORE_ENTRIES'
@@ -70,7 +68,7 @@ def test_deprecated_gitignore_entries_have_no_whitespace():
 # ============================================
 # Propagation-plan exclusion (meta/propagation/ must never ship)
 # ============================================
-def _flatten_plan(plan: dict) -> list[str]:
+def _flatten_plan(plan: dict[str, list[str]]) -> list[str]:
 	"""Flatten every bucket into one list of strings for membership checks."""
 	flat = []
 	for bucket in ('overwrite_files', 'noexist_files', 'devel_files', 'test_files'):
@@ -79,7 +77,7 @@ def _flatten_plan(plan: dict) -> list[str]:
 	return flat
 
 
-def test_meta_propagation_excluded_from_plan():
+def test_meta_propagation_excluded_from_plan() -> None:
 	"""compute_propagation_plan() must not include any meta/propagation/ entry."""
 	template_root = propagate.files.TEMPLATE_ROOT
 	for repo_type in ('python', 'typescript', 'rust', 'other'):
@@ -95,7 +93,7 @@ def test_meta_propagation_excluded_from_plan():
 		assert 'deprecated_gitignore.txt' not in plan.get('devel_files', [])
 
 
-def test_load_deprecation_lists_test_file_not_in_plan():
+def test_load_deprecation_lists_test_file_not_in_plan() -> None:
 	"""This test file itself lives under tests/meta/ and must not propagate."""
 	template_root = propagate.files.TEMPLATE_ROOT
 	plan = propagate.files.compute_propagation_plan(template_root, 'python')

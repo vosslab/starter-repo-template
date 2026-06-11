@@ -3,14 +3,11 @@
 import os
 import tempfile
 
-import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
 import propagate.model
 import propagate.files
 
 
-def test_meta_file_never_ships_even_if_in_docs():
+def test_meta_file_never_ships_even_if_in_docs() -> None:
 	"""META_FILES entries have highest precedence and are excluded from plan."""
 	with tempfile.TemporaryDirectory() as tmpdir:
 		os.makedirs(os.path.join(tmpdir, 'docs'))
@@ -21,7 +18,7 @@ def test_meta_file_never_ships_even_if_in_docs():
 		assert 'docs/README.md' not in plan['noexist_files']
 
 
-def test_python_lang_file_excluded_from_typescript():
+def test_python_lang_file_excluded_from_typescript() -> None:
 	"""Language-specific files excluded from non-matching type plans."""
 	with tempfile.TemporaryDirectory() as tmpdir:
 		os.makedirs(os.path.join(tmpdir, 'docs'))
@@ -39,7 +36,7 @@ def test_python_lang_file_excluded_from_typescript():
 		assert 'submit_to_pypi.py' not in plan_other['devel_files']
 
 
-def test_universal_noexist_overrides_overwrite():
+def test_universal_noexist_overrides_overwrite() -> None:
 	"""Universal NOEXIST entries override universal OVERWRITE."""
 	with tempfile.TemporaryDirectory() as tmpdir:
 		with open(os.path.join(tmpdir, 'AGENTS.md'), 'w') as f:
@@ -49,7 +46,7 @@ def test_universal_noexist_overrides_overwrite():
 		assert 'AGENTS.md' in plan['noexist_files']
 
 
-def test_typed_noexist_overrides_typed_overwrite():
+def test_typed_noexist_overrides_typed_overwrite() -> None:
 	"""Type-specific NOEXIST entries override type-specific OVERWRITE."""
 	with tempfile.TemporaryDirectory() as tmpdir:
 		type_dir = os.path.join(tmpdir, 'templates', 'typescript')
@@ -65,7 +62,7 @@ def test_typed_noexist_overrides_typed_overwrite():
 		assert 'foo.ts' in plan['noexist_files']
 
 
-def test_typed_overlay_shadows_universal_same_destination():
+def test_typed_overlay_shadows_universal_same_destination() -> None:
 	"""Type-specific files shadow universal files when destination paths collide."""
 	with tempfile.TemporaryDirectory() as tmpdir:
 		os.makedirs(os.path.join(tmpdir, 'docs'))
@@ -86,7 +83,7 @@ def test_typed_overlay_shadows_universal_same_destination():
 		assert 'templates' not in source_py
 
 
-def test_pip_requirements_not_in_typescript_plan():
+def test_pip_requirements_not_in_typescript_plan() -> None:
 	"""Python-specific files excluded from non-Python type plans."""
 	with tempfile.TemporaryDirectory() as tmpdir:
 		with open(os.path.join(tmpdir, 'pip_requirements.txt'), 'w') as f:

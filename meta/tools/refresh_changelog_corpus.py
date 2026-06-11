@@ -81,7 +81,7 @@ def flatten_name(src_path: str, anchor: str) -> str:
 
 
 #============================================
-def parse_args():
+def parse_args() -> argparse.Namespace:
 	"""Parse command-line arguments."""
 	parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
 	parser.add_argument(

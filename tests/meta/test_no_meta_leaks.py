@@ -1,16 +1,14 @@
 """META leak detector across every bucket of every repo type plan."""
 
 import os
-import sys
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import pytest
 
+import file_utils
 import propagate.files
 import propagate.model
 
-TEMPLATE_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+TEMPLATE_ROOT = file_utils.get_repo_root()
 
 REPO_TYPES = ('python', 'typescript', 'rust', 'other', 'unknown')
 

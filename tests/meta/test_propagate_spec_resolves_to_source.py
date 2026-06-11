@@ -1,17 +1,14 @@
 """Test that every propagation plan entry has a corresponding source file."""
 import os
-import sys
+
+import file_utils
+import propagate.model
+import propagate.files
 
 
-def test_propagate_spec_all_entries_resolve_to_source():
+def test_propagate_spec_all_entries_resolve_to_source() -> None:
 	"""Every propagation plan entry across all buckets resolves to an existing source file."""
-	script_dir = os.path.dirname(os.path.abspath(__file__))
-	repo_root = os.path.dirname(os.path.dirname(script_dir))
-
-	# Import the propagator modules
-	sys.path.insert(0, repo_root)
-	import propagate.model
-	import propagate.files
+	repo_root = file_utils.get_repo_root()
 
 	for repo_type in ('python', 'typescript', 'rust', 'other'):
 		plan = propagate.files.compute_propagation_plan(repo_root, repo_type)

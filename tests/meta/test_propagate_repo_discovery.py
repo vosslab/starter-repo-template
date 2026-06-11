@@ -1,9 +1,11 @@
 """Test that repo discovery walks .git directories at proper depth and respects skip list."""
 import os
-import sys
+import pathlib
+
+import propagate_style_guides as pg
 
 
-def test_propagate_repo_discovery_depth_and_skip(tmp_path):
+def test_propagate_repo_discovery_depth_and_skip(tmp_path: pathlib.Path) -> None:
 	"""Verify depth 1-3 detection, max depth 3 enforcement, and skip-list override behavior."""
 	# Create fake repo structure
 	# Depth 1
@@ -31,14 +33,6 @@ def test_propagate_repo_discovery_depth_and_skip(tmp_path):
 	deep = tmp_path / 'x' / 'y' / 'z' / 'w'
 	deep.mkdir(parents=True)
 	(deep / '.git').mkdir()
-
-	# Get propagator script path
-	script_dir = os.path.dirname(os.path.abspath(__file__))
-	repo_root = os.path.dirname(os.path.dirname(script_dir))
-
-	# Import propagator to test directly
-	sys.path.insert(0, repo_root)
-	import propagate_style_guides as pg
 
 	# Test discovery
 	repos = pg.collect_repo_dirs(str(tmp_path), None)
@@ -68,7 +62,7 @@ def test_propagate_repo_discovery_depth_and_skip(tmp_path):
 	assert target == str(skip_repo), f"explicit --repo should override skip list; got {target}"
 
 
-def test_propagate_repo_discovery_respects_max_depth(tmp_path):
+def test_propagate_repo_discovery_respects_max_depth(tmp_path: pathlib.Path) -> None:
 	"""
 	Verify that max depth of 3 is enforced: depth 1, 2, 3 repos found; depth 4+ not found.
 	"""
@@ -105,12 +99,7 @@ def test_propagate_repo_discovery_respects_max_depth(tmp_path):
 	j.mkdir()
 	(j / '.git').mkdir()
 
-	# Import and test
-	script_dir = os.path.dirname(os.path.abspath(__file__))
-	repo_root = os.path.dirname(os.path.dirname(script_dir))
-	sys.path.insert(0, repo_root)
-	import propagate_style_guides as pg
-
+	# Test discovery
 	repos = pg.collect_repo_dirs(str(tmp_path), None)
 	repo_names = [os.path.basename(r) for r in repos]
 

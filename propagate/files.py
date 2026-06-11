@@ -3,6 +3,7 @@
 import os
 import shutil
 import filecmp
+import collections.abc
 
 import propagate.console
 import propagate.model
@@ -90,7 +91,7 @@ def should_ship_override(file_rel: str, repo_lang: str, repo_dir: str) -> bool |
 # File and text mutation helpers
 #============================================
 
-def copy_file_safe(src: str, dst: str, dry_run: bool, action: str = 'copy', message: str = None) -> bool:
+def copy_file_safe(src: str, dst: str, dry_run: bool, action: str = 'copy', message: str | None = None) -> bool:
 	"""
 	Copy a file from src to dst, preserving mode bits (executable bit).
 
@@ -129,7 +130,7 @@ def make_dir_safe(path: str, dry_run: bool) -> bool:
 	return True
 
 
-def copy_if_changed(source: str, dest: str, dry_run: bool, counters: dict, action_label: str = 'copy', format_path=None) -> str:
+def copy_if_changed(source: str, dest: str, dry_run: bool, counters: dict, action_label: str = 'copy', format_path: collections.abc.Callable | None = None) -> str:
 	"""
 	Copy source to dest only if they differ; return indicator and suppress or log outcome.
 
@@ -226,7 +227,7 @@ def write_text(path: str, content: str, dry_run: bool = False, action: str = 'up
 
 
 #============================================
-def safe_walk(root: str):
+def safe_walk(root: str) -> collections.abc.Iterator[tuple[str, list[str], list[str]]]:
 	"""
 	Walk directory tree filtering out unwanted directories.
 
@@ -501,30 +502,63 @@ def merge_at_imports_safe(source: str, dest: str, dry_run: bool, counters: dict)
 #============================================
 def merge_conftest(source_file: str, dest_file: str) -> str | None:
 	"""
-	Inject the canonical collect_ignore block into a destination conftest.py.
+	Inject the canonical managed blocks into a destination conftest.py.
 
-	Source is canonical for the collect_ignore line; any other consumer content
-	(imports, fixtures, etc.) is preserved. Returns merged text when an update
-	is needed, or None when no change is needed.
+	The canonical source tests/conftest.py carries two managed blocks:
+	  1. the collect_ignore block (everything before the REPO_HYGIENE_FILTERS
+	     marker), which excludes the e2e and playwright tiers from pytest.
+	  2. the REPO_HYGIENE_FILTERS block (the documented comment block ending in
+	     REPO_HYGIENE_FILTERS = {}), the repo-local hygiene-exclusion registry.
+
+	Both blocks ship additively. Any other consumer content (imports, fixtures,
+	a consumer-set collect_ignore value, a consumer-set REPO_HYGIENE_FILTERS
+	value) is preserved verbatim. A missing block is appended; an existing block
+	is never overwritten.
 
 	Args:
 		source_file (str): Path to the canonical tests/conftest.py.
 		dest_file (str): Path to the consumer repo's tests/conftest.py.
 
 	Returns:
-		str | None: Merged content when an update is needed, None otherwise.
+		str | None: Merged content when an update is needed, None when the
+		consumer already carries both managed blocks.
 	"""
 	source_text = read_text(source_file)
 	if not os.path.isfile(dest_file):
 		return source_text
+
+	# Split the canonical source into its two managed blocks at the first line
+	# that starts the REPO_HYGIENE_FILTERS comment block.
+	source_lines = source_text.split('\n')
+	marker_idx = None
+	for idx, line in enumerate(source_lines):
+		if line.startswith('# REPO_HYGIENE_FILTERS'):
+			marker_idx = idx
+			break
+	if marker_idx is None:
+		# Canonical source lacks the registry marker; treat the whole source as
+		# the collect_ignore block and ship no filters block.
+		collect_ignore_block = source_text.rstrip()
+		filters_block = ''
+	else:
+		collect_ignore_block = '\n'.join(source_lines[:marker_idx]).rstrip()
+		filters_block = '\n'.join(source_lines[marker_idx:]).rstrip()
+
 	dest_text = read_text(dest_file)
-	if 'collect_ignore' in dest_text:
-		return None
 	if dest_text.strip() == '':
 		return source_text
-	merged = source_text.rstrip() + '\n\n' + dest_text
-	if not merged.endswith('\n'):
-		merged += '\n'
+	need_collect = 'collect_ignore' not in dest_text
+	need_filters = 'REPO_HYGIENE_FILTERS' not in dest_text
+	if not need_collect and not need_filters:
+		return None
+
+	# Preserve all existing consumer content; append only the missing block(s).
+	merged = dest_text.rstrip()
+	if need_collect:
+		merged += '\n\n' + collect_ignore_block
+	if need_filters and filters_block:
+		merged += '\n\n' + filters_block
+	merged += '\n'
 	return merged
 
 
@@ -743,7 +777,7 @@ _init_module_constants()
 
 
 #============================================
-def resolve_spec_for_type(repo_type: str, template_root: str = None, counters: dict | None = None, repo_dir: str | None = None) -> dict:
+def resolve_spec_for_type(repo_type: str, template_root: str | None = None, counters: dict | None = None, repo_dir: str | None = None) -> dict:
 	"""
 	Return the five-bucket propagation spec for the given repo_type.
 	Uses compute_propagation_plan with template_root (defaults to script directory).
@@ -831,7 +865,7 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 	Routing rules:
 	- Universal docs/ (not in META_FILES/META_DIRS) -> overwrite_files
 	- Universal tests/test_*.py|.mjs (not matching META_TEST_PREFIXES) -> test_files
-	- Universal tests/ helper files (TESTS_README.md, check_*, fix_*, git_file_utils.py) -> test_files
+	- Universal tests/ helper files (TESTS_README.md, check_*, fix_*, file_utils.py) -> test_files
 	- Universal devel/ -> devel_files
 	- Root files in ROOT_PROPAGATE_ALLOWLIST -> overwrite_files
 	- ROUTING_OVERRIDES (via should_ship_override) applies to routing decisions
@@ -923,7 +957,7 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 					if (bare_name.startswith('test_') and (bare_name.endswith('.py') or bare_name.endswith('.mjs'))) or \
 						bare_name in ('TESTS_README.md',) or \
 						bare_name.startswith(('check_', 'fix_')) or \
-						bare_name in ('git_file_utils.py',):
+						bare_name in ('file_utils.py',):
 						if file_rel not in plan['test_files']:
 							assert_not_meta(file_rel)
 							plan['test_files'].append(file_rel)

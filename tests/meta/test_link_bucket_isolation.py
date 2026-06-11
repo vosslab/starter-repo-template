@@ -21,17 +21,12 @@ owns link-existence. This test only covers bucket isolation.
 
 import os
 import re
-import sys
 import subprocess
 
-REPO_ROOT = subprocess.run(
-	["git", "rev-parse", "--show-toplevel"],
-	capture_output=True, text=True, check=True,
-).stdout.strip()
-
-sys.path.insert(0, REPO_ROOT)
-
+import file_utils
 import propagate.model
+
+REPO_ROOT = file_utils.get_repo_root()
 
 
 LINK_RE = re.compile(r'\[[^\]]*\]\(([^)#?]+)(?:[#?][^)]*)?\)')
@@ -94,7 +89,7 @@ def transition_allowed(source_bucket: str, target_bucket: str) -> bool:
 
 
 #============================================
-def list_tracked_markdown(repo_root: str) -> list:
+def list_tracked_markdown(repo_root: str) -> list[str]:
 	"""Return repo-relative paths of every tracked ``*.md`` file."""
 	result = subprocess.run(
 		["git", "-C", repo_root, "ls-files", "*.md"],
@@ -104,7 +99,7 @@ def list_tracked_markdown(repo_root: str) -> list:
 
 
 #============================================
-def extract_links(content: str) -> list:
+def extract_links(content: str) -> list[tuple[int, str]]:
 	"""Yield (line_number, link_target) tuples for every markdown link in content."""
 	links = []
 	for lineno, line in enumerate(content.splitlines(), start=1):
@@ -135,7 +130,7 @@ def resolve_target(source_rel: str, target: str) -> str:
 
 
 #============================================
-def test_link_bucket_isolation():
+def test_link_bucket_isolation() -> None:
 	"""Hard-fail on any markdown link that crosses bucket-isolation boundaries."""
 	md_files = list_tracked_markdown(REPO_ROOT)
 	violations = []

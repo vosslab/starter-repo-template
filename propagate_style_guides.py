@@ -11,7 +11,7 @@ import propagate.repo
 
 
 #============================================
-def build_context(args) -> propagate.model.PropagateContext:
+def build_context(args: argparse.Namespace) -> propagate.model.PropagateContext:
 	"""
 	Build a typed context object from parse_args() result.
 
@@ -332,7 +332,7 @@ def apply_file_bucket(bucket_name: str, spec: dict, repo_dir: str, repo_type: st
 
 
 #============================================
-def parse_args():
+def parse_args() -> argparse.Namespace:
 	"""Parse CLI flags and return the argparse Namespace."""
 	parser = argparse.ArgumentParser(
 		description=(

@@ -45,6 +45,97 @@ The optional `tests/playwright/e2e/` subfolder groups full-path browser walkthro
 
 Important: `collect_ignore` only affects pytest test collection. The repo's lint tests (ASCII compliance, whitespace, pyflakes, indentation, shebangs, etc.) enumerate files via `git ls-files` and still scan files inside `tests/playwright/` and `tests/e2e/`. A non-ASCII character in `tests/playwright/foo.mjs` will still fail the ASCII check - only execution as a pytest test is suppressed.
 
+## Hygiene file discovery
+
+Enumerating hygiene tests (ascii, whitespace, pyflakes, shebangs, and similar) get their file
+list from one shared helper, `file_utils.discover_files`. It is the canonical discovery API
+and owns git scope selection, absolute-path join, dedupe, skip-dir filtering, extension
+filtering, the `isfile` check, and the sort. Use `file_utils.discover_files` as the single
+source of file discovery; the shared `SKIP_DIRS` and `path_has_skip_dir` live only in
+`file_utils.py`.
+
+Signature:
+
+```python
+discover_files(extensions=None, extra_filter=None, *, test_key=None, repo_root=None) -> list[str]
+```
+
+`test_key` and `repo_root` are keyword-only (note the bare `*`). The module-level discovered list
+in a hygiene test is named `FILES` (not `_FILES`).
+
+Three contracts:
+
+- Returns ABSOLUTE paths, sorted ascending.
+- `extra_filter` receives a REPO-RELATIVE POSIX path (for example `tests/foo.py`) and returns
+  `True` to keep the file. `None` keeps all files.
+- `extensions=None` means all files; otherwise extension match is case-insensitive (pass
+  lowercase suffixes like `(".py",)`).
+
+Normal hygiene tests call `discover_files(extensions=..., test_key="<stem>")`; `discover_files`
+resolves the repo root itself via `get_repo_root()` (a negligible extra call). Pass `repo_root=`
+only in `file_utils` regression tests that point discovery at a temporary directory.
+
+Exclusions come from three layers, in order:
+
+- Layer 1, `SKIP_DIRS` (vendored, `file_utils.py`): universal directory exclusions.
+- Layer 2, `REPO_HYGIENE_FILTERS` (repo-local, `conftest.py`): per-test repo-local file/glob
+  exclusions, keyed by `"all"` or a vendored test key, as lists of repo-relative POSIX glob
+  patterns matched with `fnmatch.fnmatchcase`. This is the only home for repo-specific exclusions,
+  because `conftest.py` survives propagation while vendored files do not. A test key is the test
+  filename stem without the `test_` prefix; recursive subtrees need an explicit `/**`.
+- Layer 3, `extra_filter` (vendored call site): a universal per-test SELECTION mechanism only.
+  Keep all repo-specific exclusions in `conftest.py REPO_HYGIENE_FILTERS`; vendored files hold
+  only universal logic.
+
+A normal hygiene test calls `discover_files` with its `test_key`:
+
+```python
+# Normal hygiene test:
+FILES = file_utils.discover_files(extensions=(".py",), test_key="ascii_compliance")
+
+# Repo-local conftest.py declaring repo-specific exclusions:
+REPO_HYGIENE_FILTERS = {
+	"all": ["temp_scripts/**", "TEMPLATE.py"],
+	"ascii_compliance": ["human_readable-*.html"],
+}
+```
+
+Pass `repo_root=` in `file_utils` regression tests that point discovery at a temporary
+directory:
+
+```python
+# Regression test: point discovery at a controlled temporary root.
+result = file_utils.discover_files(extensions=(".py",), repo_root=tmp_root)
+```
+
+### Additional helpers in file_utils.py
+
+Three shared helpers complement `discover_files`:
+
+- `iter_imports(tree: ast.Module)` -- yields every `ast.Import` and `ast.ImportFrom` node from
+  a parsed module tree. Use in import-checking tests instead of local AST-walk loops.
+- `rel_to_root(path, repo_root=None)` -- returns a repo-relative POSIX string suitable for
+  parametrize ids and assertion messages (for example `tests/foo.py`).
+- `run_fixer_script(name, target)` -- shared subprocess wrapper: runs `tests/<name> -i target`
+  and raises on failure. Used by the ASCII and whitespace auto-fix tests; avoids duplicated
+  inline subprocess calls.
+- `report_path(name)` / `purge_report(name)` / `write_report(name, text)` / `append_report(name, text)`
+  -- centralize the repo-root report-file path, stale-file purge, truncate-write, and append flow.
+  Hygiene tests build the full report text first, then call one helper. Used by the ascii, bandit,
+  pyflakes, markdown_links, shebangs, and init_files tests.
+
+### Hygiene guard tests
+
+Two vendored hygiene tests keep the discovery scaffold clean:
+
+- `tests/test_function_typing.py` -- AST-based guard that enforces the typing rule repo-wide:
+  the `typing` module is not used, and every `def` carries param and return type annotations.
+  Use builtin generics (`list`, `dict`, `tuple`, `set`) and PEP 604 unions (`X | None`).
+  Use `collections.abc` (for example `collections.abc.Callable`) for callable and iterable params.
+- `tests/test_pytest_hygiene.py` -- AST guard ensuring hygiene tests keep all file-discovery
+  logic in `file_utils` (the shared `SKIP_DIRS`, `path_has_skip_dir`, and `gather_*` discovery
+  live there). See the "discovery lives in file_utils" guidance above.
+
 ## See also
 
 - [../docs/PYTEST_STYLE.md](../docs/PYTEST_STYLE.md) -- pytest test-writing rules and fast-lane discipline
