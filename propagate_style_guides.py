@@ -352,7 +352,7 @@ def parse_args() -> argparse.Namespace:
 		)
 	)
 	parser.add_argument(
-		'--repo', dest='repo_name',
+		'-R', '--repo', dest='repo_name',
 		default=None,
 		help='Only update the named repo under base-dir (directory name)'
 	)
