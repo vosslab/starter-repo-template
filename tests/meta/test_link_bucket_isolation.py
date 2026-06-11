@@ -10,8 +10,8 @@ Allowed transitions:
 	meta           -> any bucket in the template
 
 This test walks every tracked ``*.md`` file, classifies each file's bucket
-from its path (using ``propagate.model.META_FILES`` and
-``propagate.model.META_DIRS``), resolves each local ``[..](..)`` link to a
+from its path (using ``repolib.model.META_FILES`` and
+``repolib.model.META_DIRS``), resolves each local ``[..](..)`` link to a
 repo-relative path, classifies the target's bucket, and hard-fails on any
 disallowed transition.
 
@@ -24,7 +24,7 @@ import re
 import subprocess
 
 import file_utils
-import propagate.model
+import repolib.model
 
 REPO_ROOT = file_utils.get_repo_root()
 
@@ -53,11 +53,11 @@ def classify_bucket(file_rel: str) -> str:
 			return f'overlay-{parts[1]}'
 		return 'meta'
 	# Root-level meta files (README.md, VERSION, etc.).
-	if file_rel in propagate.model.META_FILES:
+	if file_rel in repolib.model.META_FILES:
 		return 'meta'
 	# Any path under a META_DIRS directory is meta.
 	parts = file_rel.split('/')
-	for meta_dir in propagate.model.META_DIRS:
+	for meta_dir in repolib.model.META_DIRS:
 		# META_DIRS entries may be 'tools' or 'docs/active_plans'.
 		meta_parts = meta_dir.split('/')
 		if parts[:len(meta_parts)] == meta_parts:

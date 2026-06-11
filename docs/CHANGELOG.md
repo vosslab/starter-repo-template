@@ -2,6 +2,7 @@
 
 ### Additions and New Features
 
+- Added `repolib/process.py` holding the shared per-repo orchestration (`process_repo`, `apply_file_bucket`, `remove_deprecated_tests`, `exit_code_for`) and a single context contract `build_context_for_repo(repo_path, dry_run, bootstrap, auto_discover, write_marker)` used by both entry scripts.
 - Extended repo-root report coverage to `tests/test_function_typing.py`, `tests/test_indentation.py`, `tests/test_test_naming_conventions.py`, and `tests/test_pytest_hygiene.py` via the shared report helpers (`report_path`, `purge_report`, `append_report`, `rel_to_root`) in `tests/file_utils.py`; each test now purges its report at module start and appends violation blocks with a report path reference in the AssertionError on failure; `tests/test_pytest_hygiene.py` writes `report_pytest_hygiene.txt` at repo root on failure.
 - Added three centralized helpers to `tests/file_utils.py`: `iter_imports(tree)` (yields all `ast.Import` and `ast.ImportFrom` nodes from a parsed module tree), `rel_to_root(path, repo_root=None)` (returns a repo-relative POSIX string for use in test ids and messages), and `run_fixer_script(name, target)` (shared subprocess wrapper for the ASCII and whitespace fixer scripts, replacing duplicated inline subprocess calls in two hygiene tests).
 - Added two new repo-wide vendored hygiene tests: `tests/test_function_typing.py` (AST-based guard that bans `import typing` / `from typing import` and requires both param and return type annotations on every `def`; uses builtin generics and PEP 604 unions only) and `tests/test_pytest_hygiene.py` (AST guard ensuring hygiene tests do not reintroduce a local `SKIP_DIRS`, `path_has_skip_dir`, or `gather_*` discovery scaffold -- the centralized forms in `tests/file_utils.py` are the only allowed home).
@@ -10,11 +11,21 @@
 
 ### Behavior or Interface Changes
 
+- `reset_repo.py --dry-run` now previews real propagation actions: removed the dry-run short-circuit in `run_propagate` that printed a single placeholder line and returned; the function now always builds the context and calls `repolib.process.process_repo` with `dry_run` passed through, so planned file copies and directory creates are logged via `log_action` without mutating any files.
+- Reduced `propagate_style_guides.py` to a small interactive single-repo tool: the CLI now exposes only `-n/--dry-run` and a required `-R/--repo` that takes a repo path (relative or absolute, e.g. `-R ../vosslab-skills` or `-R .`).
+- Marker prediction and writing is now default single-repo behavior (formerly the `--write-marker` flag): dry-run predicts and logs marker changes, and a normal run writes them.
+- `reset_repo.py` now owns bootstrap and calls the `repolib` package directly instead of shelling out to the entry script; it no longer depends on `propagate_style_guides.py`.
 - `propagate merge_conftest` is now block-aware: it ensures BOTH the canonical `collect_ignore` block and a `REPO_HYGIENE_FILTERS` scaffold block reach consumer `tests/conftest.py` files, additively, without overwriting consumer-set values. Previously only `collect_ignore` was managed, so already-migrated consumers never received the `REPO_HYGIENE_FILTERS` scaffold.
 - `tests/meta/conftest.py` now derives the repo root from `file_utils.get_repo_root()` (git) after a single unavoidable `__file__` bootstrap, instead of walking `__file__` up by hand.
 
 ### Fixes and Maintenance
 
+- Fixed two missed self-references left from the `propagate/` -> `repolib/` rename: replaced `'propagate'` with `'repolib'` in `META_DIRS` in `repolib/model.py` (blocker: the walker would have descended into `repolib/` and routed the propagator package into consumer repos); changed `git_rm_recursive("propagate/", ...)` to `git_rm_recursive("repolib/", ...)` in `reset_repo.py` line ~466 (blocker: the old path no longer exists and would raise `CalledProcessError`, leaving `repolib/` behind in the consumer).
+- Removed dead `ensure_git_perms()` function from `repolib/files.py`; no callers existed after the fix-permissions feature was dropped.
+- Removed dead `resolve_repo_path()` function from `repolib/repo.py`; no production callers existed (both entry scripts pass paths directly into `repolib.process.build_context_for_repo`, which handles abspath/expanduser internally). Deleted `tests/meta/test_repolib_repo_discovery.py` whose four tests exercised only that function.
+- Rewrote stale flag references in active code: `repolib/repo.py` error message no longer names `--source-dir`; `repolib/process.py` comment and log line no longer name `--bootstrap`; `reset_repo.py` module docstring and phase comment updated to describe direct repolib call instead of subprocess with `--bootstrap`.
+- Updated `meta/docs/PROPAGATION_RULES.md` to name the `repolib/` package throughout: replaced four `propagate/model.py` references, updated `` `propagate/` helper package `` to `` `repolib/` helper package ``, and changed `test_propagate_` prefix to `test_repolib_` in the META_TEST_PREFIXES description.
+- Added explanatory comment above `skip_confirm=False` constant in `repolib/process.py` `process_repo()`.
 - Eliminated double `get_repo_root()` call in `tests/file_utils.py` `run_fixer_script()`: compute `root = get_repo_root()` once at the top of the function and use it for both `script_path` and `cwd=root`, saving one redundant `git rev-parse` subprocess per fixer call.
 - Hardened `check_no_typing_import()` in `tests/test_function_typing.py` to catch submodule imports: `ast.Import` branch now flags `alias.name == "typing" or alias.name.startswith("typing.")` so `import typing.extensions` no longer slips through; `ast.ImportFrom` branch similarly catches `from typing.x import y` via `node.module.startswith("typing.")`.
 - Backfilled `import pathlib` and `pathlib.Path` annotations on five `tmp_path` fixture params in `tests/meta/test_merge_conftest.py` so `test_function_typing` passes cleanly on the full suite.
@@ -24,21 +35,6 @@
 - Backfilled complete type annotations (param types and return types) on every unannotated `def` in five meta test files: `tests/meta/test_propagate_helpers.py`, `tests/meta/test_should_ship_override.py`, `tests/meta/test_reset_repo_resolve_license.py`, `tests/meta/test_file_utils_discovery.py`, `tests/meta/test_detect_repo_type.py`. Used builtin generics (`list[str]`, `dict`) and PEP 604 unions (`str | None`); no `typing` module imported. Added `import pathlib` and `import pytest` where required for fixture type names (`pathlib.Path`, `pytest.MonkeyPatch`, `pytest.CaptureFixture`).
 - Annotated the five remaining bare params in `tests/file_utils.py`: `iter_imports(tree)` -> `tree: ast.Module`; `collect_files` callables -> `gather_all_fn: collections.abc.Callable`, `gather_changed_fn: collections.abc.Callable`; `discover_files` optionals -> `extensions: collections.abc.Iterable | None`, `extra_filter: collections.abc.Callable | None`. Added `import collections.abc` in length-then-alphabetical order. Removed stale "No type annotation" claims from two docstrings.
 - Completed Google-style docstrings (added Args + Returns sections) on three thin functions in `tests/file_utils.py`: `_split_null`, `list_tracked_files`, and `_gather_all_paths`.
-
-### Removals and Deprecations
-
-- Removed the unused invented env vars `REPO_HYGIENE_SCOPE` / `FAST_REPO_HYGIENE` / `SKIP_REPO_HYGIENE` and the changed-scope/skip discovery path (`resolve_scope`, `collect_files`, `list_changed_files`, `_gather_changed_paths`) from `tests/file_utils.py`; `discover_files` now always scans all tracked files.
-- Deleted dead function `repo_hygiene_excludes(test_key, rel)` from `tests/file_utils.py`; it had zero callers -- `discover_files` inlines the same registry-load and fnmatch pattern logic directly.
-
-### Decisions and Failures
-
-- Require-annotations is enforced repo-wide as a hard test. The repo accepts that downstream consumer repos must backfill their own annotations; keeping every consumer green in lockstep was explicitly ruled out of scope.
-- `collections.abc.Callable` and `collections.abc.Iterable` are used for callable and iterable params. `collections.abc` is allowed; the `typing` module is not.
-- The single irreducible `__file__` use in `tests/meta/conftest.py` is the import bootstrap; every other path in that file derives from `get_repo_root()`.
-- The env knobs `REPO_HYGIENE_SCOPE`, `FAST_REPO_HYGIENE`, and `SKIP_REPO_HYGIENE` were never set in real runs and violated the `docs/PYTHON_STYLE.md` no-invented-env-vars rule; removing them is a behavior-preserving simplification because real runs always used the "all" scope.
-
-### Fixes and Maintenance
-
 - Corrected suite count in `docs/CHANGELOG.md` `2026-06-11` Developer Tests entry from `575 passed` to `574 passed` after env-var removal dropped one test.
 - Removed unused `repo_root: str` parameter from `write_import_report` in `tests/test_import_requirements.py` and dropped the `REPO_ROOT` positional argument from both call sites; the function routes through the module `REPORT_NAME` constant and `file_utils.write_report`, so `repo_root` was never used in the body.
 - Extracted `record_indentation_report(details: list[str]) -> str` helper in `tests/test_indentation.py`, replacing two identical inline first-creation-header + append blocks; added import-group heading comments (`# Standard Library`, `# PIP3 modules`, `# local repo modules`); wrapped the `FILES` list comprehension under 100 chars.
@@ -47,9 +43,29 @@
 - Wrapped the 101-char `record_naming_violations(...)` call in `tests/test_test_naming_conventions.py` under 100 chars by splitting the argument list across two lines.
 - Rewrote the `tests/test_pytest_hygiene.py` guard description in both `docs/PYTEST_STYLE.md` and `tests/TESTS_README.md` positively: "keeping all file-discovery logic in `file_utils`" replaces the negative "do not reintroduce" phrasing, following the "prompt positively" principle.
 
+### Removals and Deprecations
+
+- Removed `propagate_style_guides.py` CLI flags `--base-dir`, `--source-dir`, `--bootstrap`, `--no-auto-discover`, `--fix-permissions`, `--write-marker`, `--yes`, and `-v/--verbose-paths`.
+- Removed batch multi-repo propagation (the no-`-R` "update every repo under ~/nsh" mode), including `collect_repo_dirs`, `resolve_target_repos`, and the skip-list.
+- Dropped `PropagateContext` fields `base_dir`, `fix_permissions`, `skip_confirm`, and `verbose_paths`.
+- Removed the unused invented env vars `REPO_HYGIENE_SCOPE` / `FAST_REPO_HYGIENE` / `SKIP_REPO_HYGIENE` and the changed-scope/skip discovery path (`resolve_scope`, `collect_files`, `list_changed_files`, `_gather_changed_paths`) from `tests/file_utils.py`; `discover_files` now always scans all tracked files.
+- Deleted dead function `repo_hygiene_excludes(test_key, rel)` from `tests/file_utils.py`; it had zero callers -- `discover_files` inlines the same registry-load and fnmatch pattern logic directly.
+- Removed fragile meta tests: deleted `tests/meta/test_repolib_plan_matches_legacy.py` (required-key-list asserts that broke on any manifest change); removed the trivial `exit_code_for` tests and the hardcoded-token-loop test from `tests/meta/test_repolib_helpers.py`; pruned fragile assertions from `tests/meta/test_propagate_cli.py` (inspect.getsource source-string assertion, sys.argv-mutating argparse tests, duplicate path test, `__file__`-pinned source_dir assertion), keeping one robust source-vs-target test.
+
+### Decisions and Failures
+
+- Renamed the `propagate/` package to `repolib/` to reflect that it is a shared repo-operations library used by multiple entry scripts, not a single-tool detail.
+- Source template root now resolves from the running checkout that contains `repolib/` (anchored on the package `__file__`), never from the target `-R` repo, so propagation cannot copy from the wrong repo.
+- Require-annotations is enforced repo-wide as a hard test. The repo accepts that downstream consumer repos must backfill their own annotations; keeping every consumer green in lockstep was explicitly ruled out of scope.
+- `collections.abc.Callable` and `collections.abc.Iterable` are used for callable and iterable params. `collections.abc` is allowed; the `typing` module is not.
+- The single irreducible `__file__` use in `tests/meta/conftest.py` is the import bootstrap; every other path in that file derives from `get_repo_root()`.
+- The env knobs `REPO_HYGIENE_SCOPE`, `FAST_REPO_HYGIENE`, and `SKIP_REPO_HYGIENE` were never set in real runs and violated the `docs/PYTHON_STYLE.md` no-invented-env-vars rule; removing them is a behavior-preserving simplification because real runs always used the "all" scope.
+
 ### Developer Tests and Notes
 
+- Renamed meta tests `test_propagate_*.py` to `test_repolib_*.py`; removed tests for the deleted batch discovery; added `tests/meta/test_propagate_cli.py` covering the argparse surface (only `-h`/`-n`/`-R`, `-R` required), relative/absolute path resolution, source-vs-target separation, and that `reset_repo.py` bootstraps via `repolib.process` with no subprocess. Full suite after this refactor: 584 passed.
 - Full suite `source source_me.sh && pytest tests/` -> 574 passed.
+- Updated `docs/REPO_STYLE.md` Project type marker section: replaced `propagate/` package name with `repolib/`, expanded submodule references to `repolib.repo.read_repo_type` and `repolib.files.compute_propagation_plan`, and added a clause noting that `reset_repo.py` now calls `repolib` directly. Tightened `apply_file_bucket` return annotation from bare `tuple` to `tuple[int, int, int]`. Confirmed `dest='dry_run'` already present in `propagate_style_guides.py` parse_args (no edit needed). Full suite: 589 passed.
 - Documentation audit fixes applied to `docs/CHANGELOG.md`, `docs/PYTEST_STYLE.md`, `docs/PYTHON_STYLE.md`, and `tests/TESTS_README.md`: corrected suite count (555->575), updated stale `git_file_utils` references to `file_utils`, cleaned `NOEXIST` parenthetical artifact, rewrote hygiene-section negative phrasing positively, documented three new `file_utils.py` helpers and two new hygiene guard tests, and refreshed `## TYPE HINTING` to reflect enforcement by `tests/test_function_typing.py`.
 
 ## 2026-06-10

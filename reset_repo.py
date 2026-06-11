@@ -3,9 +3,9 @@
 reset_repo.py - bootstrap a fresh clone of starter-repo-template.
 
 Prompts (or accepts flags) for project type and SPDX licenses, writes the
-REPO_TYPE marker, installs selected LICENSE files, invokes the
-propagator with --bootstrap to lay down type-dispatched files, truncates
-README + CHANGELOG, and removes itself.
+REPO_TYPE marker, installs selected LICENSE files, calls repolib directly
+to lay down type-dispatched files in bootstrap mode, truncates README +
+CHANGELOG, and removes itself.
 """
 
 import os
@@ -14,6 +14,10 @@ import argparse
 import datetime
 import subprocess
 import tempfile
+
+# local repo modules
+import repolib.console
+import repolib.process
 
 # Try to import detect_repo_type from tools/; if not available, prediction is skipped.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tools'))
@@ -251,23 +255,22 @@ def substitute_typescript_package_json(repo_root: str, dry_run: bool) -> int:
 
 
 def run_propagate(repo_root: str, dry_run: bool) -> int:
-	"""Run propagate_style_guides.py --bootstrap to dispatch type-specific files."""
-	source_dir = os.path.dirname(os.path.abspath(__file__))
-	repo_name = os.path.basename(repo_root)
-	cmd = [
-		"python3",
-		"propagate_style_guides.py",
-		"--bootstrap",
-		"--repo",
-		repo_name,
-		"--source-dir",
-		source_dir,
-		"--no-auto-discover",
-	]
-	if dry_run:
-		dry_run_print(f"subprocess: {' '.join(cmd)}", dry_run)
-	else:
-		subprocess.run(cmd, cwd=repo_root, check=True)
+	"""Lay down type-dispatched template files into repo_root via repolib.
+
+	In dry-run, process_repo previews actions without writing.
+	"""
+	# Build a bootstrap context and run the propagator directly.
+	# process_repo honors context.dry_run: it logs planned actions and skips
+	# all file mutations when dry_run is True.
+	context = repolib.process.build_context_for_repo(
+		repo_path=repo_root,
+		dry_run=dry_run,
+		bootstrap=True,
+		auto_discover=False,
+		write_marker=False,
+	)
+	counters = repolib.console.init_counters()
+	repolib.process.process_repo(repo_root, context, counters, emit_per_repo_summary=False)
 	return 1
 
 
@@ -445,7 +448,7 @@ def main() -> None:
 	# === phase: cleanup LICENSES/ ===
 	action_count += git_rm_recursive("LICENSES/", args.dry_run)
 
-	# === phase: propagate subprocess ===
+	# === phase: propagate (direct repolib call) ===
 	action_count += run_propagate(repo_root, args.dry_run)
 
 	# === phase: typescript-specific work ===
@@ -458,8 +461,10 @@ def main() -> None:
 	action_count += truncate_file("docs/CHANGELOG.md", repo_root, args.dry_run)
 
 	# === phase: git rm cleanup ===
+	# Remove the template-only propagation infrastructure from the consumer:
+	# entry script and the repolib package (renamed from propagate/ in the template).
 	action_count += git_rm("propagate_style_guides.py", args.dry_run)
-	action_count += git_rm_recursive("propagate/", args.dry_run)
+	action_count += git_rm_recursive("repolib/", args.dry_run)
 	action_count += git_rm_recursive("tools/", args.dry_run)
 	# Strip every directory named "meta/" anywhere in the tree (template-only
 	# trees: top-level meta/, tests/meta/, any future subtree/meta/). Walk the

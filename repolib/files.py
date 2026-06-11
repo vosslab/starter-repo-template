@@ -5,8 +5,8 @@ import shutil
 import filecmp
 import collections.abc
 
-import propagate.console
-import propagate.model
+import repolib.console
+import repolib.model
 
 
 #============================================
@@ -31,14 +31,14 @@ def assert_not_meta(file_rel: str) -> None:
 		              OR any path component matches META_DIRS.
 	"""
 	basename = os.path.basename(file_rel)
-	if file_rel in propagate.model.META_FILES or basename in propagate.model.META_FILES:
+	if file_rel in repolib.model.META_FILES or basename in repolib.model.META_FILES:
 		raise RuntimeError(
 			f"META leak: {file_rel!r} is in META_FILES and must never ship. "
 			"Fix the upstream walker or dispatcher branch that produced this entry."
 		)
 	parts = file_rel.split(os.sep)
 	for part in parts:
-		if part in propagate.model.META_DIRS:
+		if part in repolib.model.META_DIRS:
 			raise RuntimeError(
 				f"META leak: {file_rel!r} traverses META_DIRS component {part!r} "
 				"and must never ship. Fix the upstream walker or dispatcher branch."
@@ -59,7 +59,7 @@ def should_ship_override(file_rel: str, repo_lang: str, repo_dir: str) -> bool |
 
 	Note: this predicate only evaluates the gate fields (`language`, `requires_repo_file`).
 	The `bucket` field is NOT consumed here; callers that receive True must re-read the rule
-	dict from `propagate.model.ROUTING_OVERRIDES` to apply bucket overrides (see
+	dict from `repolib.model.ROUTING_OVERRIDES` to apply bucket overrides (see
 	compute_propagation_plan in this module for the canonical pattern).
 
 	Args:
@@ -71,7 +71,7 @@ def should_ship_override(file_rel: str, repo_lang: str, repo_dir: str) -> bool |
 		bool or None: True if override allows the file to ship, False if override blocks it,
 		              None if no override applies.
 	"""
-	rule = propagate.model.ROUTING_OVERRIDES.get(file_rel)
+	rule = repolib.model.ROUTING_OVERRIDES.get(file_rel)
 	if rule is None:
 		return None
 	rule_lang = rule.get('language')
@@ -111,7 +111,7 @@ def copy_file_safe(src: str, dst: str, dry_run: bool, action: str = 'copy', mess
 	if dry_run:
 		if message is None:
 			message = f"{src} -> {dst}"
-		propagate.console.log_action(action, message, dry_run=True)
+		repolib.console.log_action(action, message, dry_run=True)
 		return False
 	shutil.copy2(src, dst)
 	return True
@@ -124,7 +124,7 @@ def make_dir_safe(path: str, dry_run: bool) -> bool:
 	Returns False on dry-run, True on actual mkdir.
 	"""
 	if dry_run:
-		propagate.console.log_action("create", path, dry_run=True)
+		repolib.console.log_action("create", path, dry_run=True)
 		return False
 	os.makedirs(path, exist_ok=True)
 	return True
@@ -169,7 +169,7 @@ def copy_if_changed(source: str, dest: str, dry_run: bool, counters: dict, actio
 
 	# Check if source exists
 	if not os.path.isfile(source):
-		propagate.console.log_action("skip", f"source: {source} (not found)", counters)
+		repolib.console.log_action("skip", f"source: {source} (not found)", counters)
 		return 'skipped_source'
 
 	# Check if dest exists and compare
@@ -178,7 +178,7 @@ def copy_if_changed(source: str, dest: str, dry_run: bool, counters: dict, actio
 	if dest_exists:
 		is_same = filecmp.cmp(source, dest, shallow=False)
 	if is_same:
-		propagate.console.log_action("no change", dest, counters)
+		repolib.console.log_action("no change", dest, counters)
 		return 'no_change'
 
 	# Ensure parent directory exists
@@ -192,10 +192,10 @@ def copy_if_changed(source: str, dest: str, dry_run: bool, counters: dict, actio
 	copy_file_safe(source, dest, dry_run, action=action, message=formatted_path if dry_run else None)
 	if not dry_run:
 		if dest_exists:
-			propagate.console.log_action("update", formatted_path)
+			repolib.console.log_action("update", formatted_path)
 			return 'updated'
 		else:
-			propagate.console.log_action("copy", formatted_path)
+			repolib.console.log_action("copy", formatted_path)
 			return 'copied'
 	else:
 		# On dry-run, copy_file_safe() already printed; return the action we would take
@@ -219,7 +219,7 @@ def write_text(path: str, content: str, dry_run: bool = False, action: str = 'up
 	Returns False on dry-run (logs dry-run line), True on actual write.
 	"""
 	if dry_run:
-		propagate.console.log_action(action, path, dry_run=True)
+		repolib.console.log_action(action, path, dry_run=True)
 		return False
 	with open(path, 'w', encoding='utf-8') as f:
 		f.write(content)
@@ -243,7 +243,7 @@ def safe_walk(root: str) -> collections.abc.Iterator[tuple[str, list[str], list[
 		tuple: (dirpath, dirs, files) with dirs[:] already filtered
 	"""
 	for dirpath, dirs, files in os.walk(root, topdown=True, followlinks=False):
-		dirs[:] = [d for d in dirs if d not in propagate.model.SKIP_WALK_DIRS and not d.startswith('.')]
+		dirs[:] = [d for d in dirs if d not in repolib.model.SKIP_WALK_DIRS and not d.startswith('.')]
 		yield dirpath, dirs, files
 
 
@@ -427,7 +427,7 @@ def merge_at_imports_safe(source: str, dest: str, dry_run: bool, counters: dict)
 	"""
 	if not os.path.isfile(source):
 		counters['errors'] += 1
-		propagate.console.log_action("error", f"merge source missing: {source}")
+		repolib.console.log_action("error", f"merge source missing: {source}")
 		return 'error'
 
 	src_text = read_text(source)
@@ -438,7 +438,7 @@ def merge_at_imports_safe(source: str, dest: str, dry_run: bool, counters: dict)
 			make_dir_safe(dest_parent, dry_run)
 		write_text(dest, src_text, dry_run, action='create')
 		if not dry_run:
-			propagate.console.log_action("create", dest)
+			repolib.console.log_action("create", dest)
 			counters['created_count'] += 1
 		return 'created'
 
@@ -489,12 +489,12 @@ def merge_at_imports_safe(source: str, dest: str, dry_run: bool, counters: dict)
 		merged = merged.rstrip('\n')
 
 	if merged == dest_text:
-		propagate.console.log_action("no change", dest, counters)
+		repolib.console.log_action("no change", dest, counters)
 		return 'unchanged'
 
 	write_text(dest, merged, dry_run, action='merge')
 	if not dry_run:
-		propagate.console.log_action("merge", dest)
+		repolib.console.log_action("merge", dest)
 		counters['merged_count'] += 1
 	return 'merged'
 
@@ -563,7 +563,7 @@ def merge_conftest(source_file: str, dest_file: str) -> str | None:
 
 
 #============================================
-def merge_gitignore_blocks(repo_dir: str, repo_type: str, template_root: str, context: 'propagate.model.PropagateContext', counters: dict | None = None) -> None:
+def merge_gitignore_blocks(repo_dir: str, repo_type: str, template_root: str, context: 'repolib.model.PropagateContext', counters: dict | None = None) -> None:
 	"""
 	Manage .gitignore as a sequence of named blocks delimited by '# === <NAME> ==='.
 	Blocks: UNIVERSAL (always), and <REPO_TYPE_UPPERCASE> (when non-empty).
@@ -618,72 +618,26 @@ def merge_gitignore_blocks(repo_dir: str, repo_type: str, template_root: str, co
 
 	# Write if needed
 	if not file_exists:
-		display_path = propagate.model.format_path_pair(gitignore_path, gitignore_path, repo_dir, context)
+		display_path = repolib.model.format_path_pair(gitignore_path, gitignore_path, repo_dir, context)
 		if context.dry_run:
-			propagate.console.log_action("create", display_path, dry_run=True)
+			repolib.console.log_action("create", display_path, dry_run=True)
 		else:
 			with open(gitignore_path, 'w', encoding='utf-8') as f:
 				f.write(content)
-			propagate.console.log_action("create", display_path)
+			repolib.console.log_action("create", display_path)
 			if counters is not None:
 				counters['created_count'] += 1
 	elif content != existing_content:
-		display_path = propagate.model.format_path_pair(gitignore_path, gitignore_path, repo_dir, context)
+		display_path = repolib.model.format_path_pair(gitignore_path, gitignore_path, repo_dir, context)
 		if context.dry_run:
-			propagate.console.log_action("update", display_path, dry_run=True)
+			repolib.console.log_action("update", display_path, dry_run=True)
 		else:
 			with open(gitignore_path, 'w', encoding='utf-8') as f:
 				f.write(content)
-			propagate.console.log_action("update", display_path)
+			repolib.console.log_action("update", display_path)
 			if counters is not None:
 				counters['merged_count'] += 1
 
-
-#============================================
-def ensure_git_perms(repo_dir: str, dry_run: bool) -> bool:
-	"""
-	Make .git group-writable so Git can create .git/index.lock and update the index.
-
-	Note: This only helps if the user is in the repo group.
-	"""
-	import stat
-
-	git_dir = os.path.join(repo_dir, '.git')
-	if not os.path.isdir(git_dir):
-		return False
-
-	changed = False
-
-	def add_group_write(path: str) -> None:
-		nonlocal changed
-		# stat may fail on broken symlinks / vanished files; skip silently in that case
-		try:
-			st = os.stat(path, follow_symlinks=False)
-		except OSError:
-			return
-		mode = stat.S_IMODE(st.st_mode)
-		new_mode = mode | 0o020
-		if new_mode == mode:
-			return
-		changed = True
-		if dry_run:
-			propagate.console.log_action("create", path, dry_run=True)
-			return
-		os.chmod(path, new_mode, follow_symlinks=False)
-
-	add_group_write(git_dir)
-
-	index_path = os.path.join(git_dir, 'index')
-	if os.path.exists(index_path):
-		add_group_write(index_path)
-
-	for root, dirs, files in safe_walk(git_dir):
-		for d in dirs:
-			add_group_write(os.path.join(root, d))
-		for f in files:
-			add_group_write(os.path.join(root, f))
-
-	return changed
 
 
 #============================================
@@ -817,13 +771,13 @@ def auto_discover_test_files(template_root: str, repo_type: str) -> list[str]:
 
 	for root, dirs, files in os.walk(test_dir, topdown=True, followlinks=False):
 		# Filter walk dirs in-place to skip unwanted directories
-		dirs[:] = [d for d in dirs if d not in propagate.model.SKIP_WALK_DIRS and not d.startswith('.')]
+		dirs[:] = [d for d in dirs if d not in repolib.model.SKIP_WALK_DIRS and not d.startswith('.')]
 
 		for name in files:
 			if not (name.startswith('test_') and (name.endswith('.py') or name.endswith('.mjs'))):
 				continue
 			# Exclude template-meta tests (propagate/reset_repo/detect_repo_type self-tests)
-			if any(name.startswith(p) for p in propagate.model.META_TEST_PREFIXES):
+			if any(name.startswith(p) for p in repolib.model.META_TEST_PREFIXES):
 				continue
 			rel_path = os.path.relpath(os.path.join(root, name), test_dir)
 			# Prepend 'tests/' to make it an absolute path from template_root
@@ -894,7 +848,7 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 	def is_in_meta_dir(rel_path: str) -> bool:
 		parts = rel_path.split(os.sep)
 		for part in parts:
-			if part in propagate.model.META_DIRS:
+			if part in repolib.model.META_DIRS:
 				return True
 		return False
 
@@ -902,7 +856,7 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 	if repo_type in ('python', 'other', 'typescript', 'rust', 'unknown'):
 		for root, dirs, files in os.walk(template_root, topdown=True, followlinks=False):
 			# Skip directories: meta, templates (we walk it separately)
-			dirs[:] = [d for d in dirs if d not in propagate.model.META_DIRS]
+			dirs[:] = [d for d in dirs if d not in repolib.model.META_DIRS]
 
 			rel_root = os.path.relpath(root, template_root)
 			if rel_root == '.':
@@ -918,7 +872,7 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 				# Skip META_FILES (matches by full rel-path OR bare basename for
 				# entries that may appear at any depth). docs/active_plans and
 				# docs/archive are caught by is_in_meta_dir().
-				if file_rel in propagate.model.META_FILES or name in propagate.model.META_FILES:
+				if file_rel in repolib.model.META_FILES or name in repolib.model.META_FILES:
 					continue
 
 				# Skip if under a meta directory
@@ -931,7 +885,7 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 					continue
 
 				# Check for override bucket assignment (e.g., pip_requirements -> noexist)
-				rule = propagate.model.ROUTING_OVERRIDES.get(file_rel)
+				rule = repolib.model.ROUTING_OVERRIDES.get(file_rel)
 				if rule is not None and 'bucket' in rule:
 					bucket_name = rule['bucket'] + '_files'
 					if file_rel not in plan[bucket_name]:
@@ -951,7 +905,7 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 				elif file_rel.startswith('tests/'):
 					bare_name = os.path.basename(file_rel)
 					# Skip template-meta test prefixes
-					if any(bare_name.startswith(p) for p in propagate.model.META_TEST_PREFIXES):
+					if any(bare_name.startswith(p) for p in repolib.model.META_TEST_PREFIXES):
 						continue
 					# Include test files and helpers
 					if (bare_name.startswith('test_') and (bare_name.endswith('.py') or bare_name.endswith('.mjs'))) or \
@@ -961,7 +915,7 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 						if file_rel not in plan['test_files']:
 							assert_not_meta(file_rel)
 							plan['test_files'].append(file_rel)
-				elif file_rel in propagate.model.ROOT_PROPAGATE_ALLOWLIST:
+				elif file_rel in repolib.model.ROOT_PROPAGATE_ALLOWLIST:
 					assert_not_meta(file_rel)
 					plan['overwrite_files'].append(file_rel)
 
@@ -971,7 +925,7 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 	type_overlay_root = os.path.join(template_root, 'templates', repo_type)
 	if os.path.isdir(type_overlay_root):
 		for root, dirs, files in os.walk(type_overlay_root, topdown=True, followlinks=False):
-			dirs[:] = [d for d in dirs if d not in propagate.model.SKIP_WALK_DIRS and not d.startswith('.')]
+			dirs[:] = [d for d in dirs if d not in repolib.model.SKIP_WALK_DIRS and not d.startswith('.')]
 
 			rel_root = os.path.relpath(root, type_overlay_root)
 			if rel_root == '.':
@@ -986,7 +940,7 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 
 				# META guard: typed overlays must filter template-internal files so a stray
 				# templates/<type>/README.md (or any META name) cannot ship to consumers.
-				if name in propagate.model.META_FILES or file_rel in propagate.model.META_FILES:
+				if name in repolib.model.META_FILES or file_rel in repolib.model.META_FILES:
 					continue
 				if is_in_meta_dir(file_rel):
 					continue
@@ -1000,7 +954,7 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 					if not consumer_path:
 						continue
 					consumer_basename = os.path.basename(consumer_path)
-					if consumer_path in propagate.model.META_FILES or consumer_basename in propagate.model.META_FILES:
+					if consumer_path in repolib.model.META_FILES or consumer_basename in repolib.model.META_FILES:
 						continue
 					if is_in_meta_dir(consumer_path):
 						continue
@@ -1044,7 +998,7 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 	# 4. Apply UNIVERSAL_NOEXIST overrides
 	# Any path in UNIVERSAL_NOEXIST must move from overwrite/test buckets to noexist.
 	# Covers tests/TESTS_README.md, which the tests-walker routes to test_files by default.
-	for path in propagate.model.UNIVERSAL_NOEXIST:
+	for path in repolib.model.UNIVERSAL_NOEXIST:
 		if path in plan['overwrite_files']:
 			plan['overwrite_files'].remove(path)
 		if path in plan['test_files']:
@@ -1060,7 +1014,7 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 
 	# 6. Apply MERGE_FILES routing. MERGE wins over OVERWRITE and NOEXIST for the same path.
 	# META still wins over MERGE: assert_not_meta() fails loud if a MERGE-tagged file is META.
-	for path in propagate.model.MERGE_FILES:
+	for path in repolib.model.MERGE_FILES:
 		if path in plan['overwrite_files']:
 			plan['overwrite_files'].remove(path)
 		if path in plan['noexist_files']:

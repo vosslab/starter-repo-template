@@ -14,7 +14,7 @@ import pathlib
 
 # local repo modules
 import file_utils
-import propagate.files
+import repolib.files
 
 
 SOURCE_FILE = os.path.join(file_utils.get_repo_root(), "tests", "conftest.py")
@@ -32,7 +32,7 @@ def test_no_dest_returns_full_template(tmp_path: pathlib.Path) -> None:
 	"""Missing dest returns the full canonical template with both blocks."""
 	dest = tmp_path / "conftest.py"
 
-	result = propagate.files.merge_conftest(SOURCE_FILE, str(dest))
+	result = repolib.files.merge_conftest(SOURCE_FILE, str(dest))
 
 	assert result is not None
 	assert "collect_ignore" in result
@@ -50,7 +50,7 @@ def test_collect_ignore_present_adds_filters_block(tmp_path: pathlib.Path) -> No
 	)
 	_write(str(dest), consumer_text)
 
-	result = propagate.files.merge_conftest(SOURCE_FILE, str(dest))
+	result = repolib.files.merge_conftest(SOURCE_FILE, str(dest))
 
 	assert result is not None
 	# Missing block is added.
@@ -72,7 +72,7 @@ def test_both_blocks_present_returns_none(tmp_path: pathlib.Path) -> None:
 	)
 	_write(str(dest), consumer_text)
 
-	result = propagate.files.merge_conftest(SOURCE_FILE, str(dest))
+	result = repolib.files.merge_conftest(SOURCE_FILE, str(dest))
 
 	assert result is None
 
@@ -84,7 +84,7 @@ def test_custom_filters_preserved_adds_collect_ignore(tmp_path: pathlib.Path) ->
 	consumer_text = 'REPO_HYGIENE_FILTERS = {"all": ["foo/**"]}\n'
 	_write(str(dest), consumer_text)
 
-	result = propagate.files.merge_conftest(SOURCE_FILE, str(dest))
+	result = repolib.files.merge_conftest(SOURCE_FILE, str(dest))
 
 	assert result is not None
 	# Missing collect_ignore block is added.
@@ -99,7 +99,7 @@ def test_neither_marker_adds_both_blocks(tmp_path: pathlib.Path) -> None:
 	dest = tmp_path / "conftest.py"
 	_write(str(dest), "import pytest\n")
 
-	result = propagate.files.merge_conftest(SOURCE_FILE, str(dest))
+	result = repolib.files.merge_conftest(SOURCE_FILE, str(dest))
 
 	assert result is not None
 	assert "collect_ignore" in result

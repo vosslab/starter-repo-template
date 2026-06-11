@@ -11,8 +11,8 @@ import pathlib
 
 import pytest
 
-import propagate.console
-import propagate.files
+import repolib.console
+import repolib.files
 
 
 TEMPLATE_BODY = (
@@ -31,9 +31,9 @@ def test_creates_when_dest_missing(tmp_path: pathlib.Path) -> None:
 	source = tmp_path / "template.md"
 	dest = tmp_path / "consumer" / "consumer.md"
 	_write(source, TEMPLATE_BODY)
-	counters = propagate.console.init_counters()
+	counters = repolib.console.init_counters()
 
-	outcome = propagate.files.merge_at_imports_safe(str(source), str(dest), dry_run=False, counters=counters)
+	outcome = repolib.files.merge_at_imports_safe(str(source), str(dest), dry_run=False, counters=counters)
 
 	assert outcome == 'created'
 	assert dest.read_text(encoding='utf-8') == TEMPLATE_BODY
@@ -41,21 +41,21 @@ def test_creates_when_dest_missing(tmp_path: pathlib.Path) -> None:
 
 def test_unchanged_when_consumer_has_all_template_imports(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
 	"""Consumer already carries every template @-import and no deprecated lines."""
-	monkeypatch.setattr(propagate.files, '_load_claude_md_deprecated', lambda: [])
+	monkeypatch.setattr(repolib.files, '_load_claude_md_deprecated', lambda: [])
 	source = tmp_path / "template.md"
 	dest = tmp_path / "consumer.md"
 	_write(source, TEMPLATE_BODY)
 	_write(dest, TEMPLATE_BODY)
-	counters = propagate.console.init_counters()
+	counters = repolib.console.init_counters()
 
-	outcome = propagate.files.merge_at_imports_safe(str(source), str(dest), dry_run=False, counters=counters)
+	outcome = repolib.files.merge_at_imports_safe(str(source), str(dest), dry_run=False, counters=counters)
 
 	assert outcome == 'unchanged'
 
 
 def test_merged_adds_missing_template_imports(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
 	"""Consumer missing one template @-import gets it appended; existing entries preserved."""
-	monkeypatch.setattr(propagate.files, '_load_claude_md_deprecated', lambda: [])
+	monkeypatch.setattr(repolib.files, '_load_claude_md_deprecated', lambda: [])
 	source = tmp_path / "template.md"
 	dest = tmp_path / "consumer.md"
 	_write(source, TEMPLATE_BODY)
@@ -65,9 +65,9 @@ def test_merged_adds_missing_template_imports(tmp_path: pathlib.Path, monkeypatc
 		"@docs/LOCAL_NOTES.md\n"
 	)
 	_write(dest, consumer_text)
-	counters = propagate.console.init_counters()
+	counters = repolib.console.init_counters()
 
-	outcome = propagate.files.merge_at_imports_safe(str(source), str(dest), dry_run=False, counters=counters)
+	outcome = repolib.files.merge_at_imports_safe(str(source), str(dest), dry_run=False, counters=counters)
 
 	merged = dest.read_text(encoding='utf-8')
 	assert outcome == 'merged'
@@ -77,29 +77,29 @@ def test_merged_adds_missing_template_imports(tmp_path: pathlib.Path, monkeypatc
 
 def test_plain_shape_no_fences_succeeds(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
 	"""Consumer with no fence markers is acceptable; no error."""
-	monkeypatch.setattr(propagate.files, '_load_claude_md_deprecated', lambda: [])
+	monkeypatch.setattr(repolib.files, '_load_claude_md_deprecated', lambda: [])
 	source = tmp_path / "template.md"
 	dest = tmp_path / "consumer.md"
 	_write(source, TEMPLATE_BODY)
 	_write(dest, "@AGENTS.md\n")
-	counters = propagate.console.init_counters()
+	counters = repolib.console.init_counters()
 
-	outcome = propagate.files.merge_at_imports_safe(str(source), str(dest), dry_run=False, counters=counters)
+	outcome = repolib.files.merge_at_imports_safe(str(source), str(dest), dry_run=False, counters=counters)
 
 	assert outcome == 'merged'
 
 
 def test_duplicate_imports_not_readded(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
 	"""If consumer already contains an @-import, template's matching line is not duplicated."""
-	monkeypatch.setattr(propagate.files, '_load_claude_md_deprecated', lambda: [])
+	monkeypatch.setattr(repolib.files, '_load_claude_md_deprecated', lambda: [])
 	source = tmp_path / "template.md"
 	dest = tmp_path / "consumer.md"
 	_write(source, "@AGENTS.md\n@docs/REPO_STYLE.md\n")
 	# Consumer already has @AGENTS.md - template should not add a second copy.
 	_write(dest, "@AGENTS.md\n@docs/REPO_STYLE.md\n")
-	counters = propagate.console.init_counters()
+	counters = repolib.console.init_counters()
 
-	outcome = propagate.files.merge_at_imports_safe(str(source), str(dest), dry_run=False, counters=counters)
+	outcome = repolib.files.merge_at_imports_safe(str(source), str(dest), dry_run=False, counters=counters)
 
 	assert outcome == 'unchanged'
 
@@ -107,7 +107,7 @@ def test_duplicate_imports_not_readded(tmp_path: pathlib.Path, monkeypatch: pyte
 def test_deprecated_line_stripped(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
 	"""Lines matching the deprecation list are removed from the consumer."""
 	monkeypatch.setattr(
-		propagate.files,
+		repolib.files,
 		'_load_claude_md_deprecated',
 		lambda: ['<!-- === TEMPLATE-MANAGED START === -->', '<!-- === TEMPLATE-MANAGED END === -->'],
 	)
@@ -122,9 +122,9 @@ def test_deprecated_line_stripped(tmp_path: pathlib.Path, monkeypatch: pytest.Mo
 		"<!-- === TEMPLATE-MANAGED END === -->\n"
 	)
 	_write(dest, consumer_text)
-	counters = propagate.console.init_counters()
+	counters = repolib.console.init_counters()
 
-	outcome = propagate.files.merge_at_imports_safe(str(source), str(dest), dry_run=False, counters=counters)
+	outcome = repolib.files.merge_at_imports_safe(str(source), str(dest), dry_run=False, counters=counters)
 
 	merged = dest.read_text(encoding='utf-8')
 	assert outcome == 'merged'
@@ -136,14 +136,14 @@ def test_deprecated_line_stripped(tmp_path: pathlib.Path, monkeypatch: pytest.Mo
 
 def test_consumer_with_zero_at_imports(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
 	"""Consumer has prose but no @-imports; template entries prepend at top."""
-	monkeypatch.setattr(propagate.files, '_load_claude_md_deprecated', lambda: [])
+	monkeypatch.setattr(repolib.files, '_load_claude_md_deprecated', lambda: [])
 	source = tmp_path / "template.md"
 	dest = tmp_path / "consumer.md"
 	_write(source, TEMPLATE_BODY)
 	_write(dest, "Some prose with no @-imports at all.\n")
-	counters = propagate.console.init_counters()
+	counters = repolib.console.init_counters()
 
-	outcome = propagate.files.merge_at_imports_safe(str(source), str(dest), dry_run=False, counters=counters)
+	outcome = repolib.files.merge_at_imports_safe(str(source), str(dest), dry_run=False, counters=counters)
 
 	merged = dest.read_text(encoding='utf-8')
 	assert outcome == 'merged'
@@ -157,9 +157,9 @@ def test_source_missing_returns_error(tmp_path: pathlib.Path) -> None:
 	dest = tmp_path / "consumer.md"
 	_write(dest, "@AGENTS.md\n")
 	before = dest.read_text(encoding='utf-8')
-	counters = propagate.console.init_counters()
+	counters = repolib.console.init_counters()
 
-	outcome = propagate.files.merge_at_imports_safe(str(source), str(dest), dry_run=False, counters=counters)
+	outcome = repolib.files.merge_at_imports_safe(str(source), str(dest), dry_run=False, counters=counters)
 
 	assert outcome == 'error'
 	assert dest.read_text(encoding='utf-8') == before
@@ -167,15 +167,15 @@ def test_source_missing_returns_error(tmp_path: pathlib.Path) -> None:
 
 def test_dry_run_does_not_modify(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
 	"""dry_run=True must not write to the dest file even when a merge would change content."""
-	monkeypatch.setattr(propagate.files, '_load_claude_md_deprecated', lambda: [])
+	monkeypatch.setattr(repolib.files, '_load_claude_md_deprecated', lambda: [])
 	source = tmp_path / "template.md"
 	dest = tmp_path / "consumer.md"
 	_write(source, TEMPLATE_BODY)
 	consumer_text = "@AGENTS.md\n"
 	_write(dest, consumer_text)
-	counters = propagate.console.init_counters()
+	counters = repolib.console.init_counters()
 
-	outcome = propagate.files.merge_at_imports_safe(str(source), str(dest), dry_run=True, counters=counters)
+	outcome = repolib.files.merge_at_imports_safe(str(source), str(dest), dry_run=True, counters=counters)
 
 	assert outcome == 'merged'
 	assert dest.read_text(encoding='utf-8') == consumer_text

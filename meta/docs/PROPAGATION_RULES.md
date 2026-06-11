@@ -4,7 +4,7 @@ Where to drop a file so the propagator ships it to the right repos.
 
 ## Hardcoding principles
 
-Manifests in `propagate/model.py` follow three categories:
+Manifests in `repolib/model.py` follow three categories:
 
 - **Good hardcoding** -- root files with special semantics, noexist files, routing overrides. These need explicit intent because no directory convention can express them.
 - **Expected hardcoding** -- root allowlist, root meta files. Root has mixed semantics (some ship, some don't, some need bootstrap-time customization); per-file lists are correct.
@@ -28,7 +28,7 @@ Do not try to eliminate all hardcoding. Root has mixed semantics; explicit lists
 | Starter file that must not clobber existing | templates/<type>/noexist/<consumer-path> | only when missing |
 | TypeScript-only file | templates/typescript/<consumer-path> | typescript repos only |
 | Rust-only file | templates/rust/<consumer-path> | rust repos only |
-| Language-specific file | add path to ROUTING_OVERRIDES in propagate/model.py | language-specific behavior |
+| Language-specific file | add path to ROUTING_OVERRIDES in repolib/model.py | language-specific behavior |
 | Root-level file like AGENTS.md | template root + add to ROOT_PROPAGATE_ALLOWLIST | every repo, overwrite |
 | Universal gitignore blocks | templates/gitignore.universal | every repo, merged into .gitignore under `# === UNIVERSAL ===` |
 | MERGE bucket (set-union @-import merge with strip list) | template root + add to `MERGE_FILES` | every repo; template @-imports union-added to consumer; strip list at `meta/propagation/deprecated_claude_md.txt` removes retired entries (see [MERGE_BUCKET_SPEC.md](MERGE_BUCKET_SPEC.md)) |
@@ -56,7 +56,7 @@ Every file the propagator ships is classified into one of four policy categories
 
 ## Exceptions in the manifest
 
-Most additions are drop-and-go. The propagator keeps five short manifests in `propagate/model.py`:
+Most additions are drop-and-go. The propagator keeps five short manifests in `repolib/model.py`:
 
 - `ROOT_PROPAGATE_ALLOWLIST` -- root files that DO ship. Default: CLAUDE.md, AGENTS.md, source_me.sh. Add here when introducing a new root-level file all repos need.
 - `UNIVERSAL_NOEXIST` -- universal files that ship only when missing at consumer. Default: AGENTS.md, source_me.sh, docs/AUTHORS.md.
@@ -77,7 +77,7 @@ The two sets compose: `ROOT_PROPAGATE_ALLOWLIST` decides IF a root file ships; `
 
 ## Routing override gates
 
-The `ROUTING_OVERRIDES` dict in `propagate/model.py` controls which files ship and to which repos:
+The `ROUTING_OVERRIDES` dict in `repolib/model.py` controls which files ship and to which repos:
 
 - **`language` gate** - Only ships when the consumer repo's `repo_type` matches the specified language. Example: `'docs/PYTHON_STYLE.md': {'language': LANG_PYTHON}` ships only to python repos.
 - **`requires_repo_file` gate** - Only ships when a required file exists at the consumer repo. Example: `'devel/submit_to_pypi.py': {'language': LANG_PYTHON, 'requires_repo_file': 'pyproject.toml'}` ships to python repos that have a `pyproject.toml` file. This prevents shipping utilities for features the repo doesn't yet have.
@@ -85,7 +85,7 @@ The `ROUTING_OVERRIDES` dict in `propagate/model.py` controls which files ship a
 
 ## What never propagates
 
-Listed in `META_FILES` / `META_DIRS` / `META_TEST_PREFIXES`. Includes the propagator entry script `propagate_style_guides.py`, reset_repo.py, README.md, VERSION, Brewfile, .gitignore, REPO_TYPE, pip_extras.txt (root META_FILES); `propagate/` helper package, `tools/` (detect_repo_type.py and other template-only tooling), `meta/` (this doc and other template-meta), `templates/` (only contents under `templates/<type>/` ship), `LICENSES/`, `docs/active_plans/`, `docs/archive/`, `experiment_reports/`, `__pycache__/`, `.git/` (META_DIRS). Tests are excluded via two mechanisms: `tests/meta/` is excluded as a whole via `SKIP_WALK_DIRS` containing `'meta'`, and tests starting with `test_propagate_`, `test_reset_repo_`, or `test_detect_repo_type` are also excluded via `META_TEST_PREFIXES`.
+Listed in `META_FILES` / `META_DIRS` / `META_TEST_PREFIXES`. Includes the propagator entry script `propagate_style_guides.py`, reset_repo.py, README.md, VERSION, Brewfile, .gitignore, REPO_TYPE, pip_extras.txt (root META_FILES); `repolib/` helper package, `tools/` (detect_repo_type.py and other template-only tooling), `meta/` (this doc and other template-meta), `templates/` (only contents under `templates/<type>/` ship), `LICENSES/`, `docs/active_plans/`, `docs/archive/`, `experiment_reports/`, `__pycache__/`, `.git/` (META_DIRS). Tests are excluded via two mechanisms: `tests/meta/` is excluded as a whole via `SKIP_WALK_DIRS` containing `'meta'`, and tests starting with `test_repolib_`, `test_reset_repo_`, or `test_detect_repo_type` are also excluded via `META_TEST_PREFIXES`.
 
 ## Link bucket isolation
 

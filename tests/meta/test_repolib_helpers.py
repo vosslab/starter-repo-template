@@ -6,11 +6,11 @@ import pathlib
 
 import pytest
 
-import propagate.console
-import propagate.files
-import propagate.model
-import propagate.repo
-import propagate_style_guides  # For apply_file_bucket and exit_code_for
+import repolib.console
+import repolib.files
+import repolib.model
+import repolib.repo
+import repolib.process
 
 
 class TestCopyFileSafe:
@@ -22,7 +22,7 @@ class TestCopyFileSafe:
 		dst = tmp_path / "dest.txt"
 		src.write_text("hello", encoding='utf-8')
 
-		result = propagate.files.copy_file_safe(str(src), str(dst), dry_run=False)
+		result = repolib.files.copy_file_safe(str(src), str(dst), dry_run=False)
 
 		assert result is True
 		assert dst.read_text(encoding='utf-8') == "hello"
@@ -33,7 +33,7 @@ class TestCopyFileSafe:
 		dst = tmp_path / "dest.txt"
 		src.write_text("hello", encoding='utf-8')
 
-		result = propagate.files.copy_file_safe(str(src), str(dst), dry_run=True)
+		result = repolib.files.copy_file_safe(str(src), str(dst), dry_run=True)
 
 		assert result is False
 		assert not dst.exists()
@@ -50,7 +50,7 @@ class TestCopyFileSafe:
 		# Make source executable
 		os.chmod(src, os.stat(src).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
-		propagate.files.copy_file_safe(str(src), str(dst), dry_run=False)
+		repolib.files.copy_file_safe(str(src), str(dst), dry_run=False)
 
 		dst_mode = os.stat(dst).st_mode
 		assert dst_mode & stat.S_IXUSR == stat.S_IXUSR
@@ -63,7 +63,7 @@ class TestCopyFileSafe:
 		dst = tmp_path / "dest.txt"
 		src.write_text("hello", encoding='utf-8')
 
-		propagate.files.copy_file_safe(str(src), str(dst), dry_run=True, action='update')
+		repolib.files.copy_file_safe(str(src), str(dst), dry_run=True, action='update')
 
 		captured = capsys.readouterr()
 		assert "update" in captured.out
@@ -77,7 +77,7 @@ class TestMakeDirSafe:
 		new_dir = tmp_path / "newdir"
 		assert not new_dir.exists()
 
-		result = propagate.files.make_dir_safe(str(new_dir), dry_run=False)
+		result = repolib.files.make_dir_safe(str(new_dir), dry_run=False)
 
 		assert result is True
 		assert new_dir.is_dir()
@@ -87,7 +87,7 @@ class TestMakeDirSafe:
 		new_dir = tmp_path / "newdir"
 		assert not new_dir.exists()
 
-		result = propagate.files.make_dir_safe(str(new_dir), dry_run=True)
+		result = repolib.files.make_dir_safe(str(new_dir), dry_run=True)
 
 		assert result is False
 		assert not new_dir.exists()
@@ -101,7 +101,7 @@ class TestMakeDirSafe:
 		new_dir.mkdir()
 
 		# Should not raise even though dir exists
-		result = propagate.files.make_dir_safe(str(new_dir), dry_run=False)
+		result = repolib.files.make_dir_safe(str(new_dir), dry_run=False)
 
 		assert result is True
 		assert new_dir.is_dir()
@@ -125,7 +125,7 @@ __pycache__/
 """
 		file_path.write_text(content, encoding='utf-8')
 
-		result = propagate.files.load_gitignore_block(str(file_path))
+		result = repolib.files.load_gitignore_block(str(file_path))
 
 		assert result == ['*.pyc', '__pycache__/', '.env']
 
@@ -134,7 +134,7 @@ __pycache__/
 		file_path = tmp_path / "gitignore.txt"
 		file_path.write_text("", encoding='utf-8')
 
-		result = propagate.files.load_gitignore_block(str(file_path))
+		result = repolib.files.load_gitignore_block(str(file_path))
 
 		assert result == []
 
@@ -147,13 +147,13 @@ __pycache__/
 # Comment 3"""
 		file_path.write_text(content, encoding='utf-8')
 
-		result = propagate.files.load_gitignore_block(str(file_path))
+		result = repolib.files.load_gitignore_block(str(file_path))
 
 		assert result == []
 
 	def test_load_gitignore_block_missing_file(self) -> None:
 		"""Test loading non-existent file returns empty list."""
-		result = propagate.files.load_gitignore_block('/nonexistent/path.txt')
+		result = repolib.files.load_gitignore_block('/nonexistent/path.txt')
 
 		assert result == []
 
@@ -165,7 +165,7 @@ class TestWriteRepoTypeMarker:
 		"""Test actual marker write."""
 		file_path = tmp_path / "REPO_TYPE"
 
-		result = propagate.repo.write_repo_type_marker(str(file_path), 'typescript', dry_run=False)
+		result = repolib.repo.write_repo_type_marker(str(file_path), 'typescript', dry_run=False)
 
 		assert result is True
 		assert file_path.read_text(encoding='utf-8') == 'typescript\n'
@@ -174,19 +174,12 @@ class TestWriteRepoTypeMarker:
 		"""Test dry-run mode."""
 		file_path = tmp_path / "REPO_TYPE"
 
-		result = propagate.repo.write_repo_type_marker(str(file_path), 'rust', dry_run=True)
+		result = repolib.repo.write_repo_type_marker(str(file_path), 'rust', dry_run=True)
 
 		assert result is False
 		assert not file_path.exists()
 		captured = capsys.readouterr()
 		assert "dry run" in captured.out
-
-	def test_write_repo_type_marker_all_tokens(self, tmp_path: pathlib.Path) -> None:
-		"""Test all valid token types."""
-		for token in ('python', 'typescript', 'rust', 'other'):
-			file_path = tmp_path / f"REPO_TYPE_{token}"
-			propagate.repo.write_repo_type_marker(str(file_path), token, dry_run=False)
-			assert file_path.read_text(encoding='utf-8') == f'{token}\n'
 
 
 class TestParseRepoTypeChoice:
@@ -194,39 +187,39 @@ class TestParseRepoTypeChoice:
 
 	def test_parse_repo_type_choice_single_letters(self) -> None:
 		"""Test single-letter choices."""
-		assert propagate.repo.parse_repo_type_choice('p') == 'python'
-		assert propagate.repo.parse_repo_type_choice('t') == 'typescript'
-		assert propagate.repo.parse_repo_type_choice('r') == 'rust'
-		assert propagate.repo.parse_repo_type_choice('o') == 'other'
+		assert repolib.repo.parse_repo_type_choice('p') == 'python'
+		assert repolib.repo.parse_repo_type_choice('t') == 'typescript'
+		assert repolib.repo.parse_repo_type_choice('r') == 'rust'
+		assert repolib.repo.parse_repo_type_choice('o') == 'other'
 
 	def test_parse_repo_type_choice_full_words(self) -> None:
 		"""Test full-word choices."""
-		assert propagate.repo.parse_repo_type_choice('python') == 'python'
-		assert propagate.repo.parse_repo_type_choice('typescript') == 'typescript'
-		assert propagate.repo.parse_repo_type_choice('rust') == 'rust'
-		assert propagate.repo.parse_repo_type_choice('other') == 'other'
+		assert repolib.repo.parse_repo_type_choice('python') == 'python'
+		assert repolib.repo.parse_repo_type_choice('typescript') == 'typescript'
+		assert repolib.repo.parse_repo_type_choice('rust') == 'rust'
+		assert repolib.repo.parse_repo_type_choice('other') == 'other'
 
 	def test_parse_repo_type_choice_case_insensitive(self) -> None:
 		"""Test case insensitivity."""
-		assert propagate.repo.parse_repo_type_choice('P') == 'python'
-		assert propagate.repo.parse_repo_type_choice('PYTHON') == 'python'
-		assert propagate.repo.parse_repo_type_choice('TypeScript') == 'typescript'
+		assert repolib.repo.parse_repo_type_choice('P') == 'python'
+		assert repolib.repo.parse_repo_type_choice('PYTHON') == 'python'
+		assert repolib.repo.parse_repo_type_choice('TypeScript') == 'typescript'
 
 	def test_parse_repo_type_choice_unknown_returns_default(self) -> None:
 		"""Test unknown input returns default."""
-		assert propagate.repo.parse_repo_type_choice('invalid', 'python') == 'python'
-		assert propagate.repo.parse_repo_type_choice('xyz', 'rust') == 'rust'
-		assert propagate.repo.parse_repo_type_choice('invalid', None) is None
+		assert repolib.repo.parse_repo_type_choice('invalid', 'python') == 'python'
+		assert repolib.repo.parse_repo_type_choice('xyz', 'rust') == 'rust'
+		assert repolib.repo.parse_repo_type_choice('invalid', None) is None
 
 	def test_parse_repo_type_choice_empty_returns_default(self) -> None:
 		"""Test empty string returns default."""
-		assert propagate.repo.parse_repo_type_choice('', 'python') == 'python'
-		assert propagate.repo.parse_repo_type_choice('', None) is None
+		assert repolib.repo.parse_repo_type_choice('', 'python') == 'python'
+		assert repolib.repo.parse_repo_type_choice('', None) is None
 
 	def test_parse_repo_type_choice_whitespace(self) -> None:
 		"""Test whitespace handling."""
-		assert propagate.repo.parse_repo_type_choice('  p  ') == 'python'
-		assert propagate.repo.parse_repo_type_choice('  python  ') == 'python'
+		assert repolib.repo.parse_repo_type_choice('  p  ') == 'python'
+		assert repolib.repo.parse_repo_type_choice('  python  ') == 'python'
 
 
 class TestReplaceManagedBlock:
@@ -245,7 +238,7 @@ class TestReplaceManagedBlock:
 		new_block = ['new pattern 1', 'new pattern 2', 'new pattern 3']
 		header = '# === UNIVERSAL ==='
 
-		result = propagate.files.replace_managed_block(lines, header, new_block)
+		result = repolib.files.replace_managed_block(lines, header, new_block)
 
 		assert result == [
 			'user content',
@@ -263,7 +256,7 @@ class TestReplaceManagedBlock:
 		new_block = ['pattern 1', 'pattern 2']
 		header = '# === UNIVERSAL ==='
 
-		result = propagate.files.replace_managed_block(lines, header, new_block)
+		result = repolib.files.replace_managed_block(lines, header, new_block)
 
 		assert result == [
 			'user content 1',
@@ -279,7 +272,7 @@ class TestReplaceManagedBlock:
 		new_block = ['pattern 1']
 		header = '# === UNIVERSAL ==='
 
-		result = propagate.files.replace_managed_block(lines, header, new_block)
+		result = repolib.files.replace_managed_block(lines, header, new_block)
 
 		assert result == ['# === UNIVERSAL ===', 'pattern 1']
 
@@ -295,7 +288,7 @@ class TestReplaceManagedBlock:
 		new_block = ['new python pattern']
 		header = '# === PYTHON ==='
 
-		result = propagate.files.replace_managed_block(lines, header, new_block)
+		result = repolib.files.replace_managed_block(lines, header, new_block)
 
 		assert result == [
 			'# === UNIVERSAL ===',
@@ -314,8 +307,8 @@ class TestReplaceManagedBlock:
 		new_block = ['new pattern 1', 'new pattern 2']
 		header = '# === UNIVERSAL ==='
 
-		result1 = propagate.files.replace_managed_block(lines, header, new_block)
-		result2 = propagate.files.replace_managed_block(result1, header, new_block)
+		result1 = repolib.files.replace_managed_block(lines, header, new_block)
+		result2 = repolib.files.replace_managed_block(result1, header, new_block)
 
 		assert result1 == result2
 
@@ -327,9 +320,9 @@ class TestCopyIfChanged:
 		"""Test returns skipped_source and suppresses output when source missing + counters passed."""
 		source = tmp_path / "missing.txt"
 		dest = tmp_path / "dest.txt"
-		counters = propagate.console.init_counters()
+		counters = repolib.console.init_counters()
 
-		result = propagate.files.copy_if_changed(str(source), str(dest), dry_run=False, counters=counters)
+		result = repolib.files.copy_if_changed(str(source), str(dest), dry_run=False, counters=counters)
 
 		assert result == 'skipped_source'
 		assert not dest.exists()
@@ -343,7 +336,7 @@ class TestCopyIfChanged:
 		source = tmp_path / "missing.txt"
 		dest = tmp_path / "dest.txt"
 
-		result = propagate.files.copy_if_changed(str(source), str(dest), dry_run=False, counters=None)
+		result = repolib.files.copy_if_changed(str(source), str(dest), dry_run=False, counters=None)
 
 		assert result == 'skipped_source'
 		captured = capsys.readouterr()
@@ -358,7 +351,7 @@ class TestCopyIfChanged:
 		source.write_text("hello", encoding='utf-8')
 		counters = None
 
-		result = propagate.files.copy_if_changed(str(source), str(dest), dry_run=False, counters=counters)
+		result = repolib.files.copy_if_changed(str(source), str(dest), dry_run=False, counters=counters)
 
 		assert result == 'copied'
 		assert dest.read_text(encoding='utf-8') == "hello"
@@ -373,9 +366,9 @@ class TestCopyIfChanged:
 		content = "identical content"
 		source.write_text(content, encoding='utf-8')
 		dest.write_text(content, encoding='utf-8')
-		counters = propagate.console.init_counters()
+		counters = repolib.console.init_counters()
 
-		result = propagate.files.copy_if_changed(str(source), str(dest), dry_run=False, counters=counters)
+		result = repolib.files.copy_if_changed(str(source), str(dest), dry_run=False, counters=counters)
 
 		assert result == 'no_change'
 		assert counters['unchanged'] == 1
@@ -391,7 +384,7 @@ class TestCopyIfChanged:
 		source.write_text(content, encoding='utf-8')
 		dest.write_text(content, encoding='utf-8')
 
-		result = propagate.files.copy_if_changed(str(source), str(dest), dry_run=False, counters=None)
+		result = repolib.files.copy_if_changed(str(source), str(dest), dry_run=False, counters=None)
 
 		assert result == 'no_change'
 		captured = capsys.readouterr()
@@ -405,7 +398,7 @@ class TestCopyIfChanged:
 		dest.write_text("old content", encoding='utf-8')
 		counters = None
 
-		result = propagate.files.copy_if_changed(str(source), str(dest), dry_run=False, counters=counters)
+		result = repolib.files.copy_if_changed(str(source), str(dest), dry_run=False, counters=counters)
 
 		assert result == 'updated'
 		assert dest.read_text(encoding='utf-8') == "new content"
@@ -420,7 +413,7 @@ class TestCopyIfChanged:
 		source.write_text("hello", encoding='utf-8')
 		counters = None
 
-		result = propagate.files.copy_if_changed(str(source), str(dest), dry_run=True, counters=counters)
+		result = repolib.files.copy_if_changed(str(source), str(dest), dry_run=True, counters=counters)
 
 		# dry-run should still return 'copied' (the action it would take)
 		assert result == 'copied'
@@ -436,7 +429,7 @@ class TestCopyIfChanged:
 		source.write_text("hello", encoding='utf-8')
 		counters = None
 
-		result = propagate.files.copy_if_changed(str(source), str(dest), dry_run=False, counters=counters)
+		result = repolib.files.copy_if_changed(str(source), str(dest), dry_run=False, counters=counters)
 
 		assert result == 'copied'
 		assert dest.exists()
@@ -452,7 +445,7 @@ class TestCopyIfChanged:
 		os.chmod(source, os.stat(source).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 		counters = None
-		propagate.files.copy_if_changed(str(source), str(dest), dry_run=False, counters=counters)
+		repolib.files.copy_if_changed(str(source), str(dest), dry_run=False, counters=counters)
 
 		dest_mode = os.stat(dest).st_mode
 		assert dest_mode & stat.S_IXUSR == stat.S_IXUSR
@@ -488,20 +481,16 @@ class TestApplyFileBucket:
 		}
 
 		# Context with bootstrap=False
-		context = propagate.model.PropagateContext(
-			base_dir=str(tmp_path),
+		context = repolib.model.PropagateContext(
 			source_dir=str(source_dir),
 			template_root=str(source_dir),
 			repo_name=None,
 			dry_run=False,
 			bootstrap=False,
 			auto_discover=False,
-			fix_permissions=False,
 			write_marker=False,
-			skip_confirm=False,
-			verbose_paths=False,
 		)
-		counters = propagate.console.init_counters()
+		counters = repolib.console.init_counters()
 
 		# Mock find_source_for_bucket (None-returning variant used by apply_file_bucket)
 		def mock_source_path(source_dir: str, bucket: str, file_rel: str, repo_type: str) -> str | None:
@@ -509,13 +498,13 @@ class TestApplyFileBucket:
 				return str(source_file)
 			return None
 
-		monkeypatch.setattr(propagate.model, 'find_source_for_bucket', mock_source_path)
+		monkeypatch.setattr(repolib.model, 'find_source_for_bucket', mock_source_path)
 
 		# Mock repo_is_on_path to return False
-		monkeypatch.setattr(propagate.repo, 'repo_is_on_path', lambda x: False)
+		monkeypatch.setattr(repolib.repo, 'repo_is_on_path', lambda x: False)
 
 		# Call apply_file_bucket
-		updates, copies, skips = propagate_style_guides.apply_file_bucket(
+		updates, copies, skips = repolib.process.apply_file_bucket(
 			'noexist_files', spec, str(repo_dir), 'python', context, counters
 		)
 
@@ -546,20 +535,16 @@ class TestApplyFileBucket:
 		}
 
 		# Context
-		context = propagate.model.PropagateContext(
-			base_dir=str(tmp_path),
+		context = repolib.model.PropagateContext(
 			source_dir=str(source_dir),
 			template_root=str(source_dir),
 			repo_name=None,
 			dry_run=False,
 			bootstrap=False,
 			auto_discover=False,
-			fix_permissions=False,
 			write_marker=False,
-			skip_confirm=False,
-			verbose_paths=False,
 		)
-		counters = propagate.console.init_counters()
+		counters = repolib.console.init_counters()
 
 		# Mock find_source_for_bucket (None-returning variant used by apply_file_bucket)
 		def mock_source_path(source_dir: str, bucket: str, file_rel: str, repo_type: str) -> str | None:
@@ -567,13 +552,13 @@ class TestApplyFileBucket:
 				return str(source_file)
 			return None
 
-		monkeypatch.setattr(propagate.model, 'find_source_for_bucket', mock_source_path)
+		monkeypatch.setattr(repolib.model, 'find_source_for_bucket', mock_source_path)
 
 		# Mock repo_is_on_path to return True (repo is on PATH)
-		monkeypatch.setattr(propagate.repo, 'repo_is_on_path', lambda x: True)
+		monkeypatch.setattr(repolib.repo, 'repo_is_on_path', lambda x: True)
 
 		# Call apply_file_bucket
-		updates, copies, skips = propagate_style_guides.apply_file_bucket(
+		updates, copies, skips = repolib.process.apply_file_bucket(
 			'noexist_files', spec, str(repo_dir), 'python', context, counters
 		)
 
@@ -612,20 +597,16 @@ class TestApplyFileBucket:
 		}
 
 		# Context
-		context = propagate.model.PropagateContext(
-			base_dir=str(tmp_path),
+		context = repolib.model.PropagateContext(
 			source_dir=str(source_dir),
 			template_root=str(source_dir),
 			repo_name=None,
 			dry_run=False,
 			bootstrap=False,
 			auto_discover=False,
-			fix_permissions=False,
 			write_marker=False,
-			skip_confirm=False,
-			verbose_paths=False,
 		)
-		counters = propagate.console.init_counters()
+		counters = repolib.console.init_counters()
 
 		# find_source_for_bucket is the variant used by apply_file_bucket; return None on miss.
 		def mock_source_path(source_dir: str, bucket: str, file_rel: str, repo_type: str) -> str | None:
@@ -633,7 +614,7 @@ class TestApplyFileBucket:
 				return str(source_file)
 			return None
 
-		monkeypatch.setattr(propagate.model, 'find_source_for_bucket', mock_source_path)
+		monkeypatch.setattr(repolib.model, 'find_source_for_bucket', mock_source_path)
 
 		# Mock target_path_for_bucket
 		def mock_target_path(repo_dir: str, bucket: str, file_rel: str) -> str:
@@ -641,10 +622,10 @@ class TestApplyFileBucket:
 				return str(devel_dir / file_rel)
 			raise ValueError()
 
-		monkeypatch.setattr(propagate.model, 'target_path_for_bucket', mock_target_path)
+		monkeypatch.setattr(repolib.model, 'target_path_for_bucket', mock_target_path)
 
 		# Call apply_file_bucket
-		updates, copies, skips = propagate_style_guides.apply_file_bucket(
+		updates, copies, skips = repolib.process.apply_file_bucket(
 			'devel_files', spec, str(repo_dir), 'python', context, counters
 		)
 
@@ -675,20 +656,16 @@ class TestApplyFileBucket:
 		}
 
 		# Context
-		context = propagate.model.PropagateContext(
-			base_dir=str(tmp_path),
+		context = repolib.model.PropagateContext(
 			source_dir=str(source_dir),
 			template_root=str(source_dir),
 			repo_name=None,
 			dry_run=False,
 			bootstrap=False,
 			auto_discover=False,
-			fix_permissions=False,
 			write_marker=False,
-			skip_confirm=False,
-			verbose_paths=False,
 		)
-		counters = propagate.console.init_counters()
+		counters = repolib.console.init_counters()
 
 		# find_source_for_bucket is the variant used by apply_file_bucket; return None on miss.
 		def mock_source_path(source_dir: str, bucket: str, file_rel: str, repo_type: str) -> str | None:
@@ -696,7 +673,7 @@ class TestApplyFileBucket:
 				return str(source_file)
 			return None
 
-		monkeypatch.setattr(propagate.model, 'find_source_for_bucket', mock_source_path)
+		monkeypatch.setattr(repolib.model, 'find_source_for_bucket', mock_source_path)
 
 		# Mock target_path_for_bucket
 		def mock_target_path(repo_dir: str, bucket: str, file_rel: str) -> str:
@@ -704,10 +681,10 @@ class TestApplyFileBucket:
 				return str(tests_dir / file_rel)
 			raise ValueError()
 
-		monkeypatch.setattr(propagate.model, 'target_path_for_bucket', mock_target_path)
+		monkeypatch.setattr(repolib.model, 'target_path_for_bucket', mock_target_path)
 
 		# Call apply_file_bucket
-		updates, copies, skips = propagate_style_guides.apply_file_bucket(
+		updates, copies, skips = repolib.process.apply_file_bucket(
 			'test_files', spec, str(repo_dir), 'python', context, counters
 		)
 
@@ -716,18 +693,4 @@ class TestApplyFileBucket:
 		assert counters['copied_count'] == 1
 
 
-class TestExitCodeFor:
-	"""Test exit_code_for helper."""
-
-	def test_exit_code_for_no_errors(self) -> None:
-		"""Test returns 0 when errors counter is 0."""
-		counters = {'errors': 0}
-		result = propagate_style_guides.exit_code_for(counters)
-		assert result == 0
-
-	def test_exit_code_for_one_error(self) -> None:
-		"""Test returns 1 when errors counter is 1."""
-		counters = {'errors': 1}
-		result = propagate_style_guides.exit_code_for(counters)
-		assert result == 1
 

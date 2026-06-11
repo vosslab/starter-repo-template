@@ -13,17 +13,17 @@ class PropagateContext:
 	Context object passed to orchestration helpers.
 	Mirrors all args fields that downstream helpers need. Treat as read-only after construction.
 	"""
-	base_dir: str
 	source_dir: str
 	template_root: str
 	repo_name: str | None
 	dry_run: bool
 	bootstrap: bool
+	# auto_discover: source-template test discovery for ONE repo. When True, the
+	# source template's tests/ is scanned for test_*.py/test_*.mjs files absent
+	# from the static spec, and those are added to the files copied INTO the
+	# target repo. It never walks other repos; the meaning is single-repo only.
 	auto_discover: bool
-	fix_permissions: bool
 	write_marker: bool
-	skip_confirm: bool
-	verbose_paths: bool  # If True, show absolute src + dst paths in action lines (default False).
 
 #============================================
 # Default skip list for repo discovery
@@ -37,7 +37,7 @@ DEFAULT_REPO_SKIP_NAMES = frozenset({
 # Propagation manifests: folder convention + thin rules
 #============================================
 
-# Root-level files that propagate. Add a file to ship it to every consumer's root.
+# Root-level files that repolib propagates (ships) to every consumer repo's root.
 # Relationship with UNIVERSAL_NOEXIST: ROOT_PROPAGATE_ALLOWLIST says a root file
 # MAY ship; UNIVERSAL_NOEXIST then refines HOW it ships (overwrite vs noexist-only).
 # Overlap is expected: AGENTS.md and source_me.sh appear in both -- allowlisted
@@ -120,7 +120,7 @@ META_DIRS = frozenset({
 	'LICENSES',
 	'templates',
 	'meta',
-	'propagate',
+	'repolib',
 	'tools',
 	'docs/active_plans',
 	'docs/archive',
@@ -158,7 +158,7 @@ AUTO_DISCOVER_DOCS_EXCLUDE = frozenset({
 # are git rm'd at consumer bootstrap, causing ImportError at pytest collection.
 # Meta tests use these prefixes to distinguish from regular repo tests.
 META_TEST_PREFIXES = (
-	'test_propagate_',
+	'test_repolib_',
 	'test_reset_repo_',
 	'test_detect_repo_type',
 )
@@ -297,10 +297,8 @@ def target_path_for_bucket(repo_dir: str, bucket: str, file_rel: str) -> str:
 
 def format_path_pair(source_file: str, dest_file: str, repo_dir: str, context: 'PropagateContext') -> str:
 	"""
-	Format a source-dest file pair for logging based on verbose_paths flag.
+	Format a source-dest file pair for logging using repo-relative paths.
 
-	If verbose_paths is True, show absolute paths as "src -> dst".
-	If False (default), show repo-relative paths:
 	  - If src relative path == dst relative path, show only the dst relative path
 	  - Otherwise, show both as "src_rel -> dst_rel"
 
@@ -308,14 +306,11 @@ def format_path_pair(source_file: str, dest_file: str, repo_dir: str, context: '
 		source_file (str): Absolute source file path.
 		dest_file (str): Absolute destination file path.
 		repo_dir (str): Repository directory path.
-		context (PropagateContext): Context with verbose_paths flag and source_dir.
+		context (PropagateContext): Context with source_dir.
 
 	Returns:
 		str: Formatted path string for logging.
 	"""
-	if context.verbose_paths:
-		return f"{source_file} -> {dest_file}"
-
 	# Compute relative paths
 	src_relative = os.path.relpath(source_file, context.source_dir)
 	dst_relative = os.path.relpath(dest_file, repo_dir)

@@ -11,8 +11,8 @@ import file_utils
 
 repo_root = file_utils.get_repo_root()
 
-from propagate.files import should_ship_override
-from propagate.model import LANG_PYTHON, LANG_TYPESCRIPT, LANG_OTHER, LANG_UNKNOWN
+from repolib.files import should_ship_override
+from repolib.model import LANG_PYTHON, LANG_TYPESCRIPT, LANG_OTHER, LANG_UNKNOWN
 
 
 class TestShouldShipOverridePythonRepo:
@@ -133,7 +133,7 @@ class TestShouldShipOverrideGuardrails:
 
 	def test_all_override_keys_are_valid_paths(self) -> None:
 		"""Every ROUTING_OVERRIDES key exists in the template."""
-		from propagate.model import ROUTING_OVERRIDES
+		from repolib.model import ROUTING_OVERRIDES
 
 		# template_root is the repo root (tests/meta/../.. = repo root)
 		template_root = repo_root
@@ -147,7 +147,7 @@ class TestShouldShipOverrideGuardrails:
 
 	def test_all_override_values_have_valid_schema(self) -> None:
 		"""Every ROUTING_OVERRIDES rule has valid schema."""
-		from propagate.model import ROUTING_OVERRIDES
+		from repolib.model import ROUTING_OVERRIDES
 
 		valid_lang_values = {'universal', 'python', 'typescript', 'rust', 'other', 'unknown'}
 		valid_bucket_values = {'overwrite_files', 'noexist_files', 'devel_files', 'test_files', 'noexist'}

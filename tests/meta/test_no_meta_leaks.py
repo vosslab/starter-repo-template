@@ -5,8 +5,8 @@ import os
 import pytest
 
 import file_utils
-import propagate.files
-import propagate.model
+import repolib.files
+import repolib.model
 
 TEMPLATE_ROOT = file_utils.get_repo_root()
 
@@ -21,14 +21,14 @@ BASENAME_BUCKETS = ('devel_files',)
 def _assert_entry_not_meta(entry: str, bucket_name: str, repo_type: str) -> None:
 	"""Per-entry check. Fails the test with a useful message on META leak."""
 	basename = os.path.basename(entry)
-	assert entry not in propagate.model.META_FILES, (
+	assert entry not in repolib.model.META_FILES, (
 		f"META leak: {entry!r} (full rel-path) in plan[{bucket_name!r}] for repo_type={repo_type!r}"
 	)
-	assert basename not in propagate.model.META_FILES, (
+	assert basename not in repolib.model.META_FILES, (
 		f"META leak: {entry!r} (basename={basename!r}) in plan[{bucket_name!r}] for repo_type={repo_type!r}"
 	)
 	for part in entry.split(os.sep):
-		assert part not in propagate.model.META_DIRS, (
+		assert part not in repolib.model.META_DIRS, (
 			f"META_DIRS leak: {entry!r} traverses {part!r} in plan[{bucket_name!r}] for repo_type={repo_type!r}"
 		)
 
@@ -36,7 +36,7 @@ def _assert_entry_not_meta(entry: str, bucket_name: str, repo_type: str) -> None
 @pytest.mark.parametrize('repo_type', REPO_TYPES)
 def test_no_meta_leak_any_bucket(repo_type: str) -> None:
 	"""No plan entry across any bucket may match META_FILES or traverse META_DIRS."""
-	plan = propagate.files.compute_propagation_plan(TEMPLATE_ROOT, repo_type)
+	plan = repolib.files.compute_propagation_plan(TEMPLATE_ROOT, repo_type)
 	for bucket in PATH_BUCKETS + BASENAME_BUCKETS:
 		for entry in plan.get(bucket, []):
 			_assert_entry_not_meta(entry, bucket, repo_type)
@@ -45,16 +45,16 @@ def test_no_meta_leak_any_bucket(repo_type: str) -> None:
 def test_assert_not_meta_helper_raises_on_readme() -> None:
 	"""The helper that powers in-code dispatcher checks must fail loud on a known META file."""
 	with pytest.raises(RuntimeError):
-		propagate.files.assert_not_meta('README.md')
+		repolib.files.assert_not_meta('README.md')
 
 
 def test_assert_not_meta_helper_raises_on_meta_dir() -> None:
 	"""The helper must fail when a path traverses any META_DIRS component."""
 	with pytest.raises(RuntimeError):
-		propagate.files.assert_not_meta(os.path.join('meta', 'something.py'))
+		repolib.files.assert_not_meta(os.path.join('meta', 'something.py'))
 
 
 def test_assert_not_meta_helper_accepts_legit_path() -> None:
 	"""The helper must not raise on a path the propagator legitimately ships."""
-	propagate.files.assert_not_meta('docs/REPO_STYLE.md')
-	propagate.files.assert_not_meta('CLAUDE.md')
+	repolib.files.assert_not_meta('docs/REPO_STYLE.md')
+	repolib.files.assert_not_meta('CLAUDE.md')

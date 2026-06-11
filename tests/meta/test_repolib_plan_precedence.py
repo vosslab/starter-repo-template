@@ -3,8 +3,8 @@
 import os
 import tempfile
 
-import propagate.model
-import propagate.files
+import repolib.model
+import repolib.files
 
 
 def test_meta_file_never_ships_even_if_in_docs() -> None:
@@ -13,7 +13,7 @@ def test_meta_file_never_ships_even_if_in_docs() -> None:
 		os.makedirs(os.path.join(tmpdir, 'docs'))
 		with open(os.path.join(tmpdir, 'docs', 'README.md'), 'w') as f:
 			f.write('test')
-		plan = propagate.files.compute_propagation_plan(tmpdir, 'python')
+		plan = repolib.files.compute_propagation_plan(tmpdir, 'python')
 		assert 'docs/README.md' not in plan['overwrite_files']
 		assert 'docs/README.md' not in plan['noexist_files']
 
@@ -27,9 +27,9 @@ def test_python_lang_file_excluded_from_typescript() -> None:
 			f.write('test')
 		with open(os.path.join(tmpdir, 'devel', 'submit_to_pypi.py'), 'w') as f:
 			f.write('test')
-		plan_ts = propagate.files.compute_propagation_plan(tmpdir, 'typescript')
-		plan_py = propagate.files.compute_propagation_plan(tmpdir, 'python')
-		plan_other = propagate.files.compute_propagation_plan(tmpdir, 'other')
+		plan_ts = repolib.files.compute_propagation_plan(tmpdir, 'typescript')
+		plan_py = repolib.files.compute_propagation_plan(tmpdir, 'python')
+		plan_other = repolib.files.compute_propagation_plan(tmpdir, 'other')
 		assert 'docs/PYTHON_STYLE.md' not in plan_ts['overwrite_files']
 		assert 'docs/PYTHON_STYLE.md' in plan_py['overwrite_files']
 		assert 'docs/PYTHON_STYLE.md' not in plan_other['overwrite_files']
@@ -41,7 +41,7 @@ def test_universal_noexist_overrides_overwrite() -> None:
 	with tempfile.TemporaryDirectory() as tmpdir:
 		with open(os.path.join(tmpdir, 'AGENTS.md'), 'w') as f:
 			f.write('test')
-		plan = propagate.files.compute_propagation_plan(tmpdir, 'python')
+		plan = repolib.files.compute_propagation_plan(tmpdir, 'python')
 		assert 'AGENTS.md' not in plan['overwrite_files']
 		assert 'AGENTS.md' in plan['noexist_files']
 
@@ -57,7 +57,7 @@ def test_typed_noexist_overrides_typed_overwrite() -> None:
 			f.write('test')
 		with open(os.path.join(noexist_dir, 'foo.ts'), 'w') as f:
 			f.write('test')
-		plan = propagate.files.compute_propagation_plan(tmpdir, 'typescript')
+		plan = repolib.files.compute_propagation_plan(tmpdir, 'typescript')
 		assert 'foo.ts' not in plan['overwrite_files']
 		assert 'foo.ts' in plan['noexist_files']
 
@@ -73,10 +73,10 @@ def test_typed_overlay_shadows_universal_same_destination() -> None:
 			f.write('universal content')
 		with open(os.path.join(type_docs_dir, 'FOO.md'), 'w') as f:
 			f.write('typed content')
-		plan_ts = propagate.files.compute_propagation_plan(tmpdir, 'typescript')
-		plan_py = propagate.files.compute_propagation_plan(tmpdir, 'python')
-		source_ts = propagate.model.source_path_for_bucket(tmpdir, 'overwrite_files', 'docs/FOO.md', 'typescript')
-		source_py = propagate.model.source_path_for_bucket(tmpdir, 'overwrite_files', 'docs/FOO.md', 'python')
+		plan_ts = repolib.files.compute_propagation_plan(tmpdir, 'typescript')
+		plan_py = repolib.files.compute_propagation_plan(tmpdir, 'python')
+		source_ts = repolib.model.source_path_for_bucket(tmpdir, 'overwrite_files', 'docs/FOO.md', 'typescript')
+		source_py = repolib.model.source_path_for_bucket(tmpdir, 'overwrite_files', 'docs/FOO.md', 'python')
 		assert 'docs/FOO.md' in plan_ts['overwrite_files']
 		assert 'docs/FOO.md' in plan_py['overwrite_files']
 		assert 'templates/typescript' in source_ts
@@ -90,7 +90,7 @@ def test_pip_requirements_not_in_typescript_plan() -> None:
 			f.write('test')
 		with open(os.path.join(tmpdir, 'pip_requirements-dev.txt'), 'w') as f:
 			f.write('test')
-		plan = propagate.files.compute_propagation_plan(tmpdir, 'typescript')
+		plan = repolib.files.compute_propagation_plan(tmpdir, 'typescript')
 		assert 'pip_requirements.txt' not in plan['overwrite_files']
 		assert 'pip_requirements.txt' not in plan['noexist_files']
 		assert 'pip_requirements-dev.txt' not in plan['overwrite_files']

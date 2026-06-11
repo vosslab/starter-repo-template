@@ -3,8 +3,8 @@
 import os
 import sys
 
-import propagate.console
-import propagate.model
+import repolib.console
+import repolib.model
 
 
 #============================================
@@ -40,7 +40,7 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 
 	# Check for legacy marker first if new marker doesn't exist
 	if not os.path.isfile(marker_path) and os.path.isfile(legacy_marker_path):
-		propagate.console.log_action("warn", f"{repo_path}: legacy STARTER_REPO_TYPE marker found; rename to REPO_TYPE")
+		repolib.console.log_action("warn", f"{repo_path}: legacy STARTER_REPO_TYPE marker found; rename to REPO_TYPE")
 		with open(legacy_marker_path, 'r', encoding='utf-8') as f:
 			token = f.read().strip()
 		if token not in ('python', 'typescript', 'rust', 'other'):
@@ -55,20 +55,20 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 			if confidence == 'high' and token != 'ambiguous':
 				# High confidence: write silently
 				write_repo_type_marker(marker_path, token, dry_run=False)
-				propagate.console.log_action("skip", f"repo={os.path.basename(repo_path)} type={token} confidence=high (auto-wrote marker, predicted)", counters)
+				repolib.console.log_action("skip", f"repo={os.path.basename(repo_path)} type={token} confidence=high (auto-wrote marker, predicted)", counters)
 				return token
 
 			if confidence == 'medium':
 				# Medium confidence: print and ask
-				propagate.console.log_action("warn", f"repo={os.path.basename(repo_path)} type={token} (predicted, medium confidence)")
-				propagate.console.CONSOLE.print("  reasoning:")
+				repolib.console.log_action("warn", f"repo={os.path.basename(repo_path)} type={token} (predicted, medium confidence)")
+				repolib.console.CONSOLE.print("  reasoning:")
 				for bullet in reasoning:
-					propagate.console.CONSOLE.print(f"    - {bullet}")
+					repolib.console.CONSOLE.print(f"    - {bullet}")
 
 				if skip_confirm or non_interactive:
 					# Accept silently
 					write_repo_type_marker(marker_path, token, dry_run=False)
-					propagate.console.log_action("skip", "wrote marker (medium confidence accepted)", counters)
+					repolib.console.log_action("skip", "wrote marker (medium confidence accepted)", counters)
 					return token
 
 				if not non_interactive:
@@ -88,10 +88,10 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 							return chosen_type
 
 			# Low confidence or ambiguous: abort if non-interactive, else prompt
-			propagate.console.log_action("error", f"repo={os.path.basename(repo_path)} (ambiguous, could not predict)")
-			propagate.console.CONSOLE.print("  reasoning:")
+			repolib.console.log_action("error", f"repo={os.path.basename(repo_path)} (ambiguous, could not predict)")
+			repolib.console.CONSOLE.print("  reasoning:")
 			for bullet in reasoning:
-				propagate.console.CONSOLE.print(f"    - {bullet}")
+				repolib.console.CONSOLE.print(f"    - {bullet}")
 
 			if non_interactive:
 				raise ValueError("ambiguous repo type; specify REPO_TYPE manually or use reset_repo.py")
@@ -113,9 +113,9 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 		# universal walker-routed files still ship.
 		if detect_repo_type:
 			token, confidence, _reasoning = detect_repo_type.detect_repo_type(repo_path)
-			if confidence == 'high' and token in (propagate.model.LANG_PYTHON, propagate.model.LANG_TYPESCRIPT, propagate.model.LANG_RUST, propagate.model.LANG_OTHER):
+			if confidence == 'high' and token in (repolib.model.LANG_PYTHON, repolib.model.LANG_TYPESCRIPT, repolib.model.LANG_RUST, repolib.model.LANG_OTHER):
 				return token
-		return propagate.model.LANG_UNKNOWN
+		return repolib.model.LANG_UNKNOWN
 
 	with open(marker_path, 'r', encoding='utf-8') as f:
 		token = f.read().strip()
@@ -139,7 +139,7 @@ def write_repo_type_marker(path: str, token: str, dry_run: bool = False) -> bool
 	"""
 	content = token + '\n'
 	if dry_run:
-		propagate.console.log_action('create', path, dry_run=True)
+		repolib.console.log_action('create', path, dry_run=True)
 		return False
 	with open(path, 'w', encoding='utf-8') as f:
 		f.write(content)
@@ -218,38 +218,17 @@ def find_repo_root(start_dir: str) -> str | None:
 
 
 #============================================
-def resolve_target_repo(base_dir: str, repo_name: str | None) -> str | None:
+def resolve_source_dir(source_dir_arg: str | None) -> str:
 	"""
-	Resolve and validate an optional single target repo under base_dir.
+	Resolve the source template root used for propagation.
+
+	When no override is provided, the source is the repo root of the running
+	source checkout -- the one that contains propagate_style_guides.py and
+	repolib/. This is anchored on repolib/__file__ (stable regardless of which
+	entry script runs) via the find_repo_root() walk, so it never resolves to a
+	target -R repo.
 
 	Args:
-		base_dir (str): Base directory that contains repos.
-		repo_name (str | None): Optional repo directory name.
-
-	Returns:
-		str | None: Absolute repo path if provided, otherwise None.
-	"""
-	if not repo_name:
-		return None
-	target_repo = os.path.join(base_dir, repo_name)
-	if not os.path.isdir(target_repo):
-		raise FileNotFoundError(
-			f"Repo not found under {base_dir}: {repo_name}"
-		)
-	if not is_repo_dir(target_repo):
-		raise FileNotFoundError(
-			f"Repo missing .git under {base_dir}: {repo_name}"
-		)
-	return target_repo
-
-
-#============================================
-def resolve_source_dir(base_dir: str, source_dir_arg: str | None) -> str:
-	"""
-	Resolve the source directory used for propagation.
-
-	Args:
-		base_dir (str): Base directory for default lookup.
 		source_dir_arg (str | None): Optional user-provided source dir.
 
 	Returns:
@@ -257,17 +236,14 @@ def resolve_source_dir(base_dir: str, source_dir_arg: str | None) -> str:
 	"""
 	source_dir = source_dir_arg
 	if source_dir is None:
-		preferred_source = os.path.join(base_dir, 'starter_repo_template')
-		if os.path.isdir(preferred_source):
-			source_dir = preferred_source
-		else:
-			script_dir = os.path.dirname(os.path.abspath(__file__))
-			detected_repo_root = find_repo_root(script_dir)
-			if detected_repo_root is None:
-				raise FileNotFoundError(
-					"Default source dir not found. Provide --source-dir."
-				)
-			source_dir = detected_repo_root
+		# Anchor on this package's location, not the cwd or any target repo.
+		package_dir = os.path.dirname(os.path.abspath(__file__))
+		detected_repo_root = find_repo_root(package_dir)
+		if detected_repo_root is None:
+			raise FileNotFoundError(
+				"Default source dir not found: repolib package is not inside a recognizable repo root."
+			)
+		source_dir = detected_repo_root
 	return os.path.abspath(os.path.expanduser(source_dir))
 
 

@@ -1,6 +1,6 @@
 """Path setup for the meta test suite.
 
-Meta tests import repo modules (propagate.*, file_utils, conftest,
+Meta tests import repo modules (repolib.*, file_utils, conftest,
 detect_repo_type, commit_changelog) through these path entries instead of
 each test inserting paths itself.
 """
