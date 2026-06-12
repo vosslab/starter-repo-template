@@ -1,4 +1,5 @@
 # Standard Library
+import os
 import pathlib
 import tokenize
 
@@ -11,6 +12,8 @@ import file_utils
 FILES = file_utils.discover_files(extensions=(".py",), test_key="indentation")
 
 REPORT_NAME = file_utils.report_name(__file__)
+
+HEADER = "indentation violations"
 
 # Module-level dict of repo-relative POSIX key -> list of violation lines.
 # Populated by the autouse collect_report fixture before any test runs.
@@ -118,102 +121,70 @@ def summarize_indentation(path: pathlib.Path) -> tuple[int, int] | None:
 
 
 #============================================
-def collect_violations(files: list[str]) -> dict[str, list[str]]:
+def check_file(rel: str) -> list[str]:
 	"""
-	Run indentation checks on each file and return only those with violations.
+	Run indentation checks on one file and return any violations.
 
 	Runs inspect_file (mixed indentation within a line) and
-	summarize_indentation (tabs and spaces mixed across a file) for each
-	path. Files with no violations are omitted from the returned dict.
+	summarize_indentation (tabs and spaces mixed across a file). Files with no
+	violations return an empty list. The absolute path is resolved from rel via
+	os.path.join(file_utils.get_repo_root(), rel); get_repo_root is cached so
+	resolution does not spawn a subprocess per call.
 
 	Args:
-		files: List of absolute file paths to check.
+		rel: Repo-relative POSIX path for the file to check.
 
 	Returns:
-		dict[str, list[str]]: Repo-relative POSIX key -> list of violation lines,
-			containing only files that have at least one violation.
+		list[str]: Violation lines (empty when the file is clean).
 	"""
-	result = {}
-	for path in files:
-		rel = file_utils.rel_to_root(path)
-		p = pathlib.Path(path)
-		# Check for mixed indentation within individual lines.
-		bad_lines = inspect_file(p)
-		violations = []
-		if bad_lines:
-			for ln in bad_lines[:5]:
-				violations.append(f"{rel}:{ln}: mixed indentation within line")
-		# Check for tabs and spaces mixed across the whole file.
-		indent_lines = summarize_indentation(p)
-		if indent_lines is not None:
-			tab_line, space_line = indent_lines
-			violations.append(
-				f"{rel}: tabs and spaces in file "
-				f"(tab line {tab_line}, space line {space_line})"
-			)
-		# Only include files that have at least one violation.
-		if violations:
-			result[rel] = violations
-	return result
-
-
-#============================================
-def make_report_lines(violations_by_file: dict[str, list[str]]) -> list[str]:
-	"""
-	Build the full report body from a violations dict.
-
-	Iterates keys in sorted order and emits each file's violation lines.
-	Returns a flat list of raw lines without trailing newlines.
-	The first element is a header line matching the prior report wording.
-
-	Args:
-		violations_by_file: Repo-relative POSIX key -> list of violation lines.
-
-	Returns:
-		list[str]: Raw report lines without trailing newlines. Empty when the
-			violations dict is empty (clean run).
-	"""
-	# Return an empty list for a clean run; sync_report will purge the file.
-	if not violations_by_file:
-		return []
-	# Emit header then each file's lines in sorted key order.
-	lines = ["indentation violations"]
-	for rel in sorted(violations_by_file):
-		lines += violations_by_file[rel]
-	return lines
+	# Resolve the absolute path from the cached repo root.
+	abs_path = pathlib.Path(os.path.join(file_utils.get_repo_root(), rel))
+	# Check for mixed indentation within individual lines.
+	bad_lines = inspect_file(abs_path)
+	violations = []
+	if bad_lines:
+		for ln in bad_lines[:5]:
+			violations.append(f"{rel}:{ln}: mixed indentation within line")
+	# Check for tabs and spaces mixed across the whole file.
+	indent_lines = summarize_indentation(abs_path)
+	if indent_lines is not None:
+		tab_line, space_line = indent_lines
+		violations.append(
+			f"{rel}: tabs and spaces in file "
+			f"(tab line {tab_line}, space line {space_line})"
+		)
+	return violations
 
 
 #============================================
 @pytest.fixture(scope="module", autouse=True)
 def collect_report() -> None:
 	"""
-	Autouse fixture: populate VIOLATIONS_BY_FILE and sync the report file.
+	Autouse fixture: clear stale reports, populate VIOLATIONS_BY_FILE, write report.
 
-	Clears and rebuilds the module-level violations dict, then calls
-	file_utils.sync_report so that clean runs purge the report and failing
-	runs write the full body.
+	Runs the guarded once-per-process cleanup first, rebuilds the module-level
+	violations dict via the shared harness, then writes the report only when
+	there are violations. Cleanup owns removal of clean-run reports, so a clean
+	module writes nothing.
 	"""
+	# Once-per-process guarded cleanup of repo-root report_*.txt (no-op after first call).
+	file_utils.clear_stale_reports()
 	# Clear any state left from a previous collection in the same process.
 	VIOLATIONS_BY_FILE.clear()
-	VIOLATIONS_BY_FILE.update(collect_violations(FILES))
-	lines: list[str] = make_report_lines(VIOLATIONS_BY_FILE)
-	file_utils.sync_report(REPORT_NAME, lines)
+	VIOLATIONS_BY_FILE.update(file_utils.collect_file_violations(FILES, check_file))
+	lines = file_utils.format_violation_report(HEADER, VIOLATIONS_BY_FILE)
+	# Write only when there are violations; cleanup already removed stale reports.
+	if lines:
+		file_utils.write_report_lines(REPORT_NAME, lines)
 
 
 #============================================
-@pytest.mark.parametrize(
-	"path", FILES,
-	ids=lambda p: file_utils.rel_to_root(p),
-)
+@pytest.mark.parametrize("path", FILES, ids=file_utils.rel_id)
 def test_indentation_style(path: str) -> None:
 	"""Fail on mixed indentation within a line or within a file."""
 	rel = file_utils.rel_to_root(path)
-	# Collect the violation lines for this file (empty list means clean).
-	file_violations = VIOLATIONS_BY_FILE.get(rel, [])
-	report_rel = file_utils.rel_to_root(file_utils.report_path(REPORT_NAME))
-	message = (
-		f"{len(file_violations)} indentation violation(s) in {rel}:\n"
-		+ "\n".join(file_violations)
-		+ f"\n See {report_rel}."
+	# Python evaluates an assert's message expression ONLY when the assert fails,
+	# so format_violation_assert_message runs on the failing path only -- not per pass.
+	assert rel not in VIOLATIONS_BY_FILE, file_utils.format_violation_assert_message(
+		rel, VIOLATIONS_BY_FILE.get(rel, []), REPORT_NAME
 	)
-	assert rel not in VIOLATIONS_BY_FILE, message

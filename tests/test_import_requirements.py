@@ -1,8 +1,13 @@
-import ast
+# Standard Library
 import os
 import re
+import ast
 import sys
 
+# PIP3 modules
+import pytest
+
+# local repo modules
 import file_utils
 
 CHECK_OPTIONAL_IMPORTS_ENV = "CHECK_OPTIONAL_IMPORTS"
@@ -43,6 +48,10 @@ IMPORT_REQUIREMENT_ALIASES = {
 	"yaml": "pyyaml",
 }
 REQ_NAME_RE = re.compile(r"^[A-Za-z0-9._-]+")
+
+# Module-level dict of repo-relative POSIX key -> list of violation lines.
+# Populated by the autouse collect_report fixture before any test runs.
+VIOLATIONS_BY_FILE: dict[str, list[str]] = {}
 
 
 #============================================
@@ -283,33 +292,43 @@ def is_allowed_module(
 	return False
 
 
-FILES = file_utils.discover_files(extensions=(".py",), test_key="import_requirements")
-
-
 #============================================
-def test_import_requirements() -> None:
+def build_violations_by_file(
+	paths: list[str],
+	repo_modules: set[str],
+	stdlib_modules: set[str],
+	requirement_modules: set[str],
+	check_optional_imports: bool,
+) -> dict[str, list[str]]:
 	"""
-	Validate imports against stdlib, repo modules, requirements, and whitelist.
+	Build a per-file violations dict for all given paths.
+
+	For each file, collect import roots and check each against the allowed sets.
+	Parse errors become violation entries for that file. Import-issue lines for
+	a given file are deduped via sorted(set(...)) to preserve the old global-dedup
+	semantics scoped to each file. Parse errors are NOT deduped (one entry per
+	parse-error line, preserving original behavior).
+
+	Args:
+		paths: Absolute paths to Python files to check.
+		repo_modules: Set of normalized repo-local module names.
+		stdlib_modules: Set of normalized stdlib module names.
+		requirement_modules: Set of normalized requirement module names.
+		check_optional_imports: Whether to enforce optional import guards.
+
+	Returns:
+		dict[str, list[str]]: Repo-relative POSIX path -> list of violation lines.
 	"""
-	check_optional_imports = resolve_check_optional_imports()
-	paths = FILES
-
-	if not paths:
-		print("import-requirements: no Python files found.")
-		return
-
-	repo_modules = collect_repo_module_names(paths)
-	stdlib_modules = get_stdlib_modules()
-	requirement_modules, requirement_source = load_requirement_modules(REPO_ROOT)
-
-	parse_errors = []
-	import_issues = []
-	for path in paths:
+	violations_by_file: dict[str, list[str]] = {}
+	for path in sorted(paths):
+		rel = file_utils.rel_to_root(path)
 		import_roots, parse_error = collect_import_roots(path)
-		rel_path = file_utils.rel_to_root(path)
 		if parse_error:
-			parse_errors.append(f"{rel_path}:{parse_error}")
+			# Parse error: record one entry for this file (not deduped).
+			violations_by_file[rel] = [f"{rel}:{parse_error}"]
 			continue
+		# Collect import-policy violations for this file.
+		file_issues: list[str] = []
 		for line_no, module_name, optional_import, statement_text in import_roots:
 			if module_name == "__future__":
 				continue
@@ -323,29 +342,97 @@ def test_import_requirements() -> None:
 			):
 				continue
 			statement = normalize_statement_for_report(statement_text)
-			import_issues.append(f"{rel_path}:{line_no}: {module_name}: {statement}")
+			file_issues.append(f"{rel}:{line_no}: {module_name}: {statement}")
+		# Deduplicate per-file import issues, preserving old global-dedup semantics scoped per file.
+		deduped = sorted(set(file_issues))
+		if deduped:
+			violations_by_file[rel] = deduped
+	return violations_by_file
 
-	# Deduplicate import issues before building the report
-	import_issues = sorted(set(import_issues))
 
-	# Build one unified report combining parse errors and import-policy violations
-	lines: list[str] = []
-	if parse_errors or import_issues:
-		lines.append("Import requirements report")
-		lines.append(f"Requirements source: {requirement_source}")
-		lines.append(f"CHECK_OPTIONAL_IMPORTS: {int(check_optional_imports)}")
-		if parse_errors:
-			lines.append("Parse errors:")
-			for item in parse_errors:
-				lines.append(item)
-		if import_issues:
-			lines.append("Violations:")
-			for item in import_issues:
-				lines.append(item)
+#============================================
+def make_report_lines(
+	violations_by_file: dict[str, list[str]],
+	requirement_source: str,
+	check_optional_imports: bool,
+) -> list[str]:
+	"""
+	Build the report lines list from the violations dict.
 
-	# Always sync: non-empty writes the report; empty purges any stale file
-	report_path = file_utils.sync_report(REPORT_NAME, lines)
+	Returns an empty list when there are no violations so the caller's
+	`if lines: write_report_lines(...)` guard works correctly.
 
-	assert not (parse_errors or import_issues), (
-		f"Import policy violations found. See {file_utils.rel_to_root(report_path)}"
+	Args:
+		violations_by_file: Per-file violations dict.
+		requirement_source: Human-readable requirements source string.
+		check_optional_imports: Whether optional imports are being checked.
+
+	Returns:
+		list[str]: Report lines (empty when clean).
+	"""
+	if not violations_by_file:
+		return []
+	# Use the single module-level HEADER as the report header.
+	lines = file_utils.format_violation_report(HEADER, violations_by_file)
+	# Prepend the metadata lines after the header (index 0).
+	metadata = [
+		f"Requirements source: {requirement_source}",
+		f"CHECK_OPTIONAL_IMPORTS: {int(check_optional_imports)}",
+	]
+	# Insert metadata right after the first header line.
+	lines = [lines[0]] + metadata + lines[1:]
+	return lines
+
+
+FILES = file_utils.discover_files(extensions=(".py",), test_key="import_requirements")
+
+HEADER = "Import requirements report"
+
+
+#============================================
+@pytest.fixture(scope="module", autouse=True)
+def collect_report() -> None:
+	"""
+	Autouse fixture: clear stale reports, populate VIOLATIONS_BY_FILE, write report.
+
+	Builds the three whole-repo module sets once, walks each file distributing
+	issue lines into VIOLATIONS_BY_FILE keyed by repo-relative path, then writes
+	the report only when violations exist. Calls clear_stale_reports() first
+	so a single-module run still clears stale reports.
+	"""
+	# Once-per-process guarded cleanup of repo-root report_*.txt (no-op after first call).
+	file_utils.clear_stale_reports()
+	VIOLATIONS_BY_FILE.clear()
+	if not FILES:
+		return
+	check_optional_imports = resolve_check_optional_imports()
+	repo_modules = collect_repo_module_names(FILES)
+	stdlib_modules = get_stdlib_modules()
+	# load_requirement_modules raises RuntimeError when no requirements file is found;
+	# that is an environment error, not a test failure -- let it propagate.
+	requirement_modules, requirement_source = load_requirement_modules(REPO_ROOT)
+	VIOLATIONS_BY_FILE.update(
+		build_violations_by_file(
+			FILES,
+			repo_modules,
+			stdlib_modules,
+			requirement_modules,
+			check_optional_imports,
+		)
+	)
+	lines = make_report_lines(VIOLATIONS_BY_FILE, requirement_source, check_optional_imports)
+	# Write only when there are violations; cleanup already removed stale reports.
+	if lines:
+		file_utils.write_report_lines(REPORT_NAME, lines)
+
+
+#============================================
+@pytest.mark.parametrize("path", FILES, ids=file_utils.rel_id)
+def test_import_requirements(path: str) -> None:
+	"""Validate imports against stdlib, repo modules, requirements, and whitelist."""
+	rel = file_utils.rel_to_root(path)
+	# Python evaluates an assert's message expression ONLY when the assert fails,
+	# so format_violation_assert_message runs on the failing path only -- not per pass.
+	assert rel not in VIOLATIONS_BY_FILE, file_utils.format_violation_assert_message(
+		rel, VIOLATIONS_BY_FILE.get(rel, []), REPORT_NAME
 	)

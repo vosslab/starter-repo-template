@@ -1,3 +1,88 @@
+## 2026-06-12
+
+### Additions and New Features
+
+- Added `file_utils.clear_stale_reports() -> None` (WP0b): deletes all `report_*.txt` files at
+  the repo root; guarded once per process via a module-level flag so multiple hygiene modules
+  in the same session each invoke it but only the first does filesystem work. Replaces the
+  per-module `purge_report` call that previously ran before every fixture, which caused
+  stale-report races when modules ran in parallel.
+- Added `file_utils.collect_file_violations`, `collect_python_violations`,
+  `format_violation_report`, `format_violation_assert_message`, `write_report_lines`, and
+  `rel_id` to the shared harness (WP1): canonical helpers for the precompute-fixture pattern.
+  `collect_python_violations` parses each `.py` file once into an AST and records `SyntaxError`
+  entries for unparseable files; `collect_file_violations` delegates parsing to the checker.
+  `format_violation_assert_message` is evaluated only on failure so passing cases pay no cost.
+  `rel_id` wraps `rel_to_root` for direct use as `ids=file_utils.rel_id` in parametrize.
+
+### Behavior or Interface Changes
+
+- Migrated 11 plan hygiene modules (WP1 + WP2) plus `tests/test_init_files.py` (finished as
+  obvious follow-on) to the shared harness: autouse module-scope `collect_report` fixture,
+  `VIOLATIONS_BY_FILE: dict[str, list[str]]` precomputed once, `write_report_lines` called only
+  when violations exist, `clear_stale_reports` as fixture first line. Per-file parametrized tests
+  use plain `assert rel not in VIOLATIONS_BY_FILE`. No `raise AssertionError` or `pytest.fail(`
+  in any migrated hygiene module. `tests/test_whitespace.py` initially stayed on the legacy
+  per-file raise pattern but was subsequently migrated in this same change set (see bullet below).
+- Migrated `tests/test_whitespace.py` to the canonical hygiene harness as a user-approved
+  follow-on: `collect_file_violations`, module-level `VIOLATIONS_BY_FILE`, autouse
+  `collect_report` fixture (the `fix_whitespace.py` auto-fix pass moved from per-test to
+  fixture-level, still gated on `--no_ascii_fix`), `rel_id` parametrize ids, standard
+  `format_violation_assert_message` asserts, and a new `report_whitespace.txt` report on
+  violations.
+- Report file formats normalized to a single header line per violation: legacy second-level
+  subheaders (`Violations:` in import_dot/import_star/import_requirements, `Parse errors:` block
+  grouping in import_requirements, the category-grouped layout in shebangs) were intentionally
+  dropped or restructured to one-violation-per-line keyed by file. All violation information is
+  preserved; only the grouping structure changed.
+- Performance: expensive scanners (bandit JSON subprocess, batched pyflakes, tracked-file sets,
+  ASCII fixer pass) run once in the precompute fixture and distribute results by file. Failure
+  messages are built only on failure. Suite now ~990 cases in ~3.1s (hard gate: 30s; target:
+  10s). Measured via `pytest tests/ --durations=50`, median of 3 clean runs.
+- `-k <file>` is now meaningful suite-wide: because the fixture precomputes all violations,
+  a `-k tests/foo.py` run selects only that file's per-file assert cases across all hygiene
+  modules while still scanning every file and writing complete reports for any module that
+  has violations. Partial reports are no longer possible.
+- Relocated `tests/test_test_naming_conventions.py` to
+  `templates/typescript/tests/test_test_naming_conventions.py` (WP0c) via `git mv`: the test
+  targets `tests/e2e/` and `tests/playwright/` subtrees present only in TypeScript repos; in
+  this Python repo all checks early-skipped and the module was inert. It now ships only to
+  `REPO_TYPE=typescript` consumer repos.
+
+### Fixes and Maintenance
+
+- Memoized `file_utils.get_repo_root` (process-lifetime `functools.lru_cache`) and the no-pattern whole-repo `list_tracked_files` listing (per-`repo_root` cache; pattern-scoped calls stay uncached), and made the per-file hygiene modules build their failure messages lazily inside the assert (WP0); eliminates per-test `git rev-parse` fanout and collection-time `git ls-files` fanout; pinned by call-count meta tests in `tests/meta/test_file_utils_caching.py`.
+- Updated `docs/PYTEST_STYLE.md` hygiene-report section: replaced stale `sync_report` /
+  `purge_report` API with the current `write_report_lines` + `clear_stale_reports` shape,
+  added the canonical module code example (with TABS), documented the report lifecycle and
+  `-k`-independence rule, and updated the additional-helpers list.
+- Updated `tests/TESTS_README.md` helper list to match reality: added `collect_file_violations`,
+  `collect_python_violations`, `format_violation_report`, `format_violation_assert_message`,
+  `write_report_lines`, `rel_id`, and `clear_stale_reports`; removed stale `sync_report` and
+  `purge_report` entries.
+- Fixed stale reference in `docs/E2E_TESTS.md` "Naming conventions test" section: updated
+  `tests/test_test_naming_conventions.py` reference to
+  `templates/typescript/tests/test_test_naming_conventions.py` with a note that it ships only
+  to TypeScript repos.
+
+### Behavior or Interface Changes
+
+- Restored auto-fix behavior in `tests/test_whitespace.py`: the `collect_report` fixture now
+  accepts `pytestconfig`, resolves `apply_fix = not pytestconfig.getoption("no_ascii_fix", default=False)`,
+  and for each initially-violating file runs `file_utils.run_fixer_script("fix_whitespace.py", abs_path)`
+  then re-scans; only files with remaining violations after fixing are recorded in `VIOLATIONS_BY_FILE`.
+  This matches the gating convention in `test_ascii_compliance.py` (same option name and default).
+  The fixer runs once in the fixture, never inside a parametrized test case.
+
+### Removals and Deprecations
+
+- Removed `file_utils.sync_report` and `file_utils.purge_report` (dead code, M3 plan): all 11
+  plan modules plus `tests/test_init_files.py` migrated to `write_report_lines` +
+  `clear_stale_reports`; zero active callers
+  remained. Deleted `tests/meta/test_sync_report.py` (pinned only the removed helpers).
+  Updated `tests/TESTS_README.md` and the `write_report_lines` docstring to remove stale
+  references.
+
 ## 2026-06-11
 
 ### Additions and New Features
@@ -28,6 +113,12 @@
 
 ### Behavior or Interface Changes
 
+- Converted `tests/test_ascii_compliance.py` from a single aggregate test to the per-file harness
+  shape: module-scope autouse `collect_report` fixture owns the fixer pass and populates
+  `VIOLATIONS_BY_FILE`; `@pytest.mark.parametrize` drives `test_ascii_compliance[<rel>]` per file;
+  `sync_report` replaced by `write_report_lines`; three-phase summary moved into
+  `print_violation_summary` helper.
+
 - Hygiene reports are now complete on every failure: each of the 12 refactored hygiene tests
   writes a full `report_<topic>.txt` for any violation count. The previous `SUMMARY_THRESHOLD`
   gate in `test_pyflakes_code_lint.py` (suppressed reports when fewer than 4 files were bad) is
@@ -47,6 +138,10 @@
 - `tests/meta/conftest.py` now derives the repo root from `file_utils.get_repo_root()` (git) after a single unavoidable `__file__` bootstrap, instead of walking `__file__` up by hand.
 
 ### Fixes and Maintenance
+
+- Migrated `tests/test_pyflakes_code_lint.py` (WP1) to the shared harness: replaced local `collect_violations` and `make_report_lines` with `file_utils.collect_file_violations` (chosen because pyflakes does its own parsing), `format_violation_report`, `format_violation_assert_message`, and `write_report_lines`; added `HEADER` constant and `clear_stale_reports()` call to fixture; switched parametrize `ids` from `lambda` to `file_utils.rel_id`; extracted thin `check_file(rel)` that resolves absolute path and invokes pyflakes; deleted local duplicates. Parity diff of `report_pyflakes_code_lint.txt` is identical; only `bad_file.py` fails.
+
+- Migrated `tests/test_import_star.py` (WP1) to the shared harness: replaced local `collect_violations` and `make_report_lines` with `file_utils.collect_python_violations`, `format_violation_report`, `format_violation_assert_message`, and `write_report_lines`; added `clear_stale_reports()` call to fixture; switched parametrize `ids` from `lambda` to `file_utils.rel_id`; extracted thin `check_file(rel, tree)` combiner; deleted local duplicates.
 
 - Refactored 7 per-file hygiene tests (`test_function_typing.py`, `test_pytest_hygiene.py`,
   `test_pyflakes_code_lint.py`, `test_import_dot.py`, `test_import_star.py`, `test_init_files.py`,

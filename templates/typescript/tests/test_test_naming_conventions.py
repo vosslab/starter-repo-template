@@ -293,7 +293,7 @@ def make_report_lines(violations: dict[str, list[str]]) -> list[str]:
 		list[str]: Raw report lines without trailing newlines. Empty when the
 			violations dict is empty (clean run).
 	"""
-	# Return an empty list for a clean run; sync_report will purge the file.
+	# Return an empty list for a clean run; no report file is written.
 	if not violations:
 		return []
 	# Emit header then each label's section in sorted label order.
@@ -308,17 +308,18 @@ def make_report_lines(violations: dict[str, list[str]]) -> list[str]:
 @pytest.fixture(scope="module", autouse=True)
 def collect_report() -> None:
 	"""
-	Autouse fixture: populate VIOLATIONS and sync the report file.
+	Autouse fixture: populate VIOLATIONS and write the report file.
 
-	Clears and rebuilds the module-level violations dict, then calls
-	file_utils.sync_report so that clean runs purge the report and failing
-	runs write the full body.
+	Clears stale report files first, then clears and rebuilds the module-level
+	violations dict. A clean run writes nothing; a failing run writes the body.
 	"""
+	file_utils.clear_stale_reports()
 	# Clear any state left from a previous collection in the same process.
 	VIOLATIONS.clear()
 	VIOLATIONS.update(collect_violations())
 	lines: list[str] = make_report_lines(VIOLATIONS)
-	file_utils.sync_report(REPORT_NAME, lines)
+	if lines:
+		file_utils.write_report_lines(REPORT_NAME, lines)
 
 
 #============================================

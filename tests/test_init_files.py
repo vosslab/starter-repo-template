@@ -1,3 +1,5 @@
+"""Enforce minimal __init__.py files: no imports, defs, globals, or logic."""
+
 # Standard Library
 import ast
 
@@ -10,6 +12,8 @@ import file_utils
 FILES = file_utils.discover_files(extra_filter=lambda r: r.split("/")[-1] == "__init__.py", test_key="init_files")
 
 REPORT_NAME = file_utils.report_name(__file__)
+
+HEADER = "__init__.py style report"
 
 # Module-level dict of repo-relative POSIX key -> list of violation lines.
 # Populated by the autouse collect_report fixture before any test runs.
@@ -197,61 +201,36 @@ def collect_violations(files: list[str]) -> dict[str, list[str]]:
 
 
 #============================================
-def make_report_lines(violations_by_file: dict[str, list[str]]) -> list[str]:
-	"""
-	Build the full report body from a violations dict.
-
-	Returns a flat list of raw lines without trailing newlines. The first two
-	elements are the header lines matching the prior report wording. Returns
-	an empty list when the violations dict is empty (clean run).
-
-	Args:
-		violations_by_file: Repo-relative POSIX key -> list of violation lines.
-
-	Returns:
-		list[str]: Raw report lines without trailing newlines. Empty when clean.
-	"""
-	# Return an empty list for a clean run; sync_report will purge the file.
-	if not violations_by_file:
-		return []
-	# Emit header then each file's lines in sorted key order.
-	lines = ["__init__.py style report", "Violations:"]
-	for rel in sorted(violations_by_file):
-		lines += violations_by_file[rel]
-	return lines
-
-
-#============================================
 @pytest.fixture(scope="module", autouse=True)
 def collect_report() -> None:
 	"""
-	Autouse fixture: populate VIOLATIONS_BY_FILE and sync the report file.
+	Autouse fixture: clear stale reports, populate VIOLATIONS_BY_FILE, write report.
 
-	Clears and rebuilds the module-level violations dict, then calls
-	file_utils.sync_report so that clean runs purge the report and failing
-	runs write the full body.
+	Runs the guarded once-per-process cleanup first, rebuilds the module-level
+	violations dict, then writes the report only when there are violations.
+	Cleanup owns removal of stale reports, so a clean module writes nothing.
 	"""
+	# Once-per-process guarded cleanup of repo-root report_*.txt (no-op after first call).
+	file_utils.clear_stale_reports()
 	# Clear any state left from a previous collection in the same process.
 	VIOLATIONS_BY_FILE.clear()
 	VIOLATIONS_BY_FILE.update(collect_violations(FILES))
-	lines: list[str] = make_report_lines(VIOLATIONS_BY_FILE)
-	file_utils.sync_report(REPORT_NAME, lines)
+	lines = file_utils.format_violation_report(HEADER, VIOLATIONS_BY_FILE)
+	# Write only when there are violations; cleanup already removed stale reports.
+	if lines:
+		file_utils.write_report_lines(REPORT_NAME, lines)
 
 
 #============================================
 @pytest.mark.parametrize(
 	"path", FILES,
-	ids=lambda p: file_utils.rel_to_root(p),
+	ids=file_utils.rel_id,
 )
 def test_init_files(path: str) -> None:
 	"""Report obvious __init__.py style violations in one file."""
 	rel = file_utils.rel_to_root(path)
-	# Collect the violation lines for this file (empty list means clean).
-	file_violations = VIOLATIONS_BY_FILE.get(rel, [])
-	report_rel = file_utils.rel_to_root(file_utils.report_path(REPORT_NAME))
-	message = (
-		f"{len(file_violations)} __init__.py violation(s) in {rel}:\n"
-		+ "\n".join(file_violations)
-		+ f"\n See {report_rel}."
+	# Python evaluates an assert's message expression ONLY when the assert fails,
+	# so format_violation_assert_message runs on the failing path only -- not per pass.
+	assert rel not in VIOLATIONS_BY_FILE, file_utils.format_violation_assert_message(
+		rel, VIOLATIONS_BY_FILE.get(rel, []), REPORT_NAME
 	)
-	assert rel not in VIOLATIONS_BY_FILE, message

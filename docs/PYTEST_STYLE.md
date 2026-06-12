@@ -200,64 +200,91 @@ result = file_utils.discover_files(extensions=(".py",), repo_root=tmp_root)
 
 ### Additional helpers in file_utils.py
 
-Three shared helpers complement `discover_files`:
+Shared helpers that complement `discover_files`:
 
 - `iter_imports(tree: ast.Module)` -- yields every `ast.Import` and `ast.ImportFrom` node from
   a parsed module tree. Use in import-checking tests instead of local AST-walk loops.
 - `rel_to_root(path, repo_root=None)` -- returns a repo-relative POSIX string suitable for
   parametrize ids and assertion messages (for example `tests/foo.py`).
+- `rel_id(abs_path: str) -> str` -- thin wrapper around `rel_to_root` for use as
+  `ids=file_utils.rel_id` in `@pytest.mark.parametrize`.
 - `run_fixer_script(name, target)` -- shared subprocess wrapper: runs `tests/<name> -i target`
-  and raises on failure. Used by the ASCII and whitespace auto-fix tests; avoids duplicated
-  inline subprocess calls.
-- `report_path(name)` / `purge_report(name)` / `write_report(name, text)`
-  -- lower-level primitives that centralize the repo-root report-file path, stale-file purge,
-  and truncate-write flow. These are the building blocks that `sync_report` is built on;
-  hygiene tests now call `sync_report` rather than these primitives directly.
-- `report_name(test_file: str) -> str` -- derive the canonical report filename from a test module
-  path. Pass `__file__` and get back the matching `report_<stem>.txt` name (for example
-  `report_name(__file__)` in `test_bandit_security.py` returns `"report_bandit_security.txt"`).
-  Every hygiene test sets `REPORT_NAME = file_utils.report_name(__file__)` so the name is always
-  derived from the filename, never hardcoded.
+  and raises on failure. Used by the ASCII and whitespace auto-fix tests.
+- `collect_file_violations(files, check)` -- iterate `files`, call `check(rel)` per file,
+  return `dict[str, list[str]]` keyed by repo-relative POSIX path. Use when the checker handles
+  its own parsing (for example pyflakes).
+- `collect_python_violations(files, check)` -- like `collect_file_violations` but parses each
+  `.py` file into an AST once; calls `check(rel, tree)`; records one `SyntaxError` entry when
+  parsing fails and skips that file's rule checks.
+- `format_violation_report(header, violations_by_file)` -- return a `list[str]` for writing to
+  a report file; returns `[]` when `violations_by_file` is empty.
+- `format_violation_assert_message(rel, lines, report_name)` -- return a
+  human-readable assertion failure message for the per-file violation lines (`lines: list[str]`);
+  evaluated only on failure.
+- `write_report_lines(report_name: str, lines: list[str]) -> str` -- truncate-write the full
+  report when `lines` is non-empty (one `\n` per line, one trailing `\n`). Called only when
+  violations exist; `clear_stale_reports` owns removal of stale reports on clean runs.
+- `clear_stale_reports() -> None` -- delete all `report_*.txt` files at the repo root; guarded
+  once per process so multiple hygiene modules in the same pytest session each invoke it but
+  only the first does the filesystem work.
+- `report_name(test_file: str) -> str` -- derive the canonical `report_<stem>.txt` filename.
+  Pass `__file__`; every hygiene test sets `REPORT_NAME = file_utils.report_name(__file__)` so
+  the name is always derived from the filename, never hardcoded.
 
 ### Hygiene report files
 
-Every hygiene test writes a `report_<topic>.txt` at the repo root when violations exist and
-purges the file on a clean run. The canonical shape has two roles: a module-scope precompute
-fixture owns the single `sync_report` call, and each parametrized per-file test asserts against
-the precomputed result.
+Every hygiene test writes a `report_<topic>.txt` at the repo root when violations exist. The
+report is NOT written on a clean run; `clear_stale_reports` removes leftover reports once per
+process at suite start so stale files from prior runs do not persist.
 
-**Precompute fixture (per-file tests):**
-
-- Declare `VIOLATIONS_BY_FILE: dict[str, list[str]]` as a module global.
-- Define `collect_violations(files: list[str]) -> dict[str, list[str]]` and
-  `make_report_lines(violations_by_file: dict[str, list[str]]) -> list[str]`.
-- Add an `@pytest.fixture(scope="module", autouse=True)` fixture named `collect_report` that
-  calls `collect_violations`, populates `VIOLATIONS_BY_FILE`, builds the lines list via
-  `make_report_lines`, and calls `file_utils.sync_report(REPORT_NAME, lines)` exactly once.
-- When a file fails to parse, record one entry `f"{rel}: SyntaxError: {error}"` in
-  `VIOLATIONS_BY_FILE` and skip that file's rule-specific checks.
-- Each parametrized test does plain `assert rel not in VIOLATIONS_BY_FILE, msg`. No
-  `raise AssertionError` and no `pytest.fail(` in the module.
-
-**Single-test write-style tests (writer tests):**
-
-- Build a `lines: list[str]` collecting all violations.
-- Call `file_utils.sync_report(REPORT_NAME, lines)` always (empty list purges on a clean run).
-- Fail via plain `assert`. Tool or precondition guards use `RuntimeError`.
-
-**`sync_report` signature and contract:**
+**Canonical module shape:**
 
 ```python
-sync_report(name: str, lines: list[str]) -> str
+# Standard Library
+import pytest
+
+# local repo modules
+import file_utils
+
+REPORT_NAME = file_utils.report_name(__file__)
+HEADER = "VIOLATIONS: <topic>"
+FILES = file_utils.discover_files(extensions=(".py",), test_key="<stem>")
+VIOLATIONS_BY_FILE: dict[str, list[str]] = {}
+
+@pytest.fixture(scope="module", autouse=True)
+def collect_report() -> None:
+	file_utils.clear_stale_reports()
+	VIOLATIONS_BY_FILE.clear()
+	VIOLATIONS_BY_FILE.update(file_utils.collect_python_violations(FILES, check_file))
+	lines = file_utils.format_violation_report(HEADER, VIOLATIONS_BY_FILE)
+	if lines:
+		file_utils.write_report_lines(REPORT_NAME, lines)
+
+@pytest.mark.parametrize("rel", [file_utils.rel_to_root(f) for f in FILES], ids=file_utils.rel_id)
+def test_topic(rel: str) -> None:
+	msg = file_utils.format_violation_assert_message(rel, VIOLATIONS_BY_FILE.get(rel, []), REPORT_NAME)
+	assert rel not in VIOLATIONS_BY_FILE, msg
 ```
 
-`name` is the value of `REPORT_NAME = file_utils.report_name(__file__)`. When `lines` is
-non-empty, the report is truncate-written (one `\n` per line, one trailing `\n`). When `lines`
-is empty, the report file is purged via `purge_report`. Returns the absolute report path.
+Notes on the shape:
 
-Any run of a hygiene module synchronizes that module's entire report, even when only a subset
-of cases is selected with `-k`. Do not optimize the fixture to compute only selected cases --
-that reintroduces partial reports.
+- `collect_python_violations` handles AST parse-once and records `SyntaxError` entries for
+  unparseable files; use `collect_file_violations` when the checker does its own parsing.
+- `clear_stale_reports` is the first line of the fixture; it runs once per process regardless
+  of how many hygiene modules invoke it.
+- `write_report_lines` is called only when `lines` is non-empty; never call it with an empty
+  list to "purge" -- that is `clear_stale_reports`'s job.
+- No `raise AssertionError` and no `pytest.fail(` in hygiene modules; use plain `assert`.
+- Precondition guards (missing tool, bad environment) use `RuntimeError`.
+
+**Report lifecycle and `-k` independence:**
+
+Any run of a hygiene module writes that module's complete report (all violations, not just
+selected cases). When `-k <file>` is passed, the fixture still precomputes the full
+`VIOLATIONS_BY_FILE` dict; only the per-file `assert` cases are filtered by `-k`. This
+means `-k tests/foo.py` selects only that file's test case but the fixture still scans every
+file, so the report is complete and accurate for the whole module. Do not short-circuit the
+fixture to scan only selected files -- that produces partial, misleading reports.
 
 ### Hygiene guard tests
 

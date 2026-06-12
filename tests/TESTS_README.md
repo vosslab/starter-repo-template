@@ -41,7 +41,9 @@ The optional `tests/playwright/e2e/` subfolder groups full-path browser walkthro
 
 ## How pytest stays fast
 
-`tests/conftest.py` declares `collect_ignore = ["e2e", "playwright"]`, so pytest never collects test functions from those subtrees, regardless of filename inside them. The filename conventions (`e2e_*` prefix in `tests/e2e/`, `test_*.mjs` for Playwright) are a readability layer on top of this active guard, enforced by `tests/test_test_naming_conventions.py`.
+`tests/conftest.py` declares `collect_ignore = ["e2e", "playwright"]`, so pytest never collects test functions from those subtrees, regardless of filename inside them. The filename conventions (`e2e_*` prefix in `tests/e2e/`, `test_*.mjs` for Playwright) are a readability layer on top of this active guard.
+
+Note: `test_test_naming_conventions.py` enforced these naming rules but has been moved to the TypeScript overlay (`templates/typescript/tests/test_test_naming_conventions.py`). It ships only to `REPO_TYPE=typescript` consumer repos because its checks target `tests/e2e/` and `tests/playwright/` subtrees that exist only in TypeScript repos. In this Python repo, neither `tests/e2e/` nor `tests/playwright/` is present, so all checks early-skipped and the module was effectively inert here. Accepted consequence: the universal e2e naming guards now run only in TypeScript repos.
 
 Important: `collect_ignore` only affects pytest test collection. The repo's lint tests (ASCII compliance, whitespace, pyflakes, indentation, shebangs, etc.) enumerate files via `git ls-files` and still scan files inside `tests/playwright/` and `tests/e2e/`. A non-ASCII character in `tests/playwright/foo.mjs` will still fail the ASCII check - only execution as a pytest test is suppressed.
 
@@ -110,31 +112,42 @@ result = file_utils.discover_files(extensions=(".py",), repo_root=tmp_root)
 
 ### Additional helpers in file_utils.py
 
-Three shared helpers complement `discover_files`:
+Shared helpers that complement `discover_files`:
 
 - `iter_imports(tree: ast.Module)` -- yields every `ast.Import` and `ast.ImportFrom` node from
   a parsed module tree. Use in import-checking tests instead of local AST-walk loops.
 - `rel_to_root(path, repo_root=None)` -- returns a repo-relative POSIX string suitable for
   parametrize ids and assertion messages (for example `tests/foo.py`).
+- `rel_id(abs_path: str) -> str` -- thin wrapper around `rel_to_root` for use as
+  `ids=file_utils.rel_id` in `@pytest.mark.parametrize`.
 - `run_fixer_script(name, target)` -- shared subprocess wrapper: runs `tests/<name> -i target`
   and raises on failure. Used by the ASCII and whitespace auto-fix tests; avoids duplicated
   inline subprocess calls.
-- `report_path(name)` / `purge_report(name)` / `write_report(name, text)`
-  -- lower-level primitives that centralize the repo-root report-file path, stale-file purge,
-  and truncate-write flow. These are the building blocks that `sync_report` is built on;
-  hygiene tests now call `sync_report` rather than these primitives directly.
+- `collect_file_violations(files, check)` -- iterate `files`, call `check(rel)` per file,
+  return `dict[str, list[str]]` of violations keyed by repo-relative POSIX path. Use when
+  the checker handles its own parsing (for example pyflakes).
+- `collect_python_violations(files, check)` -- like `collect_file_violations` but parses each
+  `.py` file into an AST once; calls `check(rel, tree)`; records one `SyntaxError` entry when
+  parsing fails and skips that file's rule checks.
+- `format_violation_report(header, violations_by_file)` -- return a `list[str]` summary lines
+  for a report file; returns `[]` when `violations_by_file` is empty (clean run).
+- `format_violation_assert_message(rel, lines, report_name)` -- return a
+  human-readable assertion failure message for the per-file violation lines (`lines: list[str]`);
+  evaluated only on failure so no overhead on passing cases.
+- `write_report_lines(report_name: str, lines: list[str]) -> str` -- write the full report when
+  `lines` is non-empty (truncate-write, one `\n` per line, one trailing `\n`). Called only when
+  violations exist; `clear_stale_reports` owns removal of stale clean-run reports.
+- `clear_stale_reports() -> None` -- delete all `report_*.txt` files at the repo root; guarded
+  once per process so multiple hygiene modules running in the same pytest session each trigger
+  it but only the first invocation does the filesystem work.
 - `report_name(test_file: str) -> str` -- derive the canonical report filename from a test module
   path. Pass `__file__` and get back the matching `report_<stem>.txt` name (for example
   `report_name(__file__)` in `test_bandit_security.py` returns `"report_bandit_security.txt"`).
   Every hygiene test sets `REPORT_NAME = file_utils.report_name(__file__)` so the name is always
   derived from the filename, never hardcoded.
-- `sync_report(name: str, lines: list[str]) -> str` -- write the full report when `lines` is
-  non-empty (truncate-write, one `\n` per line, one trailing `\n`), or purge the report file
-  when `lines` is empty. Returns the absolute path. This is the single report-writing site for
-  the canonical hygiene-report pattern: the precompute fixture calls it once per module run,
-  decoupled from the per-file assertions. Pass `REPORT_NAME = file_utils.report_name(__file__)`
-  as `name`. See [../docs/PYTEST_STYLE.md](../docs/PYTEST_STYLE.md) "Hygiene report files" for
-  the full canonical shape.
+
+See [../docs/PYTEST_STYLE.md](../docs/PYTEST_STYLE.md) "Hygiene report files" for the canonical
+module shape and report lifecycle.
 
 ### Hygiene guard tests
 

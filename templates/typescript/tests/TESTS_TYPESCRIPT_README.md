@@ -24,3 +24,14 @@ Drop a `test_<name>.mjs` in this folder. Step 6 of `check_codebase.sh` picks the
 ## Adding a Python test
 
 Resist. If the check belongs to the JS/TS ecosystem, extend `check_codebase.sh` instead. Pytest in a typescript consumer is intentionally thin.
+
+## Vendored Python tests in this overlay
+
+`test_test_naming_conventions.py` -- enforces naming conventions for `tests/e2e/` and
+`tests/playwright/` subtrees. Five rules: no `test_*.py` under `tests/playwright/` or
+`tests/e2e/` (since `collect_ignore` would silently skip them, mismatching the name);
+Python files in `tests/e2e/` must use the `e2e_*.py` prefix; shell files there must use
+`e2e_*.sh`; any `.mjs` file with a Playwright import must live under `tests/playwright/`.
+On failure, writes `report_test_naming_conventions.txt` at the repo root.
+This test ships only to TypeScript repos because `tests/e2e/` and `tests/playwright/` exist
+only in those repos; the checks early-skip when neither directory is present.

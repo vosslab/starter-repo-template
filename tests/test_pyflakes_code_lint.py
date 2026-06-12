@@ -1,13 +1,17 @@
+# Standard Library
 import os
 import shutil
 import subprocess
 
+# PIP3 modules
 import pytest
 
+# local repo modules
 import file_utils
 
 REPO_ROOT = file_utils.get_repo_root()
 REPORT_NAME = file_utils.report_name(__file__)
+HEADER = "pyflakes violations"
 CHUNK_SIZE = 200
 
 # Module-level dict of repo-relative POSIX key -> list of pyflakes output lines.
@@ -110,19 +114,22 @@ def collect_violations(files: list[str]) -> dict[str, list[str]]:
 	"""
 	Run pyflakes once over all files and return per-file violation lines.
 
-	Runs pyflakes on the full file list, indexes the output by file path,
-	then maps each input file to its pyflakes lines using repo-relative POSIX
-	keys. Files with no pyflakes output are omitted from the returned dict.
+	Runs a single batched pyflakes subprocess on the full file list, indexes
+	the output by normalized file path, then maps each input file to its
+	pyflakes lines using repo-relative POSIX keys. This is the scan-once path:
+	one pyflakes invocation for the whole repo, never one per file. Files with
+	no pyflakes output are omitted from the returned dict.
 
 	Args:
-		files: Sorted list of absolute paths to check.
+		files: Absolute paths of Python files to check.
 
 	Returns:
 		dict[str, list[str]]: Repo-relative POSIX key -> list of pyflakes
-			output lines, containing only files that have at least one line.
+			output lines, containing only files with at least one line.
 	"""
+	# Single batched pyflakes run over every file (chunked only to stay under argv limits).
 	all_lines = run_pyflakes(REPO_ROOT, files)
-	# Index raw lines by normalized absolute path for fast lookup.
+	# Index raw lines by normalized absolute path for fast per-file lookup.
 	line_index = index_output_lines(all_lines)
 	result: dict[str, list[str]] = {}
 	for path in files:
@@ -137,60 +144,34 @@ def collect_violations(files: list[str]) -> dict[str, list[str]]:
 
 
 #============================================
-def make_report_lines(violations_by_file: dict[str, list[str]]) -> list[str]:
-	"""
-	Build the full report body from a violations dict.
-
-	Iterates keys in sorted order and emits each file's pyflakes lines in
-	their existing order. Returns an empty list for a clean run.
-
-	Args:
-		violations_by_file: Repo-relative POSIX key -> list of pyflakes lines.
-
-	Returns:
-		list[str]: Raw report lines without trailing newlines.
-			Empty when the violations dict is empty (clean run).
-	"""
-	if not violations_by_file:
-		return []
-	# Emit header then each file's lines in sorted key order.
-	lines = ["pyflakes violations"]
-	for rel in sorted(violations_by_file):
-		lines += violations_by_file[rel]
-	return lines
-
-
-#============================================
 @pytest.fixture(scope="module", autouse=True)
 def collect_report() -> None:
 	"""
-	Autouse fixture: populate VIOLATIONS_BY_FILE and sync the report file.
+	Autouse fixture: clear stale reports, populate VIOLATIONS_BY_FILE, write report.
 
-	Clears and rebuilds the module-level violations dict, then calls
-	file_utils.sync_report so that clean runs purge the report and failing
-	runs write the full body. This is the single report-writing site;
-	per-file test asserts read VIOLATIONS_BY_FILE after it is populated.
+	Runs the guarded once-per-process cleanup first, rebuilds the module-level
+	violations dict via the shared harness, then writes the report only when
+	there are violations. Cleanup owns removal of clean-run reports, so a clean
+	module writes nothing.
 	"""
+	# Once-per-process guarded cleanup of repo-root report_*.txt (no-op after first call).
+	file_utils.clear_stale_reports()
 	# Clear any state left from a previous collection in the same process.
 	VIOLATIONS_BY_FILE.clear()
 	VIOLATIONS_BY_FILE.update(collect_violations(FILES))
-	lines: list[str] = make_report_lines(VIOLATIONS_BY_FILE)
-	file_utils.sync_report(REPORT_NAME, lines)
+	lines = file_utils.format_violation_report(HEADER, VIOLATIONS_BY_FILE)
+	# Write only when there are violations; cleanup already removed stale reports.
+	if lines:
+		file_utils.write_report_lines(REPORT_NAME, lines)
 
 
 #============================================
-@pytest.mark.parametrize(
-	"file_path", FILES,
-	ids=lambda p: file_utils.rel_to_root(p),
-)
-def test_pyflakes(file_path: str) -> None:
+@pytest.mark.parametrize("path", FILES, ids=file_utils.rel_id)
+def test_pyflakes(path: str) -> None:
 	"""Enforce zero pyflakes violations on every Python file in the repo."""
-	rel = file_utils.rel_to_root(file_path)
-	file_violations = VIOLATIONS_BY_FILE.get(rel, [])
-	report_rel = file_utils.rel_to_root(file_utils.report_path(REPORT_NAME))
-	message = (
-		f"{len(file_violations)} pyflakes violation(s) in {rel}:\n"
-		+ "\n".join(file_violations)
-		+ f"\n See {report_rel}."
+	rel = file_utils.rel_to_root(path)
+	# Python evaluates an assert's message expression ONLY when the assert fails,
+	# so format_violation_assert_message runs on the failing path only -- not per pass.
+	assert rel not in VIOLATIONS_BY_FILE, file_utils.format_violation_assert_message(
+		rel, VIOLATIONS_BY_FILE.get(rel, []), REPORT_NAME
 	)
-	assert rel not in VIOLATIONS_BY_FILE, message

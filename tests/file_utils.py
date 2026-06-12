@@ -1,8 +1,11 @@
+# Standard Library
 import os
 import ast
 import fnmatch
-import tokenize
+import pathlib
+import functools
 import importlib
+import tokenize
 import subprocess
 import importlib.util
 import collections.abc
@@ -18,9 +21,15 @@ SKIP_DIRS = frozenset({
 
 
 #============================================
+@functools.lru_cache(maxsize=None)
 def get_repo_root() -> str:
 	"""
 	Get the repository root using git rev-parse --show-toplevel.
+
+	The result is memoized for the process lifetime: the repo root does not
+	change while a pytest run executes, so resolving it once avoids spawning
+	git on every rel_to_root/report_path/discover_files call. The hygiene
+	suite calls this helper hundreds of times per run.
 
 	Returns:
 		str: Absolute path to the repository root.
@@ -146,24 +155,6 @@ def report_path(name: str) -> str:
 
 
 #============================================
-def purge_report(name: str) -> None:
-	"""
-	Remove a stale repo-root report file when present.
-
-	Resolves the report path and deletes it if it exists. An absent report
-	is normal: a clean run leaves no report, so missing is not an error.
-
-	Args:
-		name: Full report filename, for example "report_bandit_security.txt".
-	"""
-	# Resolve the absolute report path under the repo root.
-	path = report_path(name)
-	# Only remove when present; absent is the normal clean-run case.
-	if os.path.exists(path):
-		os.remove(path)
-
-
-#============================================
 def write_report(name: str, text: str) -> str:
 	"""
 	Write text to a repo-root report file, truncating any prior content.
@@ -187,33 +178,42 @@ def write_report(name: str, text: str) -> str:
 	return path
 
 
+# Once-per-process guard for clear_stale_reports. Set to True on the first
+# successful cleanup run; subsequent calls are no-ops so module imports do
+# not re-clean between test modules in the same process.
+_STALE_REPORTS_CLEARED: bool = False
+
+
 #============================================
-def sync_report(name: str, lines: list[str]) -> str:
+def clear_stale_reports() -> None:
 	"""
-	Sync a repo-root report file to match a list of violation lines.
+	Remove all repo-root files matching report_*.txt on the first call.
 
-	This is the single report-writing site for refactored hygiene tests. When
-	lines is non-empty, it truncate-writes the full report: every line joined
-	with newline plus a single trailing newline. When lines is empty, it purges
-	the report file so a clean run leaves no stale file behind. Callers pass raw
-	violation lines without trailing newlines; any header line is supplied as
-	lines[0]. Empty strings are permitted and render as blank lines.
+	A module-level flag (_STALE_REPORTS_CLEARED) ensures the glob-and-unlink
+	pass runs at most once per process, so repeated calls from multiple modules
+	within the same pytest run are all no-ops after the first. This prevents
+	re-cleaning between module imports and avoids deleting reports written by
+	an earlier module in the same run.
 
-	Args:
-		name: Full report filename, for example "report_pyflakes_code_lint.txt".
-		lines: Raw violation lines without trailing newlines. Each line gets
-			exactly one trailing newline. An empty list purges the report.
+	Only regular files are unlinked; directories that happen to match the glob
+	(for example a directory named report_dir.txt) are skipped. Zero matches is
+	not an error: a clean repo root simply has nothing to remove.
 
-	Returns:
-		str: Absolute path to the report file (same as report_path(name)).
+	Behavior is cleanup-only. This function never writes any file.
 	"""
-	# Empty lines means a clean run: remove any stale report and return its path.
-	if not lines:
-		purge_report(name)
-		return report_path(name)
-	# Non-empty: build the full body with one trailing newline, then truncate-write.
-	text = "\n".join(lines) + "\n"
-	return write_report(name, text)
+	global _STALE_REPORTS_CLEARED
+	# Guard: skip if already cleaned in this process.
+	if _STALE_REPORTS_CLEARED:
+		return
+	# Glob only the repo root for report_*.txt matches.
+	root = pathlib.Path(get_repo_root())
+	for candidate in root.glob("report_*.txt"):
+		# Skip non-files (for example directories with a matching name).
+		if not candidate.is_file():
+			continue
+		candidate.unlink()
+	# Mark as done so subsequent calls are no-ops.
+	_STALE_REPORTS_CLEARED = True
 
 
 #============================================
@@ -247,6 +247,177 @@ def report_name(test_file: str) -> str:
 	topic = stem[len("test_"):]
 	# Assemble and return the canonical report filename.
 	return f"report_{topic}.txt"
+
+
+#============================================
+def collect_file_violations(
+	files: list[str],
+	check: collections.abc.Callable[[str], list[str]],
+) -> dict[str, list[str]]:
+	"""
+	Run a non-AST check on each file and keep only files with violations.
+
+	Iterates files in sorted order. For each file, computes the repo-relative
+	POSIX path via rel_to_root and calls check(rel). The check receives the
+	repo-relative path; a check that needs file content resolves it itself via
+	os.path.join(get_repo_root(), rel) (get_repo_root is cached and free). Files
+	with no returned lines are omitted from the result.
+
+	Args:
+		files: Absolute file paths to check. Sorted internally so the result is
+			order-independent.
+		check: Callable receiving a repo-relative POSIX path and returning a
+			list of violation lines (empty when the file is clean).
+
+	Returns:
+		dict[str, list[str]]: Repo-relative POSIX key -> violation lines,
+			containing only files with at least one line.
+	"""
+	result = {}
+	# Sort so the scan order is deterministic regardless of caller ordering.
+	for path in sorted(files):
+		rel = rel_to_root(path)
+		lines = check(rel)
+		# Only include files that produced at least one violation line.
+		if lines:
+			result[rel] = lines
+	return result
+
+
+#============================================
+def collect_python_violations(
+	files: list[str],
+	check: collections.abc.Callable[[str, ast.Module], list[str]],
+) -> dict[str, list[str]]:
+	"""
+	Parse each Python file once and run an AST check, capturing SyntaxErrors.
+
+	Iterates files in sorted order. For each file, parses it once via
+	parse_source. On a SyntaxError, records exactly one
+	f"{rel}: SyntaxError: {error}" entry and skips check for that file. Otherwise
+	calls check(rel, tree), so check always receives a real ast.Module. Files
+	with no returned lines are omitted from the result.
+
+	Args:
+		files: Absolute Python file paths to check. Sorted internally.
+		check: Callable receiving a repo-relative POSIX path and a parsed
+			ast.Module, returning a list of violation lines.
+
+	Returns:
+		dict[str, list[str]]: Repo-relative POSIX key -> violation lines,
+			containing only files with at least one line.
+	"""
+	result = {}
+	# Sort so the scan order is deterministic regardless of caller ordering.
+	for path in sorted(files):
+		rel = rel_to_root(path)
+		tree, error = parse_source(path)
+		# Parsing failed: record one SyntaxError entry and skip the AST check.
+		if tree is None:
+			result[rel] = [f"{rel}: SyntaxError: {error}"]
+			continue
+		lines = check(rel, tree)
+		# Only include files that produced at least one violation line.
+		if lines:
+			result[rel] = lines
+	return result
+
+
+#============================================
+def format_violation_report(header: str, violations_by_file: dict[str, list[str]]) -> list[str]:
+	"""
+	Build the full report body from a violations dict.
+
+	INVARIANT: returns an EMPTY list when violations_by_file is empty -- never
+	[header] alone. Callers use the empty/non-empty result to decide whether to
+	write a report, so a [header]-on-clean bug would make every clean module
+	write a stale report. When non-empty, the header is the first element,
+	followed by each file's lines in sorted key order.
+
+	Args:
+		header: Header line placed first when there is at least one violation.
+		violations_by_file: Repo-relative POSIX key -> list of violation lines.
+
+	Returns:
+		list[str]: Raw report lines without trailing newlines. Empty on a clean
+			run (empty dict).
+	"""
+	# Clean run: empty dict yields an empty list so callers write nothing.
+	if not violations_by_file:
+		return []
+	# Emit the header, then each file's lines in sorted key order.
+	lines = [header]
+	for rel in sorted(violations_by_file):
+		lines += violations_by_file[rel]
+	return lines
+
+
+#============================================
+def format_violation_assert_message(rel: str, lines: list[str], report_name: str) -> str:
+	"""
+	Build the per-file assert failure message for a hygiene test.
+
+	Assembles a count, the offending repo-relative path, the joined violation
+	lines, and a pointer to the repo-relative report path. Built only on the
+	failure path: callers pass this call as the assert message so it runs only
+	when the assert fails, not on every passing file.
+
+	Args:
+		rel: Repo-relative POSIX path of the offending file.
+		lines: Violation lines for that file.
+		report_name: Report filename used to resolve the repo-relative pointer.
+
+	Returns:
+		str: The assembled assert message.
+	"""
+	# Resolve the report path as a repo-relative pointer for the message tail.
+	report_rel = rel_to_root(report_path(report_name))
+	# Assemble count + path + joined lines + report pointer.
+	message = f"{len(lines)} violation(s) in {rel}:\n"
+	message += "\n".join(lines)
+	# Leading space before "See" is intentional: it separates the report pointer
+	# from the joined violation lines above it in pytest's failure output.
+	message += f"\n See {report_rel}."
+	return message
+
+
+#============================================
+def write_report_lines(report_name: str, lines: list[str]) -> str:
+	"""
+	Write violation lines to a repo-root report file (pure write, no purge).
+
+	Joins lines with newline plus a single trailing newline and truncate-writes
+	the report via write_report. Callers invoke this ONLY when lines is non-empty;
+	the guarded clear_stale_reports owns removal of clean-run reports.
+
+	Args:
+		report_name: Full report filename, for example "report_function_typing.txt".
+		lines: Raw violation lines without trailing newlines. Each line gets
+			exactly one trailing newline.
+
+	Returns:
+		str: Absolute path to the written report file.
+	"""
+	# Build the full body with one trailing newline, then truncate-write.
+	text = "\n".join(lines) + "\n"
+	return write_report(report_name, text)
+
+
+#============================================
+def rel_id(path: str) -> str:
+	"""
+	Return the repo-relative POSIX path for use as a parametrize id.
+
+	This is the shared parametrize-id callback for aligned hygiene modules,
+	replacing the repeated ids=lambda p: file_utils.rel_to_root(p).
+
+	Args:
+		path: Absolute filesystem path inside the repository.
+
+	Returns:
+		str: Repo-relative POSIX path.
+	"""
+	return rel_to_root(path)
 
 
 #============================================
@@ -324,6 +495,15 @@ def _split_null(output: str) -> list[str]:
 	return paths
 
 
+# Per-repo_root cache of the whole-repo tracked-file listing. Only the
+# no-pattern call (used by discover_files via _gather_all_paths) is cached,
+# because that is the listing the 11 hygiene modules each rebuild at
+# collection time. Pattern-scoped calls stay uncached. Keyed by repo_root so
+# regression tests that point at a temporary root never collide with the real
+# repo listing.
+_ALL_TRACKED_FILES_CACHE: dict[str, list[str]] = {}
+
+
 #============================================
 def list_tracked_files(
 	repo_root: str,
@@ -332,6 +512,13 @@ def list_tracked_files(
 ) -> list[str]:
 	"""
 	List tracked files using git ls-files.
+
+	The no-pattern whole-repo listing (patterns is None or empty) is memoized
+	per repo_root in _ALL_TRACKED_FILES_CACHE, so discover_files does not spawn
+	git ls-files once per hygiene module at collection time. Pattern-scoped
+	calls are never cached and always spawn git, since their result depends on
+	the pathspecs. The cache is keyed by repo_root so tmp-root regression tests
+	stay isolated from the real repo listing.
 
 	Args:
 		repo_root: Absolute path to the repository root directory.
@@ -345,9 +532,18 @@ def list_tracked_files(
 	"""
 	if error_message is None:
 		error_message = "Failed to list tracked files."
-	command = ["git", "ls-files", "-z"]
-	if patterns:
-		command += ["--"] + patterns
+	# Serve the whole-repo (no-pattern) listing from the per-root cache.
+	if not patterns:
+		cached = _ALL_TRACKED_FILES_CACHE.get(repo_root)
+		if cached is not None:
+			# Return a copy so callers cannot mutate the cached listing.
+			return list(cached)
+		output = _run_git(repo_root, ["git", "ls-files", "-z"], error_message)
+		paths = _split_null(output)
+		_ALL_TRACKED_FILES_CACHE[repo_root] = paths
+		return list(paths)
+	# Pattern-scoped listing: always spawn git, never cache.
+	command = ["git", "ls-files", "-z", "--"] + patterns
 	output = _run_git(repo_root, command, error_message)
 	return _split_null(output)
 
