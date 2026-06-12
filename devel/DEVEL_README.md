@@ -147,10 +147,11 @@ a block).
 
 ## commit_changelog.py
 
-Draft a commit message from changelog entries absent in the prior version of
-`docs/CHANGELOG.md` (keyed on `(date, title)` so same-day re-commits skip
-already-shipped bullets), open it in the editor for review, then commit via
-`git commit -a -F`. Interactive; no argparse.
+Draft a commit message from newly ADDED changelog bullets (detected via
+`git diff HEAD`), open it in the editor for review, then commit via
+`git commit -a -F`. Edited old bullets are excluded silently; a
+consecutive-heading-run filter is applied as a safety boundary.
+Interactive; no argparse.
 
 | Function | Does |
 | --- | --- |
@@ -169,10 +170,11 @@ already-shipped bullets), open it in the editor for review, then commit via
 | `strip_git_style_comments` | Remove `#` comment lines |
 | `get_diff` | Get the unstaged diff for a path |
 | `get_cached_diff` | Get the staged diff for a path |
-| `get_last_changelog_commit_sha` | SHA of the last commit touching the changelog |
-| `get_changelog_text_at` | Changelog text at a given SHA |
-| `select_new_entries` | Return entries absent from the prior SHA |
-| `compute_new_entries` | Return entries whose `(date, title)` is new |
+| `get_diff_vs_head` | Working-tree diff vs HEAD for a path (no-color, unified=0) |
+| `parse_added_bullet_lines` | Set of new-side line numbers for added top-level bullets in a unified=0 diff |
+| `added_changelog_bullet_lines` | Thin wrapper: added bullet lines in the changelog vs HEAD |
+| `keep_recent_heading_run` | Filter candidates to the most recent consecutive heading run |
+| `select_new_entries` | Return added-bullet entries and parse warnings |
 | `strip_markdown_links` | Convert `[label](url)` to `label` |
 | `strip_markdown_bold` | Convert bold markup to plain text |
 | `collapse_whitespace` | Collapse whitespace runs to one space |

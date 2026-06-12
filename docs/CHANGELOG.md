@@ -14,6 +14,9 @@
 
 ### Behavior or Interface Changes
 
+- `devel/commit_changelog.py` seed selection reworked to a diff-driven seam: `select_new_entries` now derives candidates from `git diff HEAD --unified=0` on `docs/CHANGELOG.md` via `get_diff_vs_head` and `parse_added_bullet_lines`, selecting only newly ADDED top-level `- ` bullet lines (per-hunk add-vs-edit classification via `min(removed_bullets, added_bullets)`); the `prior_sha` parameter is dropped from `select_new_entries`.
+- `keep_recent_heading_run` retained as a safety boundary: keeps only the most recent run of consecutive day-block headings carrying added bullets, preventing stale date blocks from leaking into the commit-message seed.
+
 - `reset_repo.py --dry-run` now previews real propagation actions: removed the dry-run short-circuit in `run_propagate` that printed a single placeholder line and returned; the function now always builds the context and calls `repolib.process.process_repo` with `dry_run` passed through, so planned file copies and directory creates are logged via `log_action` without mutating any files.
 - Reduced `propagate_style_guides.py` to a small interactive single-repo tool: the CLI now exposes only `-n/--dry-run` and a required `-R/--repo` that takes a repo path (relative or absolute, e.g. `-R ../vosslab-skills` or `-R .`).
 - Marker prediction and writing is now default single-repo behavior (formerly the `--write-marker` flag): dry-run predicts and logs marker changes, and a normal run writes them.
@@ -22,6 +25,9 @@
 - `tests/meta/conftest.py` now derives the repo root from `file_utils.get_repo_root()` (git) after a single unavoidable `__file__` bootstrap, instead of walking `__file__` up by hand.
 
 ### Fixes and Maintenance
+
+- Fixed `devel/commit_changelog.py` bug where editing an OLD changelog bullet (e.g. a Markdown link fix under a past date) made that bullet appear "new" and pollute the commit-message seed; the diff-driven approach selects only genuinely added lines so past-date edits are invisible to the seed.
+- Synced the `devel/commit_changelog.py` description in [docs/REPO_STYLE.md](REPO_STYLE.md) with the new diff-driven seed selection (was still describing the removed SHA-based, `(date, title)`-keyed mechanism).
 
 - Fixed two missed self-references left from the `propagate/` -> `repolib/` rename: replaced `'propagate'` with `'repolib'` in `META_DIRS` in `repolib/model.py` (blocker: the walker would have descended into `repolib/` and routed the propagator package into consumer repos); changed `git_rm_recursive("propagate/", ...)` to `git_rm_recursive("repolib/", ...)` in `reset_repo.py` line ~466 (blocker: the old path no longer exists and would raise `CalledProcessError`, leaving `repolib/` behind in the consumer).
 - Removed dead `ensure_git_perms()` function from `repolib/files.py`; no callers existed after the fix-permissions feature was dropped.
@@ -47,6 +53,8 @@
 - Rewrote the `tests/test_pytest_hygiene.py` guard description in both `docs/PYTEST_STYLE.md` and `tests/TESTS_README.md` positively: "keeping all file-discovery logic in `file_utils`" replaces the negative "do not reintroduce" phrasing, following the "prompt positively" principle.
 
 ### Removals and Deprecations
+
+- Removed dead functions from `devel/commit_changelog.py`: `compute_new_entries`, `get_changelog_text_at`, and `get_last_changelog_commit_sha` are deleted; their role is now handled entirely by the diff-driven `added_changelog_bullet_lines` path.
 
 - Removed `propagate_style_guides.py` CLI flags `--base-dir`, `--source-dir`, `--bootstrap`, `--no-auto-discover`, `--fix-permissions`, `--write-marker`, `--yes`, and `-v/--verbose-paths`.
 - Removed batch multi-repo propagation (the no-`-R` "update every repo under ~/nsh" mode), including `collect_repo_dirs`, `resolve_target_repos`, and the skip-list.
