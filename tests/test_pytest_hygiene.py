@@ -1,6 +1,5 @@
 # Standard Library
 import ast
-import os
 
 # PIP3 modules
 import pytest
@@ -23,7 +22,7 @@ BANNED_FUNCTION_NAMES = frozenset({
 	"gather_changed_files",
 })
 
-REPORT_NAME = "report_pytest_hygiene.txt"
+REPORT_NAME = file_utils.report_name(__file__)
 
 # Discover only the top-level tests/test_*.py files.
 # Keep only files whose repo-relative POSIX path matches tests/test_*.py
@@ -142,14 +141,7 @@ def test_pytest_hygiene(path: str) -> None:
 	violations = check_no_banned_module_assignments(tree, rel)
 	violations += check_no_banned_functions(tree, rel)
 	if violations:
-		# Detect first creation before appending so the header is written once.
-		file_exists = os.path.exists(file_utils.report_path(REPORT_NAME))
-		lines = []
-		if not file_exists:
-			lines.append("pytest hygiene violations")
-		lines.extend(violations)
-		text = "".join(f"{line}\n" for line in lines)
-		report_file = file_utils.append_report(REPORT_NAME, text)
+		report_file = file_utils.append_report_block(REPORT_NAME, "pytest hygiene violations", violations)
 		report_rel = file_utils.rel_to_root(report_file)
 		raise AssertionError(
 			f"{len(violations)} scaffold duplication(s) in {rel}:\n"

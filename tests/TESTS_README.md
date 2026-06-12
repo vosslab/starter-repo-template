@@ -123,6 +123,16 @@ Three shared helpers complement `discover_files`:
   -- centralize the repo-root report-file path, stale-file purge, truncate-write, and append flow.
   Hygiene tests build the full report text first, then call one helper. Used by the ascii, bandit,
   pyflakes, markdown_links, shebangs, and init_files tests.
+- `report_name(test_file: str) -> str` -- derive the canonical report filename from a test module
+  path. Pass `__file__` and get back the matching `report_<stem>.txt` name (for example
+  `report_name(__file__)` in `test_bandit_security.py` returns `"report_bandit_security.txt"`).
+  Every hygiene test sets `REPORT_NAME = file_utils.report_name(__file__)` so the name is always
+  derived from the filename, never hardcoded.
+- `append_report_block(name: str, header: str, lines: list[str]) -> str` -- append a
+  header-guarded block of lines to a report file. Writes the header once on first creation, then
+  appends each element of `lines` as a separate line. Use in parametrized hygiene tests where
+  each case contributes one violation block; the caller passes the current test's `REPORT_NAME`,
+  a one-line section header, and the list of violation strings.
 
 ### Hygiene guard tests
 

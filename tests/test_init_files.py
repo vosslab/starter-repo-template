@@ -6,7 +6,7 @@ import pytest
 import file_utils
 
 REPO_ROOT = file_utils.get_repo_root()
-REPORT_NAME = "report_init.txt"
+REPORT_NAME = file_utils.report_name(__file__)
 _MIN_SUBSTANTIVE_LINES = 20
 _MIN_CONTENT_CHARS = 100
 
@@ -162,27 +162,6 @@ def reset_init_report() -> None:
 
 
 #============================================
-def append_init_report(issues: list[str]) -> str:
-	"""
-	Append __init__.py violations to the dedicated report file.
-
-	On first creation (the report file does not yet exist) the two-line
-	header is prepended; later parametrized cases only append their issue
-	lines, so all cases accumulate into one report.
-	"""
-	# Detect first creation before appending so the header is written once.
-	file_exists = os.path.exists(file_utils.report_path(REPORT_NAME))
-	lines = []
-	if not file_exists:
-		lines.append("__init__.py style report")
-		lines.append("Violations:")
-	lines.extend(issues)
-	# Build the full append text with a trailing newline per line.
-	text = "".join(f"{line}\n" for line in lines)
-	return file_utils.append_report(REPORT_NAME, text)
-
-
-#============================================
 @pytest.mark.parametrize(
 	"file_path", _PARAMS,
 )
@@ -196,7 +175,7 @@ def test_init_files(file_path: str) -> None:
 	rel_path = os.path.relpath(file_path, REPO_ROOT)
 	issues = [format_issue(rel_path, line_no, message) for line_no, message in matches]
 	issues = sorted(set(issues))
-	report_path = append_init_report(issues)
+	report_path = file_utils.append_report_block(REPORT_NAME, "__init__.py style report\nViolations:", issues)
 	display_report = file_utils.rel_to_root(report_path, REPO_ROOT)
 	raise AssertionError(
 		"__init__.py style violations detected:\n"

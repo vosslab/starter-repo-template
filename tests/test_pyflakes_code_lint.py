@@ -9,7 +9,7 @@ import pytest
 import file_utils
 
 REPO_ROOT = file_utils.get_repo_root()
-REPORT_NAME = "report_pyflakes.txt"
+REPORT_NAME = file_utils.report_name(__file__)
 ERROR_RE = re.compile(r":[0-9]+:[0-9]+:")
 ERROR_SAMPLE_COUNT = 5
 CHUNK_SIZE = 200
@@ -291,8 +291,8 @@ def test_pyflakes_summary() -> None:
 	print("")
 
 	print(f"Found {result_count} pyflakes errors across {len(error_files)} files")
-	print("Full report written to REPO_ROOT/report_pyflakes.txt")
+	print("Full report written to REPO_ROOT/report_pyflakes_code_lint.txt")
 	raise AssertionError(
 		f"Pyflakes errors in {len(error_files)} files "
-		f"({result_count} total lines). See report_pyflakes.txt."
+		f"({result_count} total lines). See report_pyflakes_code_lint.txt."
 	)

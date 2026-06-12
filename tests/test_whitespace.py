@@ -2,8 +2,6 @@ import pytest
 
 import file_utils
 
-REPO_ROOT = file_utils.get_repo_root()
-
 # Text-format extensions that the whitespace hygiene check scans.
 EXTENSIONS = (
 	".md", ".txt", ".py", ".sh", ".bash", ".zsh",

@@ -5,7 +5,7 @@ import file_utils
 
 
 REPO_ROOT = file_utils.get_repo_root()
-REPORT_NAME = "report_bandit.txt"
+REPORT_NAME = file_utils.report_name(__file__)
 
 FILES = file_utils.discover_files(extensions=(".py",), test_key="bandit_security")
 
@@ -52,4 +52,4 @@ def test_bandit_security() -> None:
 
 	file_utils.write_report(REPORT_NAME, output)
 
-	raise AssertionError("Bandit issues detected. See REPO_ROOT/report_bandit.txt")
+	raise AssertionError("Bandit issues detected. See REPO_ROOT/report_bandit_security.txt")

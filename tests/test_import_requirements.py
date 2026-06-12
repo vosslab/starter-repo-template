@@ -7,7 +7,7 @@ import file_utils
 
 CHECK_OPTIONAL_IMPORTS_ENV = "CHECK_OPTIONAL_IMPORTS"
 REPO_ROOT = file_utils.get_repo_root()
-REPORT_NAME = "report_import_requirements.txt"
+REPORT_NAME = file_utils.report_name(__file__)
 REQUIREMENT_FILES = (
 	"pip_requirements.txt",
 	"pip_requirements-dev.txt",

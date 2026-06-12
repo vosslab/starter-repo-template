@@ -10,7 +10,7 @@ import pytest
 import file_utils
 
 REPO_ROOT = file_utils.get_repo_root()
-REPORT_NAME = "report_ascii_compliance.txt"
+REPORT_NAME = file_utils.report_name(__file__)
 ERROR_RE = re.compile(r":[0-9]+:[0-9]+:")
 CODEPOINT_RE = re.compile(r"non-ISO-8859-1 character U\+([0-9A-Fa-f]{4,6})")
 ERROR_SAMPLE_COUNT = 5

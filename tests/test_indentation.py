@@ -9,7 +9,7 @@ import pytest
 import file_utils
 
 REPO_ROOT = pathlib.Path(file_utils.get_repo_root())
-REPORT_NAME = "report_indentation.txt"
+REPORT_NAME = file_utils.report_name(__file__)
 
 
 #============================================
@@ -119,31 +119,6 @@ FILES = [
 
 
 #============================================
-def record_indentation_report(details: list[str]) -> str:
-	"""
-	Append indentation violation details to the shared report file.
-
-	On first creation (report does not yet exist) a one-line header is
-	prepended; subsequent calls only append their detail block so all
-	parametrized cases accumulate into one report.
-
-	Args:
-		details: List of violation strings to record.
-
-	Returns:
-		str: Absolute path to the report file.
-	"""
-	# Detect first creation before appending so the header is written once.
-	file_exists = pathlib.Path(file_utils.report_path(REPORT_NAME)).exists()
-	lines = []
-	if not file_exists:
-		lines.append("indentation violations")
-	lines.extend(details)
-	text = "".join(f"{line}\n" for line in lines)
-	return file_utils.append_report(REPORT_NAME, text)
-
-
-#============================================
 @pytest.fixture(scope="module", autouse=True)
 def reset_indentation_report() -> None:
 	"""
@@ -163,7 +138,7 @@ def test_indentation_style(file_path: pathlib.Path) -> None:
 	bad_lines = inspect_file(file_path)
 	if bad_lines:
 		details = [f"{display_path}:{ln}: mixed indentation within line" for ln in bad_lines[:5]]
-		report_file = record_indentation_report(details)
+		report_file = file_utils.append_report_block(REPORT_NAME, "indentation violations", details)
 		report_rel = file_utils.rel_to_root(report_file)
 		raise AssertionError("\n".join(details) + f"\n See {report_rel}.")
 	indent_lines = summarize_indentation(file_path)
@@ -173,6 +148,6 @@ def test_indentation_style(file_path: pathlib.Path) -> None:
 			f"{display_path}: tabs and spaces in file "
 			f"(tab line {tab_line}, space line {space_line})"
 		)
-		report_file = record_indentation_report([msg])
+		report_file = file_utils.append_report_block(REPORT_NAME, "indentation violations", [msg])
 		report_rel = file_utils.rel_to_root(report_file)
 		raise AssertionError(msg + f"\n See {report_rel}.")

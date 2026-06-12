@@ -1,12 +1,10 @@
 import ast
-import os
 
 import pytest
 
 import file_utils
 
-REPO_ROOT = file_utils.get_repo_root()
-REPORT_NAME = "report_import_star.txt"
+REPORT_NAME = file_utils.report_name(__file__)
 
 
 #============================================
@@ -57,21 +55,6 @@ def reset_import_star_report() -> None:
 
 
 #============================================
-def append_import_star_report(issues: list[str]) -> str:
-	"""
-	Append import-star violations to the dedicated report file.
-	"""
-	# Include header lines only on first creation of the report file.
-	text = ""
-	if not os.path.exists(file_utils.report_path(REPORT_NAME)):
-		text += "Import star report\n"
-		text += "Violations:\n"
-	for issue in issues:
-		text += issue + "\n"
-	return file_utils.append_report(REPORT_NAME, text)
-
-
-#============================================
 @pytest.mark.parametrize(
 	"file_path", FILES,
 	ids=lambda p: file_utils.rel_to_root(p),
@@ -84,7 +67,7 @@ def test_import_star(file_path: str) -> None:
 	rel_path = file_utils.rel_to_root(file_path)
 	issues = [format_issue(rel_path, line_no, module_name) for line_no, module_name in matches]
 	issues = sorted(set(issues))
-	report_path = append_import_star_report(issues)
+	report_path = file_utils.append_report_block(REPORT_NAME, "Import star report\nViolations:", issues)
 	display_report = file_utils.rel_to_root(report_path)
 	raise AssertionError(
 		"import * usage detected:\n"

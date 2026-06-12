@@ -133,11 +133,11 @@ def report_path(name: str) -> str:
 	Build the absolute path to a repo-root report file.
 
 	Hygiene tests write dev-facing report files (for example
-	report_bandit.txt) at the repository root. This resolves the full
+	report_bandit_security.txt) at the repository root. This resolves the full
 	filename to an absolute path under get_repo_root().
 
 	Args:
-		name: Full report filename, for example "report_bandit.txt".
+		name: Full report filename, for example "report_bandit_security.txt".
 
 	Returns:
 		str: Absolute path to the report file at the repo root.
@@ -154,7 +154,7 @@ def purge_report(name: str) -> None:
 	is normal: a clean run leaves no report, so missing is not an error.
 
 	Args:
-		name: Full report filename, for example "report_bandit.txt".
+		name: Full report filename, for example "report_bandit_security.txt".
 	"""
 	# Resolve the absolute report path under the repo root.
 	path = report_path(name)
@@ -173,7 +173,7 @@ def write_report(name: str, text: str) -> str:
 	before calling, so this performs exactly one write.
 
 	Args:
-		name: Full report filename, for example "report_bandit.txt".
+		name: Full report filename, for example "report_bandit_security.txt".
 		text: Full report body to write verbatim.
 
 	Returns:
@@ -198,7 +198,7 @@ def append_report(name: str, text: str) -> str:
 	newlines) before calling.
 
 	Args:
-		name: Full report filename, for example "report_init.txt".
+		name: Full report filename, for example "report_init_files.txt".
 		text: Full report body to append verbatim.
 
 	Returns:
@@ -209,6 +209,74 @@ def append_report(name: str, text: str) -> str:
 	# Append the text so accumulating cases share one report file.
 	with open(path, "a", encoding="utf-8") as handle:
 		handle.write(text)
+	return path
+
+
+#============================================
+def report_name(test_file: str) -> str:
+	"""
+	Derive the canonical report filename for a hygiene test module.
+
+	Takes the basename of test_file, strips the .py extension and the leading
+	test_ prefix, then returns "report_{stem}.txt". This is the single
+	authoritative way to map a test module path to its report filename so
+	every caller uses the same name without hardcoding it.
+
+	Args:
+		test_file: Path (absolute or relative) to the test module, typically
+			the value of __file__ inside the test. The basename must start with
+			"test_" and end with ".py".
+
+	Returns:
+		str: Report filename, for example "report_bandit_security.txt" when test_file
+			is ".../tests/test_bandit_security.py".
+	"""
+	# Extract the base filename without directory components.
+	base = os.path.basename(test_file)
+	# Require and strip the .py extension; raise loudly on malformed input.
+	if not base.endswith(".py"):
+		raise ValueError(f"report_name: expected a .py filename, got {base!r}")
+	stem = base[:-3]
+	# Require and strip the "test_" prefix; raise loudly on malformed input.
+	if not stem.startswith("test_"):
+		raise ValueError(f"report_name: expected filename to start with 'test_', got {stem!r}")
+	topic = stem[len("test_"):]
+	# Assemble and return the canonical report filename.
+	return f"report_{topic}.txt"
+
+
+#============================================
+def append_report_block(name: str, header: str, lines: list[str]) -> str:
+	"""
+	Append a header-guarded block of lines to a repo-root report file.
+
+	On the first call for a given report (file does not yet exist), writes the
+	header followed by a newline before appending any lines. On subsequent
+	calls the header is skipped so lines accumulate under the same header.
+	Every element of lines is written as element + newline, in order; empty
+	elements produce blank lines.
+
+	Args:
+		name: Full report filename, for example "report_bandit_security.txt". Pass the
+			return value of report_name(__file__) to use the canonical name.
+		header: One-line header string written verbatim (without a trailing
+			newline) when the report does not yet exist, followed by newline.
+		lines: Sequence of strings to append, one per line. Each element is
+			written verbatim with a single trailing newline appended by this
+			function; the caller must not add newlines.
+
+	Returns:
+		str: Absolute path to the report file (same as report_path(name)).
+	"""
+	# Compute the absolute report path once; reuse for existence check and return value.
+	path = report_path(name)
+	# Write the header only when the report is being created for the first time.
+	if not os.path.exists(path):
+		append_report(name, header + "\n")
+	# Append each line with exactly one trailing newline.
+	for line in lines:
+		append_report(name, line + "\n")
+	# Return the absolute path to the report file.
 	return path
 
 

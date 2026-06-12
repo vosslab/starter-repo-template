@@ -7,7 +7,7 @@ import file_utils
 REPO_ROOT = file_utils.get_repo_root()
 # Module-level file list built once at import time for the markdown link scan.
 FILES = file_utils.discover_files(extensions=(".md",), test_key="markdown_links")
-REPORT_NAME = "report_markdown_links.txt"
+REPORT_NAME = file_utils.report_name(__file__)
 ERROR_SAMPLE_COUNT = 5
 
 # Inline link and image: optional leading !, [text](url), url ends at ) or space.

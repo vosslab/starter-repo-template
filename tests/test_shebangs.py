@@ -6,7 +6,7 @@ import file_utils
 
 REPO_ROOT = file_utils.get_repo_root()
 PYTHON_SHEBANG = "#!/usr/bin/env python3"
-REPORT_NAME = "report_shebang.txt"
+REPORT_NAME = file_utils.report_name(__file__)
 # discover_files excludes symlinks via isfile; no extension filter -- shebangs
 # apply to any file type tracked in the repo.
 FILES = file_utils.discover_files(test_key="shebangs")

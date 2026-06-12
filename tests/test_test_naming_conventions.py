@@ -6,7 +6,7 @@ import pytest
 import file_utils
 
 REPO_ROOT = file_utils.get_repo_root()
-REPORT_NAME = "report_test_naming.txt"
+REPORT_NAME = file_utils.report_name(__file__)
 
 
 #============================================
@@ -87,10 +87,6 @@ def record_naming_violations(label: str, violations: list[str]) -> str:
 	"""
 	Append labeled naming violations to the shared report file.
 
-	On first creation (report does not yet exist) a one-line header is
-	prepended; subsequent calls only append their labeled block so all
-	five checks accumulate into one report.
-
 	Args:
 		label: Short description of the check, used as section header.
 		violations: List of violation strings to record.
@@ -98,15 +94,9 @@ def record_naming_violations(label: str, violations: list[str]) -> str:
 	Returns:
 		str: Absolute path to the report file.
 	"""
-	# Detect first creation before appending so the header is written once.
-	file_exists = os.path.exists(file_utils.report_path(REPORT_NAME))
-	lines = []
-	if not file_exists:
-		lines.append("test naming convention violations")
-	lines.append(label)
-	lines.extend(violations)
-	text = "".join(f"{line}\n" for line in lines)
-	return file_utils.append_report(REPORT_NAME, text)
+	# Prepend the label so violations are grouped under their check name.
+	lines = [label] + violations
+	return file_utils.append_report_block(REPORT_NAME, "test naming convention violations", lines)
 
 
 #============================================

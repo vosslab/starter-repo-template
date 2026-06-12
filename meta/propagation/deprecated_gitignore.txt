@@ -5,8 +5,8 @@
 # Each addition to this file must be justified in docs/CHANGELOG.md
 # naming the originating cleanup (e.g. "added after build_*.sh purge").
 #
-# Entries are removed by remove_gitignore_entries() in
-# propagate_style_guides.py (call site near line 1526).
+# To retire a .gitignore pattern across all repos, add it as a line below;
+# the next propagation strips that line from every consumer .gitignore.
 
 shebang_report.txt
 pyflakes.txt

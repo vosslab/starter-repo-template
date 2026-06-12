@@ -1,6 +1,5 @@
 # Standard Library
 import ast
-import os
 
 # PIP3 modules
 import pytest
@@ -10,7 +9,7 @@ import file_utils
 
 FILES = file_utils.discover_files(extensions=(".py",), test_key="function_typing")
 
-REPORT_NAME = "report_function_typing.txt"
+REPORT_NAME = file_utils.report_name(__file__)
 
 # Args that never require an annotation (implicit type from the call protocol).
 IMPLICIT_ARG_NAMES = frozenset({"self", "cls"})
@@ -26,13 +25,64 @@ def reset_function_typing_report() -> None:
 
 
 #============================================
+def _annotatable_args(func_node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[ast.arg]:
+	"""
+	Return the args that require a type annotation for the given function def.
+
+	Combines posonlyargs, args, and kwonlyargs and excludes self and cls, which
+	are exempt because their type is implicit from the call protocol. Does not
+	include *args (vararg) or **kwargs (kwarg), which are never required.
+
+	Args:
+		func_node: A parsed FunctionDef or AsyncFunctionDef AST node.
+
+	Returns:
+		list[ast.arg]: Argument nodes that must carry an annotation.
+	"""
+	# Combine all annotatable groups into one flat list.
+	all_args = func_node.args.posonlyargs + func_node.args.args + func_node.args.kwonlyargs
+	# Filter out self and cls; they are exempt from annotation.
+	return [arg for arg in all_args if arg.arg not in IMPLICIT_ARG_NAMES]
+
+
+#============================================
+def _is_typing_import(node: ast.Import | ast.ImportFrom) -> bool:
+	"""
+	Return True if the import node references the typing module.
+
+	Detects `import typing`, `import typing as X`, `import typing.something`,
+	`from typing import ...`, and `from typing.x import y`. All of these are
+	banned in this repo; callers should use builtin generics and PEP 604 unions.
+
+	Args:
+		node: An ast.Import or ast.ImportFrom node from a parsed module.
+
+	Returns:
+		bool: True when the node imports from the typing module.
+	"""
+	if isinstance(node, ast.Import):
+		# Catch `import typing`, `import typing as X`, and `import typing.something`.
+		return any(
+			alias.name == "typing" or alias.name.startswith("typing.")
+			for alias in node.names
+		)
+	# Catch `from typing import ...` and `from typing.x import y`.
+	return node.module == "typing" or (
+		node.module is not None and node.module.startswith("typing.")
+	)
+
+
+#============================================
 def check_no_typing_import(tree: ast.Module, rel: str) -> list[str]:
 	"""
-	Fail if the file imports from the typing module.
+	Return violations when the file imports from the typing module.
 
-	Checks for `import typing`, `import typing as X`, and
-	`from typing import ...`. All three are banned; use builtin generics
-	and PEP 604 unions instead.
+	A plain builtin type like `list`, `dict`, or `tuple` satisfies every
+	annotation gate in this repo. Use builtin generics and PEP 604 unions
+	(`X | None`) instead of the typing module.
+
+	Checks for `import typing`, `import typing as X`, `import typing.something`,
+	and `from typing import ...`. All four forms are banned.
 
 	Args:
 		tree: Parsed AST module.
@@ -43,31 +93,26 @@ def check_no_typing_import(tree: ast.Module, rel: str) -> list[str]:
 	"""
 	violations = []
 	for node in file_utils.iter_imports(tree):
-		if isinstance(node, ast.Import):
-			# Catch `import typing`, `import typing as X`, and `import typing.something`.
-			for alias in node.names:
-				if alias.name == "typing" or alias.name.startswith("typing."):
-					violations.append(
-						f"{rel}:{node.lineno}: `import typing` is banned; "
-						"use builtin generics (list, dict, tuple) and PEP 604 unions (X | None)."
-					)
-		elif isinstance(node, ast.ImportFrom):
-			# Catch `from typing import ...` and `from typing.x import y`.
-			if node.module == "typing" or (node.module is not None and node.module.startswith("typing.")):
-				violations.append(
-					f"{rel}:{node.lineno}: `from typing import ...` is banned; "
-					"use builtin generics (list, dict, tuple) and PEP 604 unions (X | None)."
-				)
+		if _is_typing_import(node):
+			violations.append(
+				f"{rel}:{node.lineno}: write `import typing` as builtin generics "
+				"(list, dict, tuple) and PEP 604 unions (X | None) instead."
+			)
 	return violations
 
 
 #============================================
 def check_function_annotations(tree: ast.Module, rel: str) -> list[str]:
 	"""
-	Fail if any function def is missing return or argument annotations.
+	Return violations for any function def missing return or argument annotations.
 
-	Walks the tree and checks every ast.FunctionDef and
-	ast.AsyncFunctionDef. Requires:
+	A plain builtin type satisfies the gate -- `-> list` or `-> None` is enough
+	for a return annotation, and `x: str` or `x: object` is enough for a param.
+	Parametrized generics like `list[str]` are also accepted; the gate requires
+	only that SOME annotation is present.
+
+	Walks the tree and checks every ast.FunctionDef and ast.AsyncFunctionDef.
+	Requires:
 	- A return annotation (node.returns is not None).
 	- An annotation on each positional-only, regular, and keyword-only arg,
 	  except `self` and `cls` which are implicitly typed.
@@ -88,20 +133,18 @@ def check_function_annotations(tree: ast.Module, rel: str) -> list[str]:
 			continue
 		func_name = node.name
 		lineno = node.lineno
-		# Check return annotation.
+		# Check return annotation -- a plain type like `-> list` or `-> None` is enough.
 		if node.returns is None:
 			violations.append(
-				f"{rel}:{lineno}: {func_name}() missing return annotation."
+				f"{rel}:{lineno}: {func_name}() needs a return annotation -- "
+				"a plain type like `-> list` or `-> None` is enough."
 			)
-		# Check each annotatable argument group.
-		all_args = node.args.posonlyargs + node.args.args + node.args.kwonlyargs
-		for arg in all_args:
-			if arg.arg in IMPLICIT_ARG_NAMES:
-				# self and cls are exempted; type is implicit from protocol.
-				continue
+		# Check each annotatable argument; a bare type like `x: str` or `x: object` is enough.
+		for arg in _annotatable_args(node):
 			if arg.annotation is None:
 				violations.append(
-					f"{rel}:{lineno}: {func_name}() arg `{arg.arg}` missing annotation."
+					f"{rel}:{lineno}: {func_name}() arg `{arg.arg}` needs an annotation -- "
+					"a bare type like `x: str`, or `x: object` when the type is open, is enough."
 				)
 	return violations
 
@@ -120,14 +163,9 @@ def test_function_typing(path: str) -> None:
 	violations = check_no_typing_import(tree, rel)
 	violations += check_function_annotations(tree, rel)
 	if violations:
-		# Detect first creation before appending so the header is written once.
-		file_exists = os.path.exists(file_utils.report_path(REPORT_NAME))
-		lines = []
-		if not file_exists:
-			lines.append("function typing violations")
-		lines.extend(violations)
-		text = "".join(f"{line}\n" for line in lines)
-		report_file = file_utils.append_report(REPORT_NAME, text)
+		report_file = file_utils.append_report_block(
+			REPORT_NAME, "function typing violations", violations
+		)
 		report_rel = file_utils.rel_to_root(report_file)
 		raise AssertionError(
 			f"{len(violations)} annotation/typing violation(s) in {rel}:\n"
