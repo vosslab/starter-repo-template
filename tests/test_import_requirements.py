@@ -100,7 +100,7 @@ def load_requirement_modules(repo_root: str) -> tuple[set[str], str]:
 					continue
 				modules.add(normalize_name(requirement_name))
 	if not modules:
-		raise AssertionError(
+		raise RuntimeError(
 			"No requirements file found. Expected one of: "
 			+ ", ".join(REQUIREMENT_FILES)
 		)
@@ -245,33 +245,6 @@ def normalize_statement_for_report(statement_text: str) -> str:
 
 
 #============================================
-def write_import_report(
-	requirement_source: str,
-	check_optional_imports: bool,
-	parse_errors: list[str],
-	import_issues: list[str],
-) -> str:
-	"""
-	Write import-policy findings to the import-requirements report file.
-	"""
-	lines = [
-		"Import requirements report",
-		f"Requirements source: {requirement_source}",
-		f"CHECK_OPTIONAL_IMPORTS: {int(check_optional_imports)}",
-	]
-	if parse_errors:
-		lines.append("Parse errors:")
-		for item in parse_errors:
-			lines.append(item)
-	if import_issues:
-		lines.append("Violations:")
-		for item in import_issues:
-			lines.append(item)
-	text = "\n".join(lines) + "\n"
-	return file_utils.write_report(REPORT_NAME, text)
-
-
-#============================================
 def get_stdlib_modules() -> set[str]:
 	"""
 	Get normalized module names that are part of Python stdlib.
@@ -318,8 +291,6 @@ def test_import_requirements() -> None:
 	"""
 	Validate imports against stdlib, repo modules, requirements, and whitelist.
 	"""
-	file_utils.purge_report(REPORT_NAME)
-
 	check_optional_imports = resolve_check_optional_imports()
 	paths = FILES
 
@@ -354,35 +325,27 @@ def test_import_requirements() -> None:
 			statement = normalize_statement_for_report(statement_text)
 			import_issues.append(f"{rel_path}:{line_no}: {module_name}: {statement}")
 
-	if parse_errors:
-		report_path = write_import_report(
-			requirement_source,
-			check_optional_imports,
-			parse_errors,
-			[],
-		)
-		display_report = file_utils.rel_to_root(report_path)
-		raise AssertionError(
-			"Import rule parse errors:\n"
-			+ "\n".join(parse_errors)
-			+ f"\nFull report: {display_report}"
-		)
+	# Deduplicate import issues before building the report
+	import_issues = sorted(set(import_issues))
 
-	if import_issues:
-		import_issues = sorted(set(import_issues))
-		report_path = write_import_report(
-			requirement_source,
-			check_optional_imports,
-			[],
-			import_issues,
-		)
-		display_report = file_utils.rel_to_root(report_path)
-		report_lines = [
-			"Import policy violations found.",
-			f"Requirements source: {requirement_source}",
-			"Allowed imports are stdlib, repo-local modules, requirement modules, and LOCAL_IMPORT_WHITELIST.",
-			"Violations:",
-		]
-		report_lines.extend(import_issues)
-		report_lines.append(f"Full report: {display_report}")
-		raise AssertionError("\n".join(report_lines))
+	# Build one unified report combining parse errors and import-policy violations
+	lines: list[str] = []
+	if parse_errors or import_issues:
+		lines.append("Import requirements report")
+		lines.append(f"Requirements source: {requirement_source}")
+		lines.append(f"CHECK_OPTIONAL_IMPORTS: {int(check_optional_imports)}")
+		if parse_errors:
+			lines.append("Parse errors:")
+			for item in parse_errors:
+				lines.append(item)
+		if import_issues:
+			lines.append("Violations:")
+			for item in import_issues:
+				lines.append(item)
+
+	# Always sync: non-empty writes the report; empty purges any stale file
+	report_path = file_utils.sync_report(REPORT_NAME, lines)
+
+	assert not (parse_errors or import_issues), (
+		f"Import policy violations found. See {file_utils.rel_to_root(report_path)}"
+	)

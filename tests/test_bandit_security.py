@@ -17,7 +17,7 @@ def run_bandit(repo_root: str) -> tuple[int, str]:
 	"""
 	bandit_bin = shutil.which("bandit")
 	if not bandit_bin:
-		raise AssertionError("bandit not found on PATH.")
+		raise RuntimeError("bandit not found on PATH.")
 	files = FILES
 	if not files:
 		return (0, "")
@@ -43,13 +43,19 @@ def test_bandit_security() -> None:
 	"""
 	Run bandit at severity medium or higher.
 	"""
-	# Delete old report file before running
-	file_utils.purge_report(REPORT_NAME)
-
 	exit_code, output = run_bandit(REPO_ROOT)
-	if exit_code == 0:
-		return
 
-	file_utils.write_report(REPORT_NAME, output)
+	# Build violation lines: header first, then bandit output lines (strip trailing blank)
+	lines: list[str] = []
+	has_violations = exit_code != 0
+	if has_violations:
+		header = "Bandit security issues detected:"
+		output_lines = output.rstrip("\n").split("\n")
+		lines = [header] + output_lines
 
-	raise AssertionError("Bandit issues detected. See REPO_ROOT/report_bandit_security.txt")
+	# Always sync: non-empty writes the report; empty purges any stale file
+	report_path = file_utils.sync_report(REPORT_NAME, lines)
+
+	assert not has_violations, (
+		f"Bandit issues detected. See {file_utils.rel_to_root(report_path)}"
+	)

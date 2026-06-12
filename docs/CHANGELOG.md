@@ -2,6 +2,20 @@
 
 ### Additions and New Features
 
+- Added `file_utils.sync_report(name: str, lines: list[str]) -> str`: the single report-writing
+  site for hygiene tests. Non-empty `lines` truncate-writes the full report (one `\n` per line,
+  one trailing `\n`); empty `lines` purges the stale report file via `purge_report`; returns the
+  absolute path. Pinned by `tests/meta/test_sync_report.py`. Documented in
+  [docs/PYTEST_STYLE.md](PYTEST_STYLE.md) "Hygiene report files" and the
+  [tests/TESTS_README.md](../tests/TESTS_README.md) helper list.
+- Added canonical hygiene-report pattern: a module-scope autouse `collect_report` fixture owns
+  the single `sync_report` call (precomputes `VIOLATIONS_BY_FILE: dict[str, list[str]]` over all
+  `FILES`, syntax/parse errors captured as `SyntaxError` entries, downstream checks skipped for
+  that file); each parametrized per-file test does plain `assert rel not in VIOLATIONS_BY_FILE`.
+  Writer-style tests build a `lines` list and call `sync_report` always. Fail via plain `assert`;
+  precondition guards use `RuntimeError`. Report is a full snapshot written when dirty, purged
+  when clean. Any module run synchronizes the full report, even with `-k` filtering.
+
 - Added `repolib/process.py` holding the shared per-repo orchestration (`process_repo`, `apply_file_bucket`, `remove_deprecated_tests`, `exit_code_for`) and a single context contract `build_context_for_repo(repo_path, dry_run, bootstrap, auto_discover, write_marker)` used by both entry scripts.
 - Extended repo-root report coverage to `tests/test_function_typing.py`, `tests/test_indentation.py`, `tests/test_test_naming_conventions.py`, and `tests/test_pytest_hygiene.py` via the shared report helpers (`report_path`, `purge_report`, `append_report`, `rel_to_root`) in `tests/file_utils.py`; each test now purges its report at module start and appends violation blocks with a report path reference in the AssertionError on failure; `tests/test_pytest_hygiene.py` writes `report_pytest_hygiene.txt` at repo root on failure.
 - Added three centralized helpers to `tests/file_utils.py`: `iter_imports(tree)` (yields all `ast.Import` and `ast.ImportFrom` nodes from a parsed module tree), `rel_to_root(path, repo_root=None)` (returns a repo-relative POSIX string for use in test ids and messages), and `run_fixer_script(name, target)` (shared subprocess wrapper for the ASCII and whitespace fixer scripts, replacing duplicated inline subprocess calls in two hygiene tests).
@@ -14,6 +28,14 @@
 
 ### Behavior or Interface Changes
 
+- Hygiene reports are now complete on every failure: each of the 12 refactored hygiene tests
+  writes a full `report_<topic>.txt` for any violation count. The previous `SUMMARY_THRESHOLD`
+  gate in `test_pyflakes_code_lint.py` (suppressed reports when fewer than 4 files were bad) is
+  removed; a single bad file now produces a report. Syntax/parse errors are recorded as one
+  `SyntaxError` entry per file instead of being swallowed by `return []` or causing an early
+  raise without writing. The `raise AssertionError` / `pytest.fail(` pattern is replaced by
+  plain `assert` in all 12 modules; the precompute fixture is the sole report-write site.
+
 - `devel/commit_changelog.py` seed selection reworked to a diff-driven seam: `select_new_entries` now derives candidates from `git diff HEAD --unified=0` on `docs/CHANGELOG.md` via `get_diff_vs_head` and `parse_added_bullet_lines`, selecting only newly ADDED top-level `- ` bullet lines (per-hunk add-vs-edit classification via `min(removed_bullets, added_bullets)`); the `prior_sha` parameter is dropped from `select_new_entries`.
 - `keep_recent_heading_run` retained as a safety boundary: keeps only the most recent run of consecutive day-block headings carrying added bullets, preventing stale date blocks from leaking into the commit-message seed.
 
@@ -25,6 +47,18 @@
 - `tests/meta/conftest.py` now derives the repo root from `file_utils.get_repo_root()` (git) after a single unavoidable `__file__` bootstrap, instead of walking `__file__` up by hand.
 
 ### Fixes and Maintenance
+
+- Refactored 7 per-file hygiene tests (`test_function_typing.py`, `test_pytest_hygiene.py`,
+  `test_pyflakes_code_lint.py`, `test_import_dot.py`, `test_import_star.py`, `test_init_files.py`,
+  `test_indentation.py`) to the precompute-fixture + per-file-assert shape: autouse module-scope
+  `collect_report` fixture, `VIOLATIONS_BY_FILE` dict, `collect_violations` / `make_report_lines`
+  helpers, `sync_report` call, no `raise AssertionError` or `pytest.fail(`.
+- Converted 5 writer hygiene tests (`test_ascii_compliance.py`, `test_bandit_security.py`,
+  `test_markdown_links.py`, `test_shebangs.py`, `test_import_requirements.py`) from
+  `raise AssertionError` to plain `assert`, with report written via `sync_report`.
+- Verified: clean baseline `pytest tests/` = 607 passed, no report files left; integration gate
+  with staged 8-rule `bad_file.py` = exactly 8 failures and exactly 8 report files including
+  `report_pyflakes_code_lint.txt` (previously missing).
 
 - Fixed `devel/commit_changelog.py` bug where editing an OLD changelog bullet (e.g. a Markdown link fix under a past date) made that bullet appear "new" and pollute the commit-message seed; the diff-driven approach selects only genuinely added lines so past-date edits are invisible to the seed.
 - Synced the `devel/commit_changelog.py` description in [docs/REPO_STYLE.md](REPO_STYLE.md) with the new diff-driven seed selection (was still describing the removed SHA-based, `(date, title)`-keyed mechanism).
@@ -53,6 +87,8 @@
 - Rewrote the `tests/test_pytest_hygiene.py` guard description in both `docs/PYTEST_STYLE.md` and `tests/TESTS_README.md` positively: "keeping all file-discovery logic in `file_utils`" replaces the negative "do not reintroduce" phrasing, following the "prompt positively" principle.
 
 ### Removals and Deprecations
+
+- Removed `file_utils.append_report_block` and `file_utils.append_report` after migrating `tests/test_test_naming_conventions.py` to the precompute-fixture + `sync_report` pattern (the last caller).
 
 - Removed dead functions from `devel/commit_changelog.py`: `compute_new_entries`, `get_changelog_text_at`, and `get_last_changelog_commit_sha` are deleted; their role is now handled entirely by the diff-driven `added_changelog_bullet_lines` path.
 

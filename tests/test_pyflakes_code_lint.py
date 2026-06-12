@@ -1,6 +1,4 @@
 import os
-import re
-import random
 import shutil
 import subprocess
 
@@ -10,20 +8,26 @@ import file_utils
 
 REPO_ROOT = file_utils.get_repo_root()
 REPORT_NAME = file_utils.report_name(__file__)
-ERROR_RE = re.compile(r":[0-9]+:[0-9]+:")
-ERROR_SAMPLE_COUNT = 5
 CHUNK_SIZE = 200
-# Show the full summary report when this many files have errors
-SUMMARY_THRESHOLD = 4
-_PYFLAKES_READY = False
-_PYFLAKES_LINES: list[str] = []
-_PYFLAKES_BY_FILE: dict[str, list[str]] = {}
+
+# Module-level dict of repo-relative POSIX key -> list of pyflakes output lines.
+# Populated by the autouse collect_report fixture before any test runs.
+VIOLATIONS_BY_FILE: dict[str, list[str]] = {}
+
+FILES = file_utils.discover_files(extensions=(".py",), test_key="pyflakes_code_lint")
 
 
 #============================================
 def chunked(items: list[str], size: int) -> list[list[str]]:
 	"""
 	Split items into fixed-size chunks.
+
+	Args:
+		items: The list to split.
+		size: Maximum size for each chunk.
+
+	Returns:
+		list[list[str]]: Sub-lists of at most size items.
 	"""
 	chunks = []
 	for start in range(0, len(items), size):
@@ -32,32 +36,15 @@ def chunked(items: list[str], size: int) -> list[list[str]]:
 
 
 #============================================
-def shorten_paths(line: str) -> str:
-	"""
-	Shorten a full error path to just the basename.
-	"""
-	separator = line.find(":")
-	if separator == -1:
-		return line
-	path = line[:separator]
-	remainder = line[separator:]
-	return f"{os.path.basename(path)}{remainder}"
-
-
-#============================================
-def sample_errors(lines: list[str], count: int) -> list[str]:
-	"""
-	Sample up to N error lines.
-	"""
-	if len(lines) <= count:
-		return list(lines)
-	return random.sample(lines, count)
-
-
-#============================================
 def normalize_path(path: str) -> str:
 	"""
 	Normalize a path for stable comparisons.
+
+	Args:
+		path: Filesystem path.
+
+	Returns:
+		str: Absolute, real path.
 	"""
 	return os.path.realpath(os.path.abspath(path))
 
@@ -66,6 +53,12 @@ def normalize_path(path: str) -> str:
 def index_output_lines(lines: list[str]) -> dict[str, list[str]]:
 	"""
 	Index pyflakes output lines by normalized file path.
+
+	Args:
+		lines: Raw stdout/stderr lines from a pyflakes run.
+
+	Returns:
+		dict[str, list[str]]: Normalized absolute path -> list of pyflakes lines.
 	"""
 	index: dict[str, list[str]] = {}
 	for line in lines:
@@ -81,92 +74,22 @@ def index_output_lines(lines: list[str]) -> dict[str, list[str]]:
 
 
 #============================================
-def classify_line(line: str) -> str:
-	"""
-	Classify a pyflakes error line.
-	"""
-	if not ERROR_RE.search(line):
-		return ""
-	if "imported but unused" in line or "import * used" in line or "could not import" in line:
-		return "import"
-	if (
-		"syntax error" in line
-		or "SyntaxError" in line
-		or "invalid syntax" in line
-		or "Missing parentheses in call to" in line
-		or "Did you mean print" in line
-		or "from __future__ imports must occur at the beginning" in line
-		or "unexpected indent" in line
-		or "EOL while scanning string literal" in line
-		or "EOF while scanning triple-quoted string literal" in line
-		or "unterminated string literal" in line
-		or "cannot assign to" in line
-		or re.search(r"cannot use .* as ", line)
-		or "invalid decimal literal" in line
-	):
-		return "syntax"
-	if "undefined name" in line or "undefined local" in line or "undefined variable" in line:
-		return "name"
-	if (
-		"assigned to but never used" in line
-		or "referenced before assignment" in line
-		or "redefinition of unused" in line
-	):
-		return "variable"
-	if "Warning:" in line or "DeprecationWarning" in line or "SyntaxWarning" in line:
-		return "warning"
-	return "other"
-
-
-#============================================
-def summarize_errors(lines: list[str]) -> dict[str, int]:
-	"""
-	Summarize error categories.
-	"""
-	counts = {
-		"import": 0,
-		"syntax": 0,
-		"name": 0,
-		"variable": 0,
-		"warning": 0,
-		"other": 0,
-	}
-	for line in lines:
-		label = classify_line(line)
-		if not label:
-			continue
-		counts[label] += 1
-	return counts
-
-
-#============================================
-def list_unclassified(lines: list[str], limit: int) -> list[str]:
-	"""
-	List up to N unclassified error lines.
-	"""
-	items = []
-	for line in lines:
-		label = classify_line(line)
-		if not label:
-			continue
-		if label in ("import", "syntax", "name", "variable", "warning"):
-			continue
-		items.append(line)
-		if len(items) >= limit:
-			break
-	return items
-
-
-#============================================
 def run_pyflakes(repo_root: str, files: list[str]) -> list[str]:
 	"""
 	Run pyflakes on a file list and return output lines.
+
+	Args:
+		repo_root: Repository root used as the working directory.
+		files: Absolute paths of Python files to check.
+
+	Returns:
+		list[str]: Combined stdout and stderr lines from pyflakes.
 	"""
 	if not files:
 		return []
 	pyflakes_bin = shutil.which("pyflakes")
 	if not pyflakes_bin:
-		raise AssertionError("pyflakes not found on PATH.")
+		raise RuntimeError("pyflakes not found on PATH.")
 	output_lines = []
 	for chunk in chunked(files, CHUNK_SIZE):
 		result = subprocess.run(
@@ -183,116 +106,91 @@ def run_pyflakes(repo_root: str, files: list[str]) -> list[str]:
 
 
 #============================================
-def get_pyflakes_results() -> tuple[list[str], dict[str, list[str]]]:
+def collect_violations(files: list[str]) -> dict[str, list[str]]:
 	"""
-	Run pyflakes once and cache output plus per-file index.
+	Run pyflakes once over all files and return per-file violation lines.
+
+	Runs pyflakes on the full file list, indexes the output by file path,
+	then maps each input file to its pyflakes lines using repo-relative POSIX
+	keys. Files with no pyflakes output are omitted from the returned dict.
+
+	Args:
+		files: Sorted list of absolute paths to check.
+
+	Returns:
+		dict[str, list[str]]: Repo-relative POSIX key -> list of pyflakes
+			output lines, containing only files that have at least one line.
 	"""
-	global _PYFLAKES_READY
-	global _PYFLAKES_LINES
-	global _PYFLAKES_BY_FILE
-	if not _PYFLAKES_READY:
-		_PYFLAKES_LINES = run_pyflakes(REPO_ROOT, FILES)
-		_PYFLAKES_BY_FILE = index_output_lines(_PYFLAKES_LINES)
-		_PYFLAKES_READY = True
-	return _PYFLAKES_LINES, _PYFLAKES_BY_FILE
+	all_lines = run_pyflakes(REPO_ROOT, files)
+	# Index raw lines by normalized absolute path for fast lookup.
+	line_index = index_output_lines(all_lines)
+	result: dict[str, list[str]] = {}
+	for path in files:
+		normalized = normalize_path(path)
+		file_lines = line_index.get(normalized, [])
+		if not file_lines:
+			continue
+		# Store under the repo-relative POSIX key.
+		rel = file_utils.rel_to_root(path)
+		result[rel] = file_lines
+	return result
 
 
-FILES = file_utils.discover_files(extensions=(".py",), test_key="pyflakes_code_lint")
+#============================================
+def make_report_lines(violations_by_file: dict[str, list[str]]) -> list[str]:
+	"""
+	Build the full report body from a violations dict.
+
+	Iterates keys in sorted order and emits each file's pyflakes lines in
+	their existing order. Returns an empty list for a clean run.
+
+	Args:
+		violations_by_file: Repo-relative POSIX key -> list of pyflakes lines.
+
+	Returns:
+		list[str]: Raw report lines without trailing newlines.
+			Empty when the violations dict is empty (clean run).
+	"""
+	if not violations_by_file:
+		return []
+	# Emit header then each file's lines in sorted key order.
+	lines = ["pyflakes violations"]
+	for rel in sorted(violations_by_file):
+		lines += violations_by_file[rel]
+	return lines
 
 
 #============================================
 @pytest.fixture(scope="module", autouse=True)
-def reset_pyflakes_report() -> None:
+def collect_report() -> None:
 	"""
-	Remove stale report file before this module runs.
+	Autouse fixture: populate VIOLATIONS_BY_FILE and sync the report file.
+
+	Clears and rebuilds the module-level violations dict, then calls
+	file_utils.sync_report so that clean runs purge the report and failing
+	runs write the full body. This is the single report-writing site;
+	per-file test asserts read VIOLATIONS_BY_FILE after it is populated.
 	"""
-	file_utils.purge_report(REPORT_NAME)
+	# Clear any state left from a previous collection in the same process.
+	VIOLATIONS_BY_FILE.clear()
+	VIOLATIONS_BY_FILE.update(collect_violations(FILES))
+	lines: list[str] = make_report_lines(VIOLATIONS_BY_FILE)
+	file_utils.sync_report(REPORT_NAME, lines)
 
 
 #============================================
 @pytest.mark.parametrize(
 	"file_path", FILES,
-	ids=lambda p: os.path.relpath(p, REPO_ROOT),
+	ids=lambda p: file_utils.rel_to_root(p),
 )
 def test_pyflakes(file_path: str) -> None:
-	"""Run pyflakes on a single Python file."""
-	_, line_index = get_pyflakes_results()
-	lines = line_index.get(normalize_path(file_path), [])
-	if lines:
-		raise AssertionError(
-			f"pyflakes errors in {os.path.relpath(file_path, REPO_ROOT)}:\n"
-			+ "\n".join(lines)
-		)
-
-
-#============================================
-def test_pyflakes_summary() -> None:
-	"""
-	Batch summary with report file and error categories.
-
-	Only produces detailed output when more than SUMMARY_THRESHOLD files
-	have errors; otherwise the per-file tests are sufficient.
-	"""
-	if not FILES:
-		return
-
-	lines, line_index = get_pyflakes_results()
-	result_count = len(lines)
-	if result_count == 0:
-		return
-
-	# Count distinct files with errors
-	error_files = set(line_index.keys())
-
-	# Skip summary when few files have errors; per-file tests cover them
-	if len(error_files) <= SUMMARY_THRESHOLD:
-		return
-
-	# Write full report to disk
-	report_text = "".join(f"{line}\n" for line in lines)
-	file_utils.write_report(REPORT_NAME, report_text)
-
-	error_lines = [line for line in lines if ERROR_RE.search(line)]
-
-	print("")
-	print(f"First {ERROR_SAMPLE_COUNT} errors")
-	for line in error_lines[:ERROR_SAMPLE_COUNT]:
-		print(shorten_paths(line))
-	print("-------------------------")
-	print("")
-
-	print(f"Random {ERROR_SAMPLE_COUNT} errors")
-	for line in sample_errors(error_lines, ERROR_SAMPLE_COUNT):
-		print(shorten_paths(line))
-	print("-------------------------")
-	print("")
-
-	print(f"Last {ERROR_SAMPLE_COUNT} errors")
-	for line in error_lines[-ERROR_SAMPLE_COUNT:]:
-		print(shorten_paths(line))
-	print("-------------------------")
-	print("")
-
-	counts = summarize_errors(error_lines)
-	print("Error categories")
-	print(f"Import errors: {counts['import']}")
-	print(f"Syntax errors: {counts['syntax']}")
-	print(f"Name errors: {counts['name']}")
-	print(f"Variable errors: {counts['variable']}")
-	print(f"Warning errors: {counts['warning']}")
-	print(f"Other errors: {counts['other']}")
-	print("-------------------------")
-	print("")
-
-	print(f"Unclassified errors (up to {ERROR_SAMPLE_COUNT})")
-	for line in list_unclassified(error_lines, ERROR_SAMPLE_COUNT):
-		print(shorten_paths(line))
-	print("-------------------------")
-	print("")
-
-	print(f"Found {result_count} pyflakes errors across {len(error_files)} files")
-	print("Full report written to REPO_ROOT/report_pyflakes_code_lint.txt")
-	raise AssertionError(
-		f"Pyflakes errors in {len(error_files)} files "
-		f"({result_count} total lines). See report_pyflakes_code_lint.txt."
+	"""Enforce zero pyflakes violations on every Python file in the repo."""
+	rel = file_utils.rel_to_root(file_path)
+	file_violations = VIOLATIONS_BY_FILE.get(rel, [])
+	report_rel = file_utils.rel_to_root(file_utils.report_path(REPORT_NAME))
+	message = (
+		f"{len(file_violations)} pyflakes violation(s) in {rel}:\n"
+		+ "\n".join(file_violations)
+		+ f"\n See {report_rel}."
 	)
+	assert rel not in VIOLATIONS_BY_FILE, message

@@ -188,28 +188,32 @@ def write_report(name: str, text: str) -> str:
 
 
 #============================================
-def append_report(name: str, text: str) -> str:
+def sync_report(name: str, lines: list[str]) -> str:
 	"""
-	Append text to a repo-root report file, creating it when absent.
+	Sync a repo-root report file to match a list of violation lines.
 
-	Opens the report path in append mode with UTF-8 encoding and writes the
-	text verbatim. Used by parametrized tests whose cases accumulate into one
-	report; callers build the full text (including any header and trailing
-	newlines) before calling.
+	This is the single report-writing site for refactored hygiene tests. When
+	lines is non-empty, it truncate-writes the full report: every line joined
+	with newline plus a single trailing newline. When lines is empty, it purges
+	the report file so a clean run leaves no stale file behind. Callers pass raw
+	violation lines without trailing newlines; any header line is supplied as
+	lines[0]. Empty strings are permitted and render as blank lines.
 
 	Args:
-		name: Full report filename, for example "report_init_files.txt".
-		text: Full report body to append verbatim.
+		name: Full report filename, for example "report_pyflakes_code_lint.txt".
+		lines: Raw violation lines without trailing newlines. Each line gets
+			exactly one trailing newline. An empty list purges the report.
 
 	Returns:
-		str: Absolute path to the appended report file.
+		str: Absolute path to the report file (same as report_path(name)).
 	"""
-	# Resolve the absolute report path under the repo root.
-	path = report_path(name)
-	# Append the text so accumulating cases share one report file.
-	with open(path, "a", encoding="utf-8") as handle:
-		handle.write(text)
-	return path
+	# Empty lines means a clean run: remove any stale report and return its path.
+	if not lines:
+		purge_report(name)
+		return report_path(name)
+	# Non-empty: build the full body with one trailing newline, then truncate-write.
+	text = "\n".join(lines) + "\n"
+	return write_report(name, text)
 
 
 #============================================
@@ -243,41 +247,6 @@ def report_name(test_file: str) -> str:
 	topic = stem[len("test_"):]
 	# Assemble and return the canonical report filename.
 	return f"report_{topic}.txt"
-
-
-#============================================
-def append_report_block(name: str, header: str, lines: list[str]) -> str:
-	"""
-	Append a header-guarded block of lines to a repo-root report file.
-
-	On the first call for a given report (file does not yet exist), writes the
-	header followed by a newline before appending any lines. On subsequent
-	calls the header is skipped so lines accumulate under the same header.
-	Every element of lines is written as element + newline, in order; empty
-	elements produce blank lines.
-
-	Args:
-		name: Full report filename, for example "report_bandit_security.txt". Pass the
-			return value of report_name(__file__) to use the canonical name.
-		header: One-line header string written verbatim (without a trailing
-			newline) when the report does not yet exist, followed by newline.
-		lines: Sequence of strings to append, one per line. Each element is
-			written verbatim with a single trailing newline appended by this
-			function; the caller must not add newlines.
-
-	Returns:
-		str: Absolute path to the report file (same as report_path(name)).
-	"""
-	# Compute the absolute report path once; reuse for existence check and return value.
-	path = report_path(name)
-	# Write the header only when the report is being created for the first time.
-	if not os.path.exists(path):
-		append_report(name, header + "\n")
-	# Append each line with exactly one trailing newline.
-	for line in lines:
-		append_report(name, line + "\n")
-	# Return the absolute path to the report file.
-	return path
 
 
 #============================================

@@ -209,20 +209,55 @@ Three shared helpers complement `discover_files`:
 - `run_fixer_script(name, target)` -- shared subprocess wrapper: runs `tests/<name> -i target`
   and raises on failure. Used by the ASCII and whitespace auto-fix tests; avoids duplicated
   inline subprocess calls.
-- `report_path(name)` / `purge_report(name)` / `write_report(name, text)` / `append_report(name, text)`
-  -- centralize the repo-root report-file path, stale-file purge, truncate-write, and append flow.
-  Hygiene tests build the full report text first, then call one helper. Used by the ascii, bandit,
-  pyflakes, markdown_links, shebangs, and init_files tests.
+- `report_path(name)` / `purge_report(name)` / `write_report(name, text)`
+  -- lower-level primitives that centralize the repo-root report-file path, stale-file purge,
+  and truncate-write flow. These are the building blocks that `sync_report` is built on;
+  hygiene tests now call `sync_report` rather than these primitives directly.
 - `report_name(test_file: str) -> str` -- derive the canonical report filename from a test module
   path. Pass `__file__` and get back the matching `report_<stem>.txt` name (for example
   `report_name(__file__)` in `test_bandit_security.py` returns `"report_bandit_security.txt"`).
   Every hygiene test sets `REPORT_NAME = file_utils.report_name(__file__)` so the name is always
   derived from the filename, never hardcoded.
-- `append_report_block(name: str, header: str, lines: list[str]) -> str` -- append a
-  header-guarded block of lines to a report file. Writes the header once on first creation, then
-  appends each element of `lines` as a separate line. Use in parametrized hygiene tests where
-  each case contributes one violation block; the caller passes the current test's `REPORT_NAME`,
-  a one-line section header, and the list of violation strings.
+
+### Hygiene report files
+
+Every hygiene test writes a `report_<topic>.txt` at the repo root when violations exist and
+purges the file on a clean run. The canonical shape has two roles: a module-scope precompute
+fixture owns the single `sync_report` call, and each parametrized per-file test asserts against
+the precomputed result.
+
+**Precompute fixture (per-file tests):**
+
+- Declare `VIOLATIONS_BY_FILE: dict[str, list[str]]` as a module global.
+- Define `collect_violations(files: list[str]) -> dict[str, list[str]]` and
+  `make_report_lines(violations_by_file: dict[str, list[str]]) -> list[str]`.
+- Add an `@pytest.fixture(scope="module", autouse=True)` fixture named `collect_report` that
+  calls `collect_violations`, populates `VIOLATIONS_BY_FILE`, builds the lines list via
+  `make_report_lines`, and calls `file_utils.sync_report(REPORT_NAME, lines)` exactly once.
+- When a file fails to parse, record one entry `f"{rel}: SyntaxError: {error}"` in
+  `VIOLATIONS_BY_FILE` and skip that file's rule-specific checks.
+- Each parametrized test does plain `assert rel not in VIOLATIONS_BY_FILE, msg`. No
+  `raise AssertionError` and no `pytest.fail(` in the module.
+
+**Single-test write-style tests (writer tests):**
+
+- Build a `lines: list[str]` collecting all violations.
+- Call `file_utils.sync_report(REPORT_NAME, lines)` always (empty list purges on a clean run).
+- Fail via plain `assert`. Tool or precondition guards use `RuntimeError`.
+
+**`sync_report` signature and contract:**
+
+```python
+sync_report(name: str, lines: list[str]) -> str
+```
+
+`name` is the value of `REPORT_NAME = file_utils.report_name(__file__)`. When `lines` is
+non-empty, the report is truncate-written (one `\n` per line, one trailing `\n`). When `lines`
+is empty, the report file is purged via `purge_report`. Returns the absolute report path.
+
+Any run of a hygiene module synchronizes that module's entire report, even when only a subset
+of cases is selected with `-k`. Do not optimize the fixture to compute only selected cases --
+that reintroduces partial reports.
 
 ### Hygiene guard tests
 

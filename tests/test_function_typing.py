@@ -11,17 +11,12 @@ FILES = file_utils.discover_files(extensions=(".py",), test_key="function_typing
 
 REPORT_NAME = file_utils.report_name(__file__)
 
+# Module-level dict of repo-relative POSIX key -> list of violation lines.
+# Populated by the autouse collect_report fixture before any test runs.
+VIOLATIONS_BY_FILE: dict[str, list[str]] = {}
+
 # Args that never require an annotation (implicit type from the call protocol).
 IMPLICIT_ARG_NAMES = frozenset({"self", "cls"})
-
-
-#============================================
-@pytest.fixture(scope="module", autouse=True)
-def reset_function_typing_report() -> None:
-	"""
-	Remove stale report file before this module runs.
-	"""
-	file_utils.purge_report(REPORT_NAME)
 
 
 #============================================
@@ -150,6 +145,84 @@ def check_function_annotations(tree: ast.Module, rel: str) -> list[str]:
 
 
 #============================================
+def collect_violations(files: list[str]) -> dict[str, list[str]]:
+	"""
+	Run all typing checks on each file and return only those with violations.
+
+	Iterates files in the given order. For each file, parses it via
+	file_utils.parse_source. If parsing fails, records exactly one SyntaxError
+	entry for that file and skips the rule-specific checks. Otherwise runs
+	check_no_typing_import and check_function_annotations. Files with no
+	violations are omitted from the returned dict.
+
+	Args:
+		files: List of absolute file paths to check.
+
+	Returns:
+		dict[str, list[str]]: Repo-relative POSIX key -> list of violation lines,
+			containing only files that have at least one violation.
+	"""
+	result = {}
+	for path in files:
+		rel = file_utils.rel_to_root(path)
+		tree, error = file_utils.parse_source(path)
+		# Parsing failed: record one SyntaxError entry and skip rule checks.
+		if tree is None:
+			result[rel] = [f"{rel}: SyntaxError: {error}"]
+			continue
+		# Run each typing rule check and accumulate violation lines.
+		violations = check_no_typing_import(tree, rel)
+		violations += check_function_annotations(tree, rel)
+		# Only include files that have at least one violation.
+		if violations:
+			result[rel] = violations
+	return result
+
+
+#============================================
+def make_report_lines(violations_by_file: dict[str, list[str]]) -> list[str]:
+	"""
+	Build the full report body from a violations dict.
+
+	Iterates keys in sorted order and emits each file's violation lines in their
+	existing order. Returns a flat list of raw lines without trailing newlines.
+	The first element is a header line matching the prior report wording.
+
+	Args:
+		violations_by_file: Repo-relative POSIX key -> list of violation lines.
+
+	Returns:
+		list[str]: Raw report lines without trailing newlines. Empty when the
+			violations dict is empty (clean run).
+	"""
+	# Return an empty list for a clean run; sync_report will purge the file.
+	if not violations_by_file:
+		return []
+	# Emit header then each file's lines in sorted key order.
+	lines = ["function typing violations"]
+	for rel in sorted(violations_by_file):
+		lines += violations_by_file[rel]
+	return lines
+
+
+#============================================
+@pytest.fixture(scope="module", autouse=True)
+def collect_report() -> None:
+	"""
+	Autouse fixture: populate VIOLATIONS_BY_FILE and sync the report file.
+
+	Clears and rebuilds the module-level violations dict, then calls
+	file_utils.sync_report so that clean runs purge the report and failing
+	runs write the full body.
+	"""
+	# Clear any state left from a previous collection in the same process.
+	VIOLATIONS_BY_FILE.clear()
+	VIOLATIONS_BY_FILE.update(collect_violations(FILES))
+	lines: list[str] = make_report_lines(VIOLATIONS_BY_FILE)
+	file_utils.sync_report(REPORT_NAME, lines)
+
+
+#============================================
 @pytest.mark.parametrize(
 	"path", FILES,
 	ids=lambda p: file_utils.rel_to_root(p),
@@ -157,18 +230,12 @@ def check_function_annotations(tree: ast.Module, rel: str) -> list[str]:
 def test_function_typing(path: str) -> None:
 	"""Enforce no typing-module imports and full function annotations repo-wide."""
 	rel = file_utils.rel_to_root(path)
-	tree, error = file_utils.parse_source(path)
-	if tree is None:
-		raise AssertionError(f"{rel}: SyntaxError: {error}")
-	violations = check_no_typing_import(tree, rel)
-	violations += check_function_annotations(tree, rel)
-	if violations:
-		report_file = file_utils.append_report_block(
-			REPORT_NAME, "function typing violations", violations
-		)
-		report_rel = file_utils.rel_to_root(report_file)
-		raise AssertionError(
-			f"{len(violations)} annotation/typing violation(s) in {rel}:\n"
-			+ "\n".join(violations)
-			+ f"\n See {report_rel}."
-		)
+	# Collect the violation lines for this file (empty list means clean).
+	file_violations = VIOLATIONS_BY_FILE.get(rel, [])
+	report_rel = file_utils.rel_to_root(file_utils.report_path(REPORT_NAME))
+	message = (
+		f"{len(file_violations)} annotation/typing violation(s) in {rel}:\n"
+		+ "\n".join(file_violations)
+		+ f"\n See {report_rel}."
+	)
+	assert rel not in VIOLATIONS_BY_FILE, message

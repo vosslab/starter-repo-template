@@ -260,12 +260,9 @@ def test_ascii_compliance(pytestconfig: pytest.Config) -> None:
 	"""
 	check_path = os.path.join(REPO_ROOT, "tests", "check_ascii_compliance.py")
 	if not os.path.isfile(check_path):
-		raise AssertionError(f"Missing script: {check_path}")
+		raise RuntimeError(f"Missing script: {check_path}")
 
 	check_module = load_module("check_ascii_compliance", check_path)
-
-	# Delete old report file before running
-	file_utils.purge_report(REPORT_NAME)
 
 	if not FILES:
 		print("No files matched the requested scope.")
@@ -298,72 +295,79 @@ def test_ascii_compliance(pytestconfig: pytest.Config) -> None:
 		sys.stderr.write("\n")
 		sys.stderr.flush()
 
-	if not all_lines:
-		print("No errors found!!!")
-		return
+	has_violations = bool(all_lines)
 
-	report_text = "".join(f"{line}\n" for line in all_lines)
-	file_utils.write_report(REPORT_NAME, report_text)
+	# Build the report body: header first, then all error lines (raw, no trailing newlines)
+	lines: list[str] = []
+	if has_violations:
+		header = "ASCII compliance errors detected:"
+		lines = [header] + all_lines
 
-	error_lines = [line for line in all_lines if ERROR_RE.search(line)]
+	# Always sync: non-empty writes the report; empty purges any stale file
+	report_path = file_utils.sync_report(REPORT_NAME, lines)
 
-	print("")
-	print(f"First {ERROR_SAMPLE_COUNT} errors")
-	for line in error_lines[:ERROR_SAMPLE_COUNT]:
-		print(shorten_error_path(line))
-	print("-------------------------")
-	print("")
+	if has_violations:
+		error_lines = [line for line in all_lines if ERROR_RE.search(line)]
 
-	print(f"Random {ERROR_SAMPLE_COUNT} errors")
-	for line in sample_errors(error_lines, ERROR_SAMPLE_COUNT):
-		print(shorten_error_path(line))
-	print("-------------------------")
-	print("")
-
-	print(f"Last {ERROR_SAMPLE_COUNT} errors")
-	for line in error_lines[-ERROR_SAMPLE_COUNT:]:
-		print(shorten_error_path(line))
-	print("-------------------------")
-	print("")
-
-	error_files = list_error_files(error_lines)
-	error_file_count = len(error_files)
-	file_counts, codepoint_counts = count_error_details(error_lines)
-	emoji_count = 0
-	for codepoint in codepoint_counts:
-		codepoint_int = int(codepoint, 16)
-		if is_emoji_codepoint(codepoint_int):
-			emoji_count += codepoint_counts[codepoint]
-
-	if error_file_count <= 5:
-		print(f"Files with errors ({error_file_count})")
-		for path in error_files:
-			count = file_counts.get(path, 0)
-			print(f"{file_utils.rel_to_root(path)}: {count}")
 		print("")
-	else:
-		print(f"Files with errors: {error_file_count}")
-		top_files = top_items(file_counts, ERROR_SAMPLE_COUNT)
-		if top_files:
+		print(f"First {ERROR_SAMPLE_COUNT} errors")
+		for line in error_lines[:ERROR_SAMPLE_COUNT]:
+			print(shorten_error_path(line))
+		print("-------------------------")
+		print("")
+
+		print(f"Random {ERROR_SAMPLE_COUNT} errors")
+		for line in sample_errors(error_lines, ERROR_SAMPLE_COUNT):
+			print(shorten_error_path(line))
+		print("-------------------------")
+		print("")
+
+		print(f"Last {ERROR_SAMPLE_COUNT} errors")
+		for line in error_lines[-ERROR_SAMPLE_COUNT:]:
+			print(shorten_error_path(line))
+		print("-------------------------")
+		print("")
+
+		error_files = list_error_files(error_lines)
+		error_file_count = len(error_files)
+		file_counts, codepoint_counts = count_error_details(error_lines)
+		emoji_count = 0
+		for codepoint in codepoint_counts:
+			codepoint_int = int(codepoint, 16)
+			if is_emoji_codepoint(codepoint_int):
+				emoji_count += codepoint_counts[codepoint]
+
+		if error_file_count <= 5:
+			print(f"Files with errors ({error_file_count})")
+			for path in error_files:
+				count = file_counts.get(path, 0)
+				print(f"{file_utils.rel_to_root(path)}: {count}")
 			print("")
-			print("Top 5 files by error count")
-			for path, count in top_files:
-				display_path = file_utils.rel_to_root(path)
-				print(f"{display_path}: {count}")
-	top_codepoints = top_items(codepoint_counts, ERROR_SAMPLE_COUNT)
-	if top_codepoints:
-		print("")
-		print("Top 5 Unicode characters by frequency")
-		for codepoint, count in top_codepoints:
-			display_char = chr(int(codepoint, 16))
-			if not display_char.isprintable() or display_char.isspace():
-				display_char = "?"
-			print(f"U+{codepoint} {display_char}: {count}")
-	if emoji_count:
-		print("")
-		print(f"Found {emoji_count} emoji codepoints; handle them case by case.")
+		else:
+			print(f"Files with errors: {error_file_count}")
+			top_files = top_items(file_counts, ERROR_SAMPLE_COUNT)
+			if top_files:
+				print("")
+				print("Top 5 files by error count")
+				for path, count in top_files:
+					display_path = file_utils.rel_to_root(path)
+					print(f"{display_path}: {count}")
+		top_codepoints = top_items(codepoint_counts, ERROR_SAMPLE_COUNT)
+		if top_codepoints:
+			print("")
+			print("Top 5 Unicode characters by frequency")
+			for codepoint, count in top_codepoints:
+				display_char = chr(int(codepoint, 16))
+				if not display_char.isprintable() or display_char.isspace():
+					display_char = "?"
+				print(f"U+{codepoint} {display_char}: {count}")
+		if emoji_count:
+			print("")
+			print(f"Found {emoji_count} emoji codepoints; handle them case by case.")
 
-	print("Found {} ASCII compliance errors written to REPO_ROOT/report_ascii_compliance.txt".format(
-		len(all_lines),
-	))
-	raise AssertionError("ASCII compliance errors detected.")
+	else:
+		print("No errors found!!!")
+
+	assert not has_violations, (
+		f"ASCII compliance errors detected. See {file_utils.rel_to_root(report_path)}"
+	)

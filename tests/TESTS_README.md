@@ -119,20 +119,22 @@ Three shared helpers complement `discover_files`:
 - `run_fixer_script(name, target)` -- shared subprocess wrapper: runs `tests/<name> -i target`
   and raises on failure. Used by the ASCII and whitespace auto-fix tests; avoids duplicated
   inline subprocess calls.
-- `report_path(name)` / `purge_report(name)` / `write_report(name, text)` / `append_report(name, text)`
-  -- centralize the repo-root report-file path, stale-file purge, truncate-write, and append flow.
-  Hygiene tests build the full report text first, then call one helper. Used by the ascii, bandit,
-  pyflakes, markdown_links, shebangs, and init_files tests.
+- `report_path(name)` / `purge_report(name)` / `write_report(name, text)`
+  -- lower-level primitives that centralize the repo-root report-file path, stale-file purge,
+  and truncate-write flow. These are the building blocks that `sync_report` is built on;
+  hygiene tests now call `sync_report` rather than these primitives directly.
 - `report_name(test_file: str) -> str` -- derive the canonical report filename from a test module
   path. Pass `__file__` and get back the matching `report_<stem>.txt` name (for example
   `report_name(__file__)` in `test_bandit_security.py` returns `"report_bandit_security.txt"`).
   Every hygiene test sets `REPORT_NAME = file_utils.report_name(__file__)` so the name is always
   derived from the filename, never hardcoded.
-- `append_report_block(name: str, header: str, lines: list[str]) -> str` -- append a
-  header-guarded block of lines to a report file. Writes the header once on first creation, then
-  appends each element of `lines` as a separate line. Use in parametrized hygiene tests where
-  each case contributes one violation block; the caller passes the current test's `REPORT_NAME`,
-  a one-line section header, and the list of violation strings.
+- `sync_report(name: str, lines: list[str]) -> str` -- write the full report when `lines` is
+  non-empty (truncate-write, one `\n` per line, one trailing `\n`), or purge the report file
+  when `lines` is empty. Returns the absolute path. This is the single report-writing site for
+  the canonical hygiene-report pattern: the precompute fixture calls it once per module run,
+  decoupled from the per-file assertions. Pass `REPORT_NAME = file_utils.report_name(__file__)`
+  as `name`. See [../docs/PYTEST_STYLE.md](../docs/PYTEST_STYLE.md) "Hygiene report files" for
+  the full canonical shape.
 
 ### Hygiene guard tests
 

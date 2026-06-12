@@ -343,13 +343,17 @@ def scan_file(
 
 
 #============================================
-def report_issues(all_issues: list[str]) -> None:
+def print_issue_samples(all_issues: list[str]) -> None:
 	"""
-	Write the report file and print samples, then fail.
-	"""
-	report_text = "".join(f"{line}\n" for line in all_issues)
-	file_utils.write_report(REPORT_NAME, report_text)
+	Print diagnostic samples of link issues to stdout.
 
+	Prints the first, a random selection, and the last few issues, plus a
+	per-file issue count summary. Used for human-readable console output when
+	violations are found; does not write any files.
+
+	Args:
+		all_issues: List of "path:line: message" issue strings.
+	"""
 	print("")
 	print(f"First {ERROR_SAMPLE_COUNT} errors")
 	for line in all_issues[:ERROR_SAMPLE_COUNT]:
@@ -370,7 +374,7 @@ def report_issues(all_issues: list[str]) -> None:
 	print("-------------------------")
 
 	# Count issues per file for a quick overview.
-	file_counts = {}
+	file_counts: dict[str, int] = {}
 	for line in all_issues:
 		file_path = line.split(":", 1)[0]
 		file_counts[file_path] = file_counts.get(file_path, 0) + 1
@@ -383,7 +387,6 @@ def report_issues(all_issues: list[str]) -> None:
 		f"Found {len(all_issues)} markdown link errors written to "
 		f"REPO_ROOT/{REPORT_NAME}"
 	)
-	raise AssertionError("Markdown link errors detected.")
 
 
 #============================================
@@ -395,12 +398,11 @@ def test_markdown_links() -> None:
 	# scan_file consumes a repo-relative POSIX path, so convert each here.
 	files = [to_posix(os.path.relpath(abs_path, REPO_ROOT)) for abs_path in FILES]
 
-	# Delete any stale report before running.
-	file_utils.purge_report(REPORT_NAME)
-
 	if not files:
 		print("No files matched the requested scope.")
 		print("No errors found!!!")
+		# Sync with empty list so any stale report is purged.
+		file_utils.sync_report(REPORT_NAME, [])
 		return
 
 	tracked_set = set(file_utils.list_tracked_files(REPO_ROOT))
@@ -410,8 +412,16 @@ def test_markdown_links() -> None:
 	for md_path in sorted(files):
 		all_issues.extend(scan_file(REPO_ROOT, tracked_set, tracked_dirs, md_path))
 
-	if not all_issues:
-		print("No errors found!!!")
-		return
+	# Build report lines when there are violations; header matches prior wording.
+	lines: list[str] = []
+	if all_issues:
+		header = "Markdown link errors detected:"
+		lines = [header] + all_issues
+		print_issue_samples(all_issues)
 
-	report_issues(all_issues)
+	# Always sync: non-empty writes the report; empty purges any stale file.
+	report_path = file_utils.sync_report(REPORT_NAME, lines)
+
+	assert not all_issues, (
+		f"Markdown link errors detected. See {file_utils.rel_to_root(report_path)}"
+	)

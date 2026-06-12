@@ -189,40 +189,27 @@ def format_errors(errors: dict[str, list[str]], limit: int | None = 10) -> str:
 
 
 #============================================
-def write_error_report(errors: dict[str, list[str]]) -> str:
-	"""
-	Write a full shebang report to a repo file.
-
-	Builds the full report text (every category, no per-category limit,
-	with a trailing newline) and writes it through the shared report helper.
-
-	Args:
-		errors: Error categories and paths.
-
-	Returns:
-		str: Absolute path to the report file.
-	"""
-	# Build the full report body, then append the single trailing newline.
-	content = format_errors(errors, limit=None) + "\n"
-	return file_utils.write_report(REPORT_NAME, content)
-
-
-#============================================
 def test_shebang_executable_alignment() -> None:
 	"""
 	Ensure shebangs and executable bits are aligned.
 	"""
-	# Delete old report file before running
-	file_utils.purge_report(REPORT_NAME)
-
 	errors = categorize_errors()
-	if all(not values for values in errors.values()):
-		return
-	report_path = write_error_report(errors)
+	has_violations = not all(not values for values in errors.values())
+
+	# Build violation lines: header first, then one line per formatted error line.
+	# Pass [] when clean so sync_report purges any stale report file.
+	lines: list[str] = []
+	if has_violations:
+		header = "Shebang issues found:"
+		# format_errors with no limit builds the full detail body
+		body = format_errors(errors, limit=None)
+		lines = [header] + body.split("\n")
+
+	# Always sync: non-empty writes the report; empty purges any stale file
+	report_path = file_utils.sync_report(REPORT_NAME, lines)
+
 	message = format_errors(errors, limit=10)
-	display_report = file_utils.rel_to_root(report_path, REPO_ROOT)
-	raise AssertionError(
-		"Shebang issues found:\n"
-		f"{message}\n"
-		f"Full report: {display_report}"
+	assert not has_violations, (
+		f"Shebang issues found:\n{message}\n"
+		f"Full report: {file_utils.rel_to_root(report_path)}"
 	)
