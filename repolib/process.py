@@ -15,7 +15,7 @@ import repolib.repo
 
 
 #============================================
-def build_context_for_repo(repo_path: str, dry_run: bool, bootstrap: bool,
+def build_context_for_repo(repo_path: str, dry_run: bool, initial_setup: bool,
 		auto_discover: bool, write_marker: bool) -> repolib.model.PropagateContext:
 	"""
 	Build a PropagateContext for a single target repo.
@@ -24,13 +24,17 @@ def build_context_for_repo(repo_path: str, dry_run: bool, bootstrap: bool,
 	absolute path and resolves the source template root from the running source
 	checkout -- the one that contains propagate_style_guides.py and repolib/ --
 	NOT from the target -R repo. propagate_style_guides.py calls this with
-	bootstrap=False, auto_discover=True, write_marker=True; reset_repo.py calls
-	it with bootstrap=True, auto_discover=False, write_marker=False.
+	initial_setup=False, auto_discover=True, write_marker=True; reset_repo.py
+	calls it with initial_setup=True, auto_discover=False, write_marker=False.
 
 	Args:
 		repo_path (str): Direct path to the target repo directory.
 		dry_run (bool): If True, only display planned changes.
-		bootstrap (bool): If True, force-copy noexist files even when present.
+		initial_setup (bool): If True, this run intentionally applies the selected
+			project template to the current checkout. Skips the self-skip guard so
+			the template repo can propagate files onto itself. Also force-copies
+			noexist files even when already present. Batch propagation keeps
+			initial_setup=False.
 		auto_discover (bool): If True, scan the SOURCE template tests/ for
 			test_*.py/test_*.mjs files absent from the static spec and add them
 			to what gets copied INTO the target repo. Single-repo meaning only;
@@ -49,7 +53,7 @@ def build_context_for_repo(repo_path: str, dry_run: bool, bootstrap: bool,
 		template_root=template_root,
 		repo_name=repo_name,
 		dry_run=dry_run,
-		bootstrap=bootstrap,
+		initial_setup=initial_setup,
 		auto_discover=auto_discover,
 		write_marker=write_marker,
 	)
@@ -103,10 +107,14 @@ def apply_file_bucket(bucket_name: str, spec: dict, repo_dir: str, repo_type: st
 	bucket_copies = 0
 	bucket_skips = 0
 
-	# Defense in depth: assert no dispatcher entry is META even if the walker
-	# was bypassed (plan read from disk, user-supplied paths, etc.).
+	# Defense in depth: assert no dispatcher entry is a META FILE even if the
+	# walker was bypassed (plan read from disk, user-supplied paths, etc.).
+	# Uses the META_FILES-only guard, not the strict directory-traversal guard:
+	# consumer paths may legitimately live under a META_DIRS-named directory
+	# (e.g. typed-overlay tools/ ships at the consumer's tools/), and rejecting
+	# those here would block the new "every templates/<type>/ file ships" standard.
 	for entry in spec.get(bucket_name, []):
-		repolib.files.assert_not_meta(entry)
+		repolib.files.assert_not_meta_file(entry)
 
 	if bucket_name == 'overwrite_files':
 		# ============ OVERWRITE BUCKET ============
@@ -142,7 +150,7 @@ def apply_file_bucket(bucket_name: str, spec: dict, repo_dir: str, repo_type: st
 
 	elif bucket_name == 'noexist_files':
 		# ============ NOEXIST BUCKET ============
-		# Noexist: copy only if destination does not exist; bootstrap mode overrides.
+		# Noexist: copy only if destination does not exist; initial_setup mode overrides.
 		for file_rel in spec['noexist_files']:
 			source_file = repolib.model.find_source_for_bucket(context.source_dir, 'noexist_files', file_rel, repo_type)
 			if source_file is None:
@@ -160,8 +168,8 @@ def apply_file_bucket(bucket_name: str, spec: dict, repo_dir: str, repo_type: st
 				repolib.console.log_action("skip", f"path: {dest_file} (repo is already on PATH)", counters)
 				continue
 
-			if os.path.exists(dest_file) and not context.bootstrap:
-				repolib.console.log_action("skip", f"{dest_file} (exists; bootstrap mode overrides)", counters)
+			if os.path.exists(dest_file) and not context.initial_setup:
+				repolib.console.log_action("skip", f"{dest_file} (exists; initial_setup mode overrides)", counters)
 				bucket_skips += 1
 				continue
 
@@ -276,7 +284,10 @@ def process_repo(repo_dir: str, context: repolib.model.PropagateContext, counter
 	across four buckets (overwrite, noexist, devel, test), gitignore management,
 	and optionally per-repo summary output. Updates counters in-place.
 
-	Returns a dict with 'name' and 'type' keys for the processed repo, or None if skipped.
+	Return contract (single source of truth):
+	  - None   = intentionally skipped (not a git repo, or self-skip guard fired)
+	  - dict   = propagation applied; keys 'name' and 'type' identify the repo
+	  - raises = failure; caller is responsible for catching and counting
 
 	Args:
 		repo_dir (str): Path to the repository directory.
@@ -286,13 +297,15 @@ def process_repo(repo_dir: str, context: repolib.model.PropagateContext, counter
 			(used in single-repo mode where summary is printed at end).
 
 	Returns:
-		dict | None: {'name': repo_basename, 'type': repo_type} or None if repo was skipped.
+		dict | None: {'name': repo_basename, 'type': repo_type} or None if skipped.
 	"""
 	if not repolib.repo.is_repo_dir(repo_dir):
 		return None
 
+	# Self-skip guard: when the target IS the template repo, skip unless this is
+	# an initial_setup run (reset_repo.py bootstrapping the template itself).
 	repo_normalized = repolib.files.normalize_path(repo_dir)
-	if repo_normalized == context.template_root:
+	if repo_normalized == context.template_root and not context.initial_setup:
 		repolib.console.log_action("skip", f"self: {repo_dir}", counters)
 		return None
 

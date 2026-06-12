@@ -18,12 +18,15 @@ Pin shape: ``>={latest}`` uniformly (the user does not support versions
 older than today; ``>=`` avoids the npm 0.x caret quirk that would lock
 ``^0.25.0`` below the current 0.28.x line).
 
-This script lives under ``meta/tools/`` so it is excluded from
-propagation to consumer repos.
+This script ships to typescript consumer repos at
+``tools/sync_typescript_package_pins.py`` in each consumer (every file
+under ``templates/typescript/`` ships at its relative path). The anchor
+is the CWD, not the script location, so run from ``~/nsh`` to sweep all
+repos or from a single repo to scope to that tree.
 
 Run:
 
-    cd ~/nsh && starter-repo-template/meta/tools/sync_typescript_package_pins.py [--apply]
+    python3 tools/sync_typescript_package_pins.py [--apply]
 
 Default mode prints the per-target diff and writes nothing. ``--apply``
 re-runs after the diff and writes the changes back.

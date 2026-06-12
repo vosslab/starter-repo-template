@@ -457,7 +457,7 @@ class TestApplyFileBucket:
 	"""Test apply_file_bucket helper covering per-bucket special cases."""
 
 	def test_noexist_bucket_skip_policy(self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch) -> None:
-		"""Test noexist bucket: skip when dest exists and --bootstrap not set."""
+		"""Test noexist bucket: skip when dest exists and --initial_setup not set."""
 		# Setup
 		repo_dir = tmp_path / "repo"
 		repo_dir.mkdir()
@@ -480,13 +480,13 @@ class TestApplyFileBucket:
 			'test_files': [],
 		}
 
-		# Context with bootstrap=False
+		# Context with initial_setup=False
 		context = repolib.model.PropagateContext(
 			source_dir=str(source_dir),
 			template_root=str(source_dir),
 			repo_name=None,
 			dry_run=False,
-			bootstrap=False,
+			initial_setup=False,
 			auto_discover=False,
 			write_marker=False,
 		)
@@ -540,7 +540,7 @@ class TestApplyFileBucket:
 			template_root=str(source_dir),
 			repo_name=None,
 			dry_run=False,
-			bootstrap=False,
+			initial_setup=False,
 			auto_discover=False,
 			write_marker=False,
 		)
@@ -602,7 +602,7 @@ class TestApplyFileBucket:
 			template_root=str(source_dir),
 			repo_name=None,
 			dry_run=False,
-			bootstrap=False,
+			initial_setup=False,
 			auto_discover=False,
 			write_marker=False,
 		)
@@ -661,7 +661,7 @@ class TestApplyFileBucket:
 			template_root=str(source_dir),
 			repo_name=None,
 			dry_run=False,
-			bootstrap=False,
+			initial_setup=False,
 			auto_discover=False,
 			write_marker=False,
 		)

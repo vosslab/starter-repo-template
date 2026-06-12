@@ -35,7 +35,7 @@ def main() -> int:
 	args = parse_args()
 	context = repolib.process.build_context_for_repo(
 		repo_path=args.repo_path, dry_run=args.dry_run,
-		bootstrap=False, auto_discover=True, write_marker=True)
+		initial_setup=False, auto_discover=True, write_marker=True)
 	counters = repolib.console.init_counters()
 	result = repolib.process.process_repo(args.repo_path, context, counters, emit_per_repo_summary=False)
 	repo_results = []

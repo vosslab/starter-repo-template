@@ -26,13 +26,22 @@ Do not try to eliminate all hardcoding. Root has mixed semantics; explicit lists
 | Universal pytest helper | tests/ (test_*.py or helper) | every repo, overwrite |
 | Helper script in devel/ | devel/ | every repo, overwrite |
 | Starter file that must not clobber existing | templates/<type>/noexist/<consumer-path> | only when missing |
-| TypeScript-only file | templates/typescript/<consumer-path> | typescript repos only |
-| Rust-only file | templates/rust/<consumer-path> | rust repos only |
+| TypeScript-only file (any subpath, including tools/) | templates/typescript/<consumer-path> | typescript repos only |
+| Rust-only file (any subpath, including tools/) | templates/rust/<consumer-path> | rust repos only |
 | Language-specific file | add path to ROUTING_OVERRIDES in repolib/model.py | language-specific behavior |
 | Root-level file like AGENTS.md | template root + add to ROOT_PROPAGATE_ALLOWLIST | every repo, overwrite |
 | Universal gitignore blocks | templates/gitignore.universal | every repo, merged into .gitignore under `# === UNIVERSAL ===` |
 | MERGE bucket (set-union @-import merge with strip list) | template root + add to `MERGE_FILES` | every repo; template @-imports union-added to consumer; strip list at `meta/propagation/deprecated_claude_md.txt` removes retired entries (see [MERGE_BUCKET_SPEC.md](MERGE_BUCKET_SPEC.md)) |
-| Template-only tooling | tools/<file> | never (template-meta) |
+| Template-only tooling at ROOT | tools/<file> (repo-root tools/, e.g. tools/detect_repo_type.py) | never (template-meta); removed at reset |
+| Typed-overlay tooling | templates/<type>/tools/<file> (e.g. templates/typescript/tools/sync_typescript_package_pins.py) | that type only, ships at consumer tools/<file> |
+
+**Standard: every file under `templates/<type>/` ships** to consumers of that
+type, at its path relative to `templates/<type>/`. This includes `tools/`
+subpaths. The typed-overlay walker no longer filters subdirectories against
+META_DIRS; only the META_FILES basename guard still applies (so a stray
+`templates/<type>/README.md` cannot clobber a consumer README). The ROOT `tools/`
+directory is separate: it holds template infrastructure (e.g.
+`tools/detect_repo_type.py`), never ships, and is removed during reset.
 
 ## Precedence
 
@@ -85,7 +94,7 @@ The `ROUTING_OVERRIDES` dict in `repolib/model.py` controls which files ship and
 
 ## What never propagates
 
-Listed in `META_FILES` / `META_DIRS` / `META_TEST_PREFIXES`. Includes the propagator entry script `propagate_style_guides.py`, reset_repo.py, README.md, VERSION, Brewfile, .gitignore, REPO_TYPE, pip_extras.txt (root META_FILES); `repolib/` helper package, `tools/` (detect_repo_type.py and other template-only tooling), `meta/` (this doc and other template-meta), `templates/` (only contents under `templates/<type>/` ship), `LICENSES/`, `docs/active_plans/`, `docs/archive/`, `experiment_reports/`, `__pycache__/`, `.git/` (META_DIRS). Tests are excluded via two mechanisms: `tests/meta/` is excluded as a whole via `SKIP_WALK_DIRS` containing `'meta'`, and tests starting with `test_repolib_`, `test_reset_repo_`, or `test_detect_repo_type` are also excluded via `META_TEST_PREFIXES`.
+Listed in `META_FILES` / `META_DIRS` / `META_TEST_PREFIXES`. Includes the propagator entry script `propagate_style_guides.py`, reset_repo.py, README.md, VERSION, Brewfile, .gitignore, REPO_TYPE, pip_extras.txt (root META_FILES); `repolib/` helper package, ROOT `tools/` (detect_repo_type.py and other root-level template infrastructure; note that `templates/<type>/tools/` is a separate path that DOES ship), `meta/` (this doc and other template-meta), `templates/` (every file under `templates/<type>/` ships at its relative path, including tools/ subpaths), `LICENSES/`, `docs/active_plans/`, `docs/archive/`, `experiment_reports/`, `__pycache__/`, `.git/` (META_DIRS). Tests are excluded via two mechanisms: `tests/meta/` is excluded as a whole via `SKIP_WALK_DIRS` containing `'meta'`, and tests starting with `test_repolib_`, `test_reset_repo_`, or `test_detect_repo_type` are also excluded via `META_TEST_PREFIXES`.
 
 ## Link bucket isolation
 

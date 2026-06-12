@@ -48,6 +48,43 @@
   targets `tests/e2e/` and `tests/playwright/` subtrees present only in TypeScript repos; in
   this Python repo all checks early-skipped and the module was inert. It now ships only to
   `REPO_TYPE=typescript` consumer repos.
+- Renamed `PropagateContext` field `bootstrap` -> `initial_setup` (parameters, docstrings, log
+  messages); batch propagation behavior is identical with `initial_setup=False`. Updated all
+  callers in `repolib/`, `reset_repo.py`, `tests/meta/test_propagate_cli.py`, and
+  `tests/meta/test_repolib_helpers.py`.
+- `reset_repo.py` cleanup now also removes `templates/` after propagation and gitignore merge
+  have read from it; absent or untracked `templates/` is handled cleanly. Two new end-state
+  checks added: `verify_scaffold_sentinel` (per-type sentinel file -- typescript:
+  `eslint.config.js`, python: `docs/PYTHON_STYLE.md`) and `verify_clean_end_state` (raises
+  listing any leftover `templates/`, `repolib/`, `LICENSES/`, `meta/`, or `tests/meta/` paths
+  found in `git ls-files` or on disk). Note: `tools/` is intentionally not in this list -- see
+  the later same-day standard-change entry; typed-overlay `tools/` files may legitimately
+  remain on a consumer after cleanup.
+- New propagation standard: every file under `templates/<type>/` ships to consumers of that
+  type, at its path relative to `templates/<type>/`, including `tools/` subpaths. The
+  typed-overlay walker (`repolib/files.py` step 2) no longer trims the `tools`/`meta`
+  directories or filters subdirectories against `META_DIRS`; only the `META_FILES`
+  basename/path guard remains (so a stray `templates/<type>/README.md` cannot clobber a
+  consumer README). Split `assert_not_meta` into `assert_not_meta` (strict: also rejects
+  `META_DIRS` traversal, used by the universal walk for ROOT `tools/` infrastructure) and
+  `assert_not_meta_file` (`META_FILES`-only, used by typed-overlay appends and the apply-time
+  dispatcher in `repolib/process.py`) so legitimate consumer `tools/` paths are not rejected.
+  The ROOT `tools/` directory (template infrastructure, e.g. `tools/detect_repo_type.py`) is
+  unchanged: it never ships and is removed at reset.
+- Relocated `sync_typescript_package_pins.py` to `templates/typescript/tools/` (user `git mv`);
+  under the new standard it now ships to typescript consumers at
+  `tools/sync_typescript_package_pins.py`. This supersedes this morning's entry that described
+  it shipping via the devel bucket to `devel/`: the file lives under `tools/`, not `devel/`,
+  and reaches consumers through the typed overlay. Docstring updated to the new location and a
+  Run example of `python3 tools/sync_typescript_package_pins.py [--apply]` (CWD-anchored).
+- `reset_repo.py` end-state verification: removed `tools/` from `TEMPLATE_OWNED_PREFIXES`.
+  Consumers may now legitimately receive `tools/` files from the typed overlay, so a `tools/`
+  directory remaining after cleanup must not fail `verify_clean_end_state`. The cleanup-phase
+  `git rm -r tools/` still removes the template's own tracked root `tools/` (e.g.
+  `tools/detect_repo_type.py`); it removes tracked entries only, so freshly propagated untracked
+  `tools/` files survive. The `git rm -r tools/` step now guards on tracked content (logs and
+  skips when `tools/` holds only untracked propagated files) instead of failing on a no-match
+  pathspec, mirroring the existing `templates/` handling.
 
 ### Fixes and Maintenance
 
@@ -64,6 +101,18 @@
   `tests/test_test_naming_conventions.py` reference to
   `templates/typescript/tests/test_test_naming_conventions.py` with a note that it ships only
   to TypeScript repos.
+- Fixed `reset_repo.py` initial-setup propagation silent no-op in consumer clones:
+  `process_repo`'s self-skip guard (template root anchored on `repolib/__file__`) matched the
+  consumer repo itself and returned `None`, which `run_propagate` ignored; zero typed-overlay
+  files shipped (observed on a typescript consumer: no scaffold, no TYPESCRIPT gitignore block,
+  `templates/` left tracked). Fixed by gating the self-skip on the context `initial_setup`
+  flag and raising `RuntimeError` in `run_propagate` when `process_repo` returns `None`.
+- Relocated `templates/typescript/tools/html_to_pdf.mjs` to
+  `templates/typescript/devel/html_to_pdf.mjs` via `git mv` so it ships via the `devel_files`
+  bucket (verified in the typescript plan `devel_files` listing). Note: at the time of this move
+  typed-overlay `tools/` did not ship, so devel/ was the route to reach consumers; the later
+  same-day standard change makes `templates/<type>/tools/` ship directly, but this file remains
+  in `devel/` as a deliberate placement.
 
 ### Behavior or Interface Changes
 
@@ -76,12 +125,41 @@
 
 ### Removals and Deprecations
 
+- Removed `templates/typescript/tools/check_css_content_policy.py` from the template: the script
+  contains project-specific virtual-lab DOM selectors and is not appropriate for general typescript
+  consumers. It stays in its origin repo (virtual-lab) where it belongs. The `check_codebase.sh`
+  step 5 `css:policy` gate already uses `[ -f tools/check_css_content_policy.py ]` so consumers
+  without the script get a clean SKIP and are unaffected. No stub or replacement ships from the
+  template.
+
+- Removed the `css:policy` step from `templates/typescript/check_codebase.sh` (header renumbered):
+  a permanently skipped step caused confusion and concern once `check_css_content_policy.py` no
+  longer ships; repos that carry their own policy script can add a local step.
+
 - Removed `file_utils.sync_report` and `file_utils.purge_report` (dead code, M3 plan): all 11
   plan modules plus `tests/test_init_files.py` migrated to `write_report_lines` +
   `clear_stale_reports`; zero active callers
   remained. Deleted `tests/meta/test_sync_report.py` (pinned only the removed helpers).
   Updated `tests/TESTS_README.md` and the `write_report_lines` docstring to remove stale
   references.
+
+### Developer Tests and Notes
+
+- Added `tests/meta/test_reset_repo_self_propagation.py` (14 tests): `initial_setup`-on-self
+  applies correct buckets, batch self-skip returns `None`, `run_propagate` raises on `None`,
+  end-state verifier raises on planted leftovers, scaffold-present + templates-absent ordering
+  invariant. Updated `bootstrap=` keyword in `tests/meta/test_propagate_cli.py` and
+  `tests/meta/test_repolib_helpers.py`. Suite: 1008 passed.
+
+### Decisions and Failures
+
+- Root cause of the reset_repo initial-setup no-op: regression introduced when `reset_repo.py`
+  switched from shelling out to `propagate_style_guides.py` to calling `repolib` directly; the
+  batch-mode self-skip guard was correct for batch propagation but silently disabled the entire
+  initial-setup use case. E2E in `/tmp` scratch clones confirmed all 18 typescript files land
+  and the TYPESCRIPT gitignore block is written. Full live exit-0 run requires a committed HEAD
+  (uncommitted-overlay clones cause `git rm` to refuse modified files -- test-setup artifact,
+  not a product bug).
 
 ## 2026-06-11
 

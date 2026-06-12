@@ -36,14 +36,55 @@ def test_meta_dir_excludes_nested_files() -> None:
 		assert 'meta/docs/PROPAGATION_RULES.md' not in plan['overwrite_files']
 
 
-def test_meta_dir_excludes_tools_nested() -> None:
-	"""Files under tools/ (META_DIRS entry) never ship, regardless of file name."""
+def test_meta_dir_excludes_root_tools_nested() -> None:
+	"""ROOT tools/ (META_DIRS entry) never ships, regardless of file name.
+
+	This guards the template's own root infrastructure (e.g.
+	tools/detect_repo_type.py). The separate templates/<type>/tools/ overlay
+	path DOES ship -- see test_typescript_overlay_tools_ships.
+	"""
 	with tempfile.TemporaryDirectory() as tmpdir:
 		os.makedirs(os.path.join(tmpdir, 'tools'))
 		with open(os.path.join(tmpdir, 'tools', 'detect_repo_type.py'), 'w') as f:
 			f.write('test')
 		plan = repolib.files.compute_propagation_plan(tmpdir, 'python')
 		assert 'tools/detect_repo_type.py' not in plan['overwrite_files']
+
+
+def test_typescript_overlay_tools_ships() -> None:
+	"""templates/typescript/tools/<file> ships at consumer tools/<file>.
+
+	Standard: every file under templates/<type>/ ships at its relative path,
+	including tools/ subpaths. This is the typed-overlay counterpart to the
+	ROOT tools/ exclusion above.
+	"""
+	with tempfile.TemporaryDirectory() as tmpdir:
+		tools_dir = os.path.join(tmpdir, 'templates', 'typescript', 'tools')
+		os.makedirs(tools_dir)
+		with open(os.path.join(tools_dir, 'sync_typescript_package_pins.py'), 'w') as f:
+			f.write('test')
+		plan_ts = repolib.files.compute_propagation_plan(tmpdir, 'typescript')
+		plan_py = repolib.files.compute_propagation_plan(tmpdir, 'python')
+		assert 'tools/sync_typescript_package_pins.py' in plan_ts['overwrite_files']
+		# Other repo types do not get the typescript overlay file.
+		assert 'tools/sync_typescript_package_pins.py' not in plan_py['overwrite_files']
+
+
+def test_typescript_overlay_tools_meta_file_basename_excluded() -> None:
+	"""A META_FILES basename inside templates/<type>/tools/ still does not ship.
+
+	The META_FILES basename guard is retained in the typed overlay so a stray
+	README.md (or any META name) under the overlay -- even in a shipping subdir
+	like tools/ -- cannot clobber the consumer's file.
+	"""
+	with tempfile.TemporaryDirectory() as tmpdir:
+		tools_dir = os.path.join(tmpdir, 'templates', 'typescript', 'tools')
+		os.makedirs(tools_dir)
+		with open(os.path.join(tools_dir, 'README.md'), 'w') as f:
+			f.write('test')
+		plan = repolib.files.compute_propagation_plan(tmpdir, 'typescript')
+		assert 'tools/README.md' not in plan['overwrite_files']
+		assert 'README.md' not in plan['overwrite_files']
 
 
 def test_meta_test_prefix_excluded() -> None:

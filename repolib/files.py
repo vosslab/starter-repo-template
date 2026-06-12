@@ -13,22 +13,23 @@ import repolib.model
 # META leak guard
 #============================================
 
-def assert_not_meta(file_rel: str) -> None:
+def assert_not_meta_file(file_rel: str) -> None:
 	"""
-	Fail loud if a file path would land in any propagation bucket despite being META.
+	Fail loud if a path matches META_FILES (by basename or full rel-path).
 
-	Called at every plan-construction append site and at the top of the propagator's
-	apply_file_bucket dispatcher. Catches both plan-construction leaks (new walker
-	branch forgets to filter META) and plan-injection leaks (future feature reads
-	a plan from disk or accepts user-supplied paths).
+	This is the consumer-path-safe guard: it protects per-consumer files the
+	template must never clobber (README.md, VERSION, .gitignore, etc.) without
+	rejecting paths that merely traverse a META_DIRS component. Legitimate
+	consumer paths may live under a directory named like a META_DIRS entry --
+	for example templates/<type>/tools/ ships at the consumer's tools/ -- so
+	the apply-time dispatcher uses this check, not the stricter
+	directory-traversal check in assert_not_meta.
 
 	Args:
-		file_rel: Repo-root-relative file path about to be added to a bucket
-		          or about to be copied.
+		file_rel: Repo-root-relative file path about to be copied to a consumer.
 
 	Raises:
-		RuntimeError: file_rel matches META_FILES by basename or rel-path,
-		              OR any path component matches META_DIRS.
+		RuntimeError: file_rel matches META_FILES by basename or rel-path.
 	"""
 	basename = os.path.basename(file_rel)
 	if file_rel in repolib.model.META_FILES or basename in repolib.model.META_FILES:
@@ -36,6 +37,29 @@ def assert_not_meta(file_rel: str) -> None:
 			f"META leak: {file_rel!r} is in META_FILES and must never ship. "
 			"Fix the upstream walker or dispatcher branch that produced this entry."
 		)
+
+
+def assert_not_meta(file_rel: str) -> None:
+	"""
+	Fail loud if a template-relative path would land in any bucket despite being META.
+
+	Called at every UNIVERSAL-walk plan-construction append site. Catches walker
+	leaks where a universal-walk branch forgets to filter a META file or a path
+	under a META_DIRS directory (e.g. the ROOT tools/ infrastructure).
+
+	This is the strict guard: it rejects both META_FILES matches AND any path
+	traversing a META_DIRS component. It must NOT be used on consumer paths from
+	the typed overlay, where a consumer tools/ subpath is legitimate. Apply-time
+	and typed-overlay code use assert_not_meta_file instead.
+
+	Args:
+		file_rel: Template-root-relative file path about to be added to a bucket.
+
+	Raises:
+		RuntimeError: file_rel matches META_FILES by basename or rel-path,
+		              OR any path component matches META_DIRS.
+	"""
+	assert_not_meta_file(file_rel)
 	parts = file_rel.split(os.sep)
 	for part in parts:
 		if part in repolib.model.META_DIRS:
@@ -922,10 +946,29 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 
 
 	# 2. Walk typed overlay under templates/<repo_type>/
+	#
+	# Standard: EVERY file under templates/<type>/ ships at its relative path to
+	# consumers of that type. The typed overlay deliberately does NOT skip the
+	# META_DIRS-style 'tools' directory the way the universal walk does: the ROOT
+	# tools/ is template infrastructure (never ships), but templates/<type>/tools/
+	# is consumer-bound content (e.g. tools/sync_typescript_package_pins.py).
+	# The genuine walk-efficiency skips (node_modules, build, dist, caches, .git)
+	# still apply; only 'tools' and 'meta' are removed from the trim so typed
+	# overlay subpaths under them ship verbatim. The META_FILES basename guard
+	# below is the only exclusion that applies to typed-overlay files.
+	typed_overlay_skip_dirs = repolib.model.SKIP_WALK_DIRS - {'tools', 'meta'}
+
+	# Typed-overlay append guard: enforce META_FILES only, not META_DIRS. The
+	# strict assert_not_meta rejects any path traversing a META_DIRS component
+	# (including 'tools'), which would wrongly block legitimate typed-overlay
+	# subpaths like tools/sync_typescript_package_pins.py. Typed-overlay files
+	# ship under any subdirectory, so only the META_FILES guard applies.
+	typed_overlay_assert_not_meta = assert_not_meta_file
+
 	type_overlay_root = os.path.join(template_root, 'templates', repo_type)
 	if os.path.isdir(type_overlay_root):
 		for root, dirs, files in os.walk(type_overlay_root, topdown=True, followlinks=False):
-			dirs[:] = [d for d in dirs if d not in repolib.model.SKIP_WALK_DIRS and not d.startswith('.')]
+			dirs[:] = [d for d in dirs if d not in typed_overlay_skip_dirs and not d.startswith('.')]
 
 			rel_root = os.path.relpath(root, type_overlay_root)
 			if rel_root == '.':
@@ -940,9 +983,10 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 
 				# META guard: typed overlays must filter template-internal files so a stray
 				# templates/<type>/README.md (or any META name) cannot ship to consumers.
+				# Standard: every file under templates/<type>/ ships at its relative path.
+				# Only the META_FILES basename/path guard applies here; subdirectories such
+				# as tools/ ship verbatim (no META_DIRS directory-segment filtering).
 				if name in repolib.model.META_FILES or file_rel in repolib.model.META_FILES:
-					continue
-				if is_in_meta_dir(file_rel):
 					continue
 
 				# Route by subdirectory
@@ -956,29 +1000,28 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 					consumer_basename = os.path.basename(consumer_path)
 					if consumer_path in repolib.model.META_FILES or consumer_basename in repolib.model.META_FILES:
 						continue
-					if is_in_meta_dir(consumer_path):
-						continue
 					if consumer_path not in plan['noexist_files']:
-						assert_not_meta(consumer_path)
+						typed_overlay_assert_not_meta(consumer_path)
 						plan['noexist_files'].append(consumer_path)
 				elif file_rel.startswith('devel/'):
 					bare_name = os.path.basename(file_rel)
 					if bare_name not in plan['devel_files']:
-						assert_not_meta(bare_name)
+						typed_overlay_assert_not_meta(bare_name)
 						plan['devel_files'].append(bare_name)
 				elif file_rel.startswith('tests/'):
 					if file_rel not in plan['test_files']:
-						assert_not_meta(file_rel)
+						typed_overlay_assert_not_meta(file_rel)
 						plan['test_files'].append(file_rel)
 				elif name.startswith('gitignore.'):
 					# Skip; will be loaded separately
 					pass
 				else:
-					# Top-level files in templates/<type>/
-					# rule 5: typed overlay shadows universal
+					# Any non-special-prefix file under templates/<type>/, at any depth
+					# (top-level files, and subdirs like tools/), routes to the overwrite
+					# bucket at its relative path. rule 5: typed overlay shadows universal.
 					if file_rel in plan['overwrite_files']:
 						plan['overwrite_files'].remove(file_rel)
-					assert_not_meta(file_rel)
+					typed_overlay_assert_not_meta(file_rel)
 					plan['overwrite_files'].append(file_rel)
 
 	# 3. Load gitignore blocks from files

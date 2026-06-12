@@ -258,20 +258,136 @@ def run_propagate(repo_root: str, dry_run: bool) -> int:
 	"""Lay down type-dispatched template files into repo_root via repolib.
 
 	In dry-run, process_repo previews actions without writing.
+
+	Raises:
+		RuntimeError: When process_repo returns None (propagation was skipped).
+			This means initial-setup propagation silently no-opped, which must
+			never happen during reset.
 	"""
-	# Build a bootstrap context and run the propagator directly.
+	# Build a initial-setup context and run the propagator directly.
 	# process_repo honors context.dry_run: it logs planned actions and skips
 	# all file mutations when dry_run is True.
 	context = repolib.process.build_context_for_repo(
 		repo_path=repo_root,
 		dry_run=dry_run,
-		bootstrap=True,
+		initial_setup=True,
 		auto_discover=False,
 		write_marker=False,
 	)
 	counters = repolib.console.init_counters()
-	repolib.process.process_repo(repo_root, context, counters, emit_per_repo_summary=False)
+	result = repolib.process.process_repo(repo_root, context, counters, emit_per_repo_summary=False)
+	# None return means process_repo intentionally skipped this repo (self-skip guard
+	# or not a repo dir). During reset, propagation must always run to completion.
+	if result is None:
+		raise RuntimeError(
+			f"initial-setup propagation was skipped for repo: {repo_root}\n"
+			"process_repo returned None -- the self-skip guard may have fired. "
+			"Ensure repolib is configured with initial_setup=True (initial-setup)."
+		)
 	return 1
+
+
+# Template-owned root-level directories that must be absent after reset cleanup.
+# Only the specific template convention locations for "meta" are checked:
+# root meta/ and tests/meta/. Legitimate consumer meta/ elsewhere is not rejected.
+# Note: root tools/ is intentionally NOT listed. The cleanup phase still runs
+# `git rm -r tools/` to remove the template's own tracked root tools/ (e.g.
+# tools/detect_repo_type.py), but typed overlays may now legitimately ship files
+# into a consumer's tools/ (e.g. tools/sync_typescript_package_pins.py for
+# typescript). Those freshly propagated, still-untracked files survive `git rm`
+# and must not trip the end-state verifier, so tools/ is not an owned prefix.
+TEMPLATE_OWNED_PREFIXES = [
+	"templates/",
+	"repolib/",
+	"LICENSES/",
+	"meta/",
+	"tests/meta/",
+]
+
+# Sentinel scaffold paths that must exist after successful propagation, by project type.
+# Each entry is (project_type, relative_path). Rust and other are skipped (no sentinel).
+SCAFFOLD_SENTINELS: dict[str, str] = {
+	"typescript": "eslint.config.js",
+	"python": "docs/PYTHON_STYLE.md",
+}
+
+
+def verify_clean_end_state(repo_root: str, dry_run: bool) -> int:
+	"""Verify no template-owned paths remain after cleanup.
+
+	In dry-run, logs the check that would be performed.
+	In live mode, checks (a) git ls-files and (b) disk for each TEMPLATE_OWNED_PREFIXES
+	entry. Raises RuntimeError listing every leftover path found. Note that root
+	tools/ is deliberately excluded from TEMPLATE_OWNED_PREFIXES: typed overlays may
+	ship files into a consumer's tools/ (e.g. tools/sync_typescript_package_pins.py),
+	so a tools/ directory remaining on disk after `git rm -r tools/` is expected and
+	must not fail this verifier.
+
+	Returns:
+		int: 1 (action taken or announced).
+
+	Raises:
+		RuntimeError: When any template-owned path remains tracked or on disk.
+	"""
+	if dry_run:
+		print("DRY-RUN: verify: would check for leftover template-owned paths")
+		return 1
+
+	# (a) Check git ls-files for any tracked path under template-owned prefixes
+	ls_result = subprocess.run(
+		["git", "ls-files"], check=True, capture_output=True, text=True, cwd=repo_root,
+	)
+	tracked_paths = ls_result.stdout.splitlines()
+	leftover_tracked: list[str] = []
+	for tracked_path in tracked_paths:
+		for prefix in TEMPLATE_OWNED_PREFIXES:
+			if tracked_path.startswith(prefix) or tracked_path == prefix.rstrip("/"):
+				leftover_tracked.append(f"tracked: {tracked_path}")
+				break
+
+	# (b) Check that root-level template-owned directories are absent on disk.
+	# For nested entries like tests/meta/, check the full path.
+	leftover_disk: list[str] = []
+	for prefix in TEMPLATE_OWNED_PREFIXES:
+		# strip trailing slash for os.path.isdir check
+		check_path = os.path.join(repo_root, prefix.rstrip("/"))
+		if os.path.isdir(check_path):
+			leftover_disk.append(f"on disk: {prefix}")
+
+	all_leftovers = leftover_tracked + leftover_disk
+	if all_leftovers:
+		leftover_list = "\n  ".join(all_leftovers)
+		raise RuntimeError(
+			f"template-owned paths remain after cleanup:\n  {leftover_list}"
+		)
+	return 1
+
+
+def verify_scaffold_sentinel(repo_root: str, project_type: str) -> None:
+	"""Assert that at least one required scaffold path exists after propagation.
+
+	This guards against a "successful but empty" propagation regression, where
+	process_repo returns a dict but wrote nothing. Only checked for project types
+	that have a known sentinel (typescript, python). Raises RuntimeError on failure.
+
+	Args:
+		repo_root (str): Repository root path.
+		project_type (str): The project type token (e.g. 'typescript', 'python').
+
+	Raises:
+		RuntimeError: When the sentinel path is absent after propagation.
+	"""
+	sentinel = SCAFFOLD_SENTINELS.get(project_type)
+	if sentinel is None:
+		# rust and other have no sentinel defined; skip silently
+		return
+	sentinel_path = os.path.join(repo_root, sentinel)
+	if not os.path.isfile(sentinel_path):
+		raise RuntimeError(
+			f"propagation completed but required scaffold path is missing: {sentinel}\n"
+			f"Expected at: {sentinel_path}\n"
+			"process_repo returned success but may have written nothing."
+		)
 
 
 def truncate_file(path: str, repo_root: str, dry_run: bool) -> int:
@@ -451,6 +567,12 @@ def main() -> None:
 	# === phase: propagate (direct repolib call) ===
 	action_count += run_propagate(repo_root, args.dry_run)
 
+	# === phase: scaffold sentinel check ===
+	# After propagation completes (live only), assert that the required per-type
+	# scaffold path exists. Guards against "successful but empty" propagation.
+	if not args.dry_run:
+		verify_scaffold_sentinel(repo_root, project_type)
+
 	# === phase: typescript-specific work ===
 	# Must run AFTER propagate so the noexist bucket has placed package.json at repo root.
 	if project_type == "typescript":
@@ -460,12 +582,55 @@ def main() -> None:
 	action_count += truncate_file("README.md", repo_root, args.dry_run)
 	action_count += truncate_file("docs/CHANGELOG.md", repo_root, args.dry_run)
 
+	# === phase: remove templates/ ===
+	# templates/ must be removed AFTER propagation has read from it and AFTER
+	# gitignore merge completes. Untracked or absent templates/ is not an error
+	# (supports partially repaired clones).
+	templates_dir = os.path.join(repo_root, "templates")
+	if args.dry_run:
+		if os.path.isdir(templates_dir):
+			dry_run_print("git rm -r templates/", args.dry_run)
+			action_count += 1
+		else:
+			dry_run_print("templates/ absent -- skip removal", args.dry_run)
+	else:
+		ls_templates = subprocess.run(
+			["git", "ls-files", "templates/"],
+			check=True, capture_output=True, text=True, cwd=repo_root,
+		)
+		if ls_templates.stdout.strip():
+			# templates/ has tracked files; remove them via git rm -r
+			action_count += git_rm_recursive("templates/", args.dry_run)
+		elif os.path.isdir(templates_dir):
+			# untracked templates/ directory present; log and skip (no git state to touch)
+			print("templates/ is untracked -- skipping git rm (directory left on disk)")
+		else:
+			# completely absent; nothing to do
+			print("templates/ absent -- nothing to remove")
+
 	# === phase: git rm cleanup ===
 	# Remove the template-only propagation infrastructure from the consumer:
 	# entry script and the repolib package (renamed from propagate/ in the template).
 	action_count += git_rm("propagate_style_guides.py", args.dry_run)
 	action_count += git_rm_recursive("repolib/", args.dry_run)
-	action_count += git_rm_recursive("tools/", args.dry_run)
+	# Remove the template's own tracked root tools/ (e.g. tools/detect_repo_type.py).
+	# `git rm -r tools/` removes tracked entries only; freshly propagated untracked
+	# files (e.g. tools/sync_typescript_package_pins.py for typescript consumers)
+	# survive and stay on disk. Guard on tracked content so the case where tools/
+	# holds only untracked propagated files (no tracked entry) is logged and skipped
+	# instead of failing on a no-match pathspec, mirroring the templates/ handling.
+	if args.dry_run:
+		dry_run_print("git rm -r tools/", args.dry_run)
+		action_count += 1
+	else:
+		ls_tools = subprocess.run(
+			["git", "ls-files", "tools/"],
+			check=True, capture_output=True, text=True, cwd=repo_root,
+		)
+		if ls_tools.stdout.strip():
+			action_count += git_rm_recursive("tools/", args.dry_run)
+		else:
+			print("tools/ has no tracked files -- skipping git rm (any propagated files left on disk)")
 	# Strip every directory named "meta/" anywhere in the tree (template-only
 	# trees: top-level meta/, tests/meta/, any future subtree/meta/). Walk the
 	# git index so only tracked dirs are touched; pick the shallowest "meta"
@@ -501,6 +666,11 @@ def main() -> None:
 		action_count += git_rm("devel/submit_to_pypi.py", args.dry_run)
 
 	action_count += git_rm("reset_repo.py", args.dry_run)
+
+	# === phase: end-state verification ===
+	# Verify no template-owned paths remain (git index + disk). In dry-run, logs
+	# the check that would happen. In live mode, raises on any leftover.
+	action_count += verify_clean_end_state(repo_root, args.dry_run)
 
 	# === phase: stage changes ===
 	if not args.no_stage:

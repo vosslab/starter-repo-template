@@ -18,6 +18,16 @@ PATH_BUCKETS = ('overwrite_files', 'noexist_files', 'merge_files', 'test_files')
 BASENAME_BUCKETS = ('devel_files',)
 
 
+# 'tools' is in META_DIRS to keep the ROOT tools/ (template infrastructure)
+# from shipping via the universal walk. But the typed-overlay standard is that
+# every file under templates/<type>/ ships at its relative path, including
+# tools/ subpaths (e.g. tools/sync_typescript_package_pins.py for typescript).
+# Those legitimately land in overwrite_files at a consumer tools/ path, so the
+# META_DIRS-traversal leak check excludes 'tools'. META_FILES protection (which
+# guards consumer README.md, VERSION, etc.) still applies to every entry.
+TYPED_OVERLAY_ALLOWED_META_DIRS = frozenset({'tools'})
+
+
 def _assert_entry_not_meta(entry: str, bucket_name: str, repo_type: str) -> None:
 	"""Per-entry check. Fails the test with a useful message on META leak."""
 	basename = os.path.basename(entry)
@@ -28,6 +38,8 @@ def _assert_entry_not_meta(entry: str, bucket_name: str, repo_type: str) -> None
 		f"META leak: {entry!r} (basename={basename!r}) in plan[{bucket_name!r}] for repo_type={repo_type!r}"
 	)
 	for part in entry.split(os.sep):
+		if part in TYPED_OVERLAY_ALLOWED_META_DIRS:
+			continue
 		assert part not in repolib.model.META_DIRS, (
 			f"META_DIRS leak: {entry!r} traverses {part!r} in plan[{bucket_name!r}] for repo_type={repo_type!r}"
 		)

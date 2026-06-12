@@ -17,7 +17,7 @@ class PropagateContext:
 	template_root: str
 	repo_name: str | None
 	dry_run: bool
-	bootstrap: bool
+	initial_setup: bool
 	# auto_discover: source-template test discovery for ONE repo. When True, the
 	# source template's tests/ is scanned for test_*.py/test_*.mjs files absent
 	# from the static spec, and those are added to the files copied INTO the

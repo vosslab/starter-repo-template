@@ -21,7 +21,7 @@ def test_build_context_target_is_not_source(tmp_path: pathlib.Path) -> None:
 	context = repolib.process.build_context_for_repo(
 		repo_path=str(target_repo),
 		dry_run=True,
-		bootstrap=False,
+		initial_setup=False,
 		auto_discover=False,
 		write_marker=False,
 	)
