@@ -88,6 +88,20 @@
 
 ### Fixes and Maintenance
 
+- Changed `file_utils.run_fixer_script(script_name, target)` contract: function now
+  returns `(returncode: int, stderr: str)` for every subprocess completion and never raises on a
+  non-zero exit code. Previously it raised `AssertionError` on any non-zero exit, which caused
+  fixer exit code 2 (success-with-changes in `fix_ascii_compliance.py`) to be treated as a
+  failure inside a module-scoped autouse fixture, cascading 565 test errors in consumer repos.
+  `RuntimeError` is raised only for environment preconditions: script not found (checked via
+  `os.path.isfile` before launch) or `FileNotFoundError` from a missing Python interpreter
+  (re-raised as `RuntimeError`). Callers now inspect the return value; exit-code contracts:
+  `fix_ascii_compliance.py` 0=clean, 1=issues remain, 2=auto-fixed; `fix_whitespace.py`
+  0=clean-or-fixed, 1=missing/no-input. Added `tests/meta/test_file_utils_fixer.py` with
+  monkeypatched unit tests covering return codes 2 (regression guard for the cascade bug) and 7
+  (unexpected), plus nonexistent script and missing interpreter `RuntimeError` paths. Updated
+  `tests/TESTS_README.md` and `docs/PYTEST_STYLE.md` run_fixer_script bullets. Consumer repos
+  need propagation via `propagate_style_guides.py` to receive the updated `file_utils.py`.
 - Memoized `file_utils.get_repo_root` (process-lifetime `functools.lru_cache`) and the no-pattern whole-repo `list_tracked_files` listing (per-`repo_root` cache; pattern-scoped calls stay uncached), and made the per-file hygiene modules build their failure messages lazily inside the assert (WP0); eliminates per-test `git rev-parse` fanout and collection-time `git ls-files` fanout; pinned by call-count meta tests in `tests/meta/test_file_utils_caching.py`.
 - Updated `docs/PYTEST_STYLE.md` hygiene-report section: replaced stale `sync_report` /
   `purge_report` API with the current `write_report_lines` + `clear_stale_reports` shape,
@@ -153,6 +167,14 @@
 
 ### Decisions and Failures
 
+- Why the exception channel was rejected for `run_fixer_script`: raising on non-zero exit
+  inside a module-scoped autouse fixture errors every parametrized test in the module, not just
+  the one file that triggered the fix. Per-file fixer outcomes (clean, needs-fix, fixed,
+  unexpected error) belong in per-file report data -- the fixture should collect them and the
+  per-file test should assert on them. Using exceptions conflates environment failure (broken
+  interpreter, missing script -- genuine RuntimeError territory) with normal fixer output
+  (non-zero exit is a documented, meaningful result). The return-tuple contract makes the
+  distinction explicit and puts outcome handling in the right place.
 - Root cause of the reset_repo initial-setup no-op: regression introduced when `reset_repo.py`
   switched from shelling out to `propagate_style_guides.py` to calling `repolib` directly; the
   batch-mode self-skip guard was correct for batch propagation but silently disabled the entire
