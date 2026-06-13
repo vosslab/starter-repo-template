@@ -132,6 +132,13 @@
   leaving orphaned `http.server` processes when a backgrounded launcher's parent shell dies.
   Caveat: the trap only fires for trappable signals; `SIGKILL` and some shell-death cases remain
   out of scope. (WP-A1/WP-A2)
+- Bumped the `esbuild` devDependency floor in `templates/typescript/noexist/package.json` from
+  `>=0.28.0` to `>=0.28.1` to clear GHSA esbuild dev-server path-traversal (affected
+  `>=0.27.3, <0.28.1`, patched `0.28.1`). No real exposure for this repo (the build uses
+  `npx esbuild --bundle`, not the `--servedir` dev server; the bug is Windows-only; GitHub Pages
+  output is static), but the prior floor `0.28.0` sat one patch inside the advisory window.
+  Dependabot's separate "no lockfile" notice is per-consumer: run `npm install` and commit the
+  generated `package-lock.json` in the affected consumer repo.
 - Changed `file_utils.run_fixer_script(script_name, target)` contract: function now
   returns `(returncode: int, stderr: str)` for every subprocess completion and never raises on a
   non-zero exit code. Previously it raised `AssertionError` on any non-zero exit, which caused
