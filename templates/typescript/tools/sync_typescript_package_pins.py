@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
-"""Bump every package.json devDependency under the CWD to
-``>=<current-latest>`` from the npm registry.
+"""Bump every package.json dependency and devDependency under the CWD
+to ``>=<current-latest>`` from the npm registry.
+
+Scope: both the ``dependencies`` and ``devDependencies`` sections of
+each ``package.json`` are bumped. This tool rewrites ``package.json``
+only. It never edits ``package-lock.json`` or ``node_modules`` (npm
+owns lockfile resolution); after an apply run it prints the npm
+commands to regenerate the lockfile and audit for known flaws.
 
 Discovery: recursive walk from the current working directory; every
 ``package.json`` is in scope. No filtering by signature file, by repo
@@ -26,10 +32,10 @@ repos or from a single repo to scope to that tree.
 
 Run:
 
-    python3 tools/sync_typescript_package_pins.py [--apply]
+    python3 tools/sync_typescript_package_pins.py [--dry-run]
 
-Default mode prints the per-target diff and writes nothing. ``--apply``
-re-runs after the diff and writes the changes back.
+Default mode prints the per-target diff and writes the changes back.
+``--dry-run`` (alias ``-n``) prints the diff and writes nothing.
 """
 
 # Standard Library
@@ -43,6 +49,8 @@ SKIP_DIRS = frozenset({
 	".venv", "venv", ".pytest_cache", ".mypy_cache",
 })
 PIN_PREFIX = ">="
+# both dependency sections are bumped; order controls diff/write order
+DEP_SECTIONS = ("dependencies", "devDependencies")
 
 #============================================
 
@@ -55,9 +63,14 @@ def parse_args() -> argparse.Namespace:
 		)
 	)
 	parser.add_argument(
-		"-a", "--apply", dest="apply", action="store_true",
-		help="write changes back to disk (default: dry-run preview only)",
+		"-a", "--apply", dest="dry_run", action="store_false",
+		help="write changes back to disk (this is the default)",
 	)
+	parser.add_argument(
+		"-n", "--dry-run", dest="dry_run", action="store_true",
+		help="preview the per-target diff and write nothing",
+	)
+	parser.set_defaults(dry_run=False)
 	args = parser.parse_args()
 	return args
 
@@ -104,20 +117,21 @@ def write_package_json(path: str, data: dict) -> None:
 
 #============================================
 
-def collect_devdep_keys(targets: list[str]) -> list[str]:
-	"""Return the union of devDependency keys across every target.
+def collect_dep_keys(targets: list[str]) -> list[str]:
+	"""Return the union of dependency keys across every target.
 
+	Both ``dependencies`` and ``devDependencies`` sections are scanned.
 	The union is the canonical package list for this run. Sorted for
 	deterministic ``npm view`` ordering.
 	"""
 	keys: set[str] = set()
 	for path in targets:
 		data = read_package_json(path)
-		dev = data.get("devDependencies", {})
-		# `data.get` is intentional here: a target without devDependencies
-		# is valid (rare, but possible) and should not crash the run
-		for key in dev:
-			keys.add(key)
+		for section in DEP_SECTIONS:
+			# `data.get` is intentional here: a target missing a section
+			# is valid and should not crash the run
+			for key in data.get(section, {}):
+				keys.add(key)
 	return sorted(keys)
 
 #============================================
@@ -185,21 +199,31 @@ def apply_changes(target_dev: dict, latest: dict[str, str]) -> dict:
 
 #============================================
 
-def render_target_diff(path: str, changes: dict) -> str:
-	"""Return a human-readable diff block for one target."""
+def render_target_diff(path: str, section_changes: dict[str, dict]) -> str:
+	"""Return a human-readable diff block for one target.
+
+	``section_changes`` maps each dependency section name to its
+	``compute_changes`` result.
+	"""
 	rel = os.path.relpath(path)
 	lines: list[str] = []
 	lines.append(f"# {rel}")
-	extras = changes.get("__extras__", {})
-	bumps = {k: v for k, v in changes.items() if k != "__extras__"}
-	if not bumps and not extras:
+	any_line = False
+	for section in DEP_SECTIONS:
+		changes = section_changes.get(section, {})
+		extras = changes.get("__extras__", {})
+		bumps = {k: v for k, v in changes.items() if k != "__extras__"}
+		if not bumps and not extras:
+			continue
+		any_line = True
+		lines.append(f"  [{section}]")
+		for key in sorted(bumps):
+			old_pin, new_pin = bumps[key]
+			lines.append(f"    {key}: {old_pin} -> {new_pin}")
+		for key in sorted(extras):
+			lines.append(f"    WARN consumer-extra (unmanaged): {key}: {extras[key]}")
+	if not any_line:
 		lines.append("  (no changes)")
-		return "\n".join(lines)
-	for key in sorted(bumps):
-		old_pin, new_pin = bumps[key]
-		lines.append(f"  {key}: {old_pin} -> {new_pin}")
-	for key in sorted(extras):
-		lines.append(f"  WARN consumer-extra (unmanaged): {key}: {extras[key]}")
 	return "\n".join(lines)
 
 #============================================
@@ -215,9 +239,9 @@ def main() -> None:
 		return
 	print(f"found {len(targets)} package.json file(s)")
 
-	packages = collect_devdep_keys(targets)
+	packages = collect_dep_keys(targets)
 	if not packages:
-		print("targets have no devDependencies; nothing to bump.")
+		print("targets have no dependencies or devDependencies; nothing to bump.")
 		return
 	print(f"querying npm for {len(packages)} package version(s)...")
 	latest = fetch_latest_versions(packages)
@@ -229,35 +253,49 @@ def main() -> None:
 	print()
 	for path in targets:
 		data = read_package_json(path)
-		target_dev = data.get("devDependencies", {})
-		changes = compute_changes(target_dev, latest)
-		bumps_only = {k: v for k, v in changes.items() if k != "__extras__"}
-		if bumps_only or changes.get("__extras__"):
-			any_changes = True
-		print(render_target_diff(path, changes))
+		section_changes: dict[str, dict] = {}
+		for section in DEP_SECTIONS:
+			changes = compute_changes(data.get(section, {}), latest)
+			section_changes[section] = changes
+			bumps_only = {k: v for k, v in changes.items() if k != "__extras__"}
+			if bumps_only or changes.get("__extras__"):
+				any_changes = True
+		print(render_target_diff(path, section_changes))
 		print()
 
 	if not any_changes:
 		print("everything already current; nothing to write.")
 		return
 
-	if not args.apply:
-		print("dry-run only. re-run with --apply to write changes.")
+	if args.dry_run:
+		print("dry-run only. re-run without --dry-run (or with --apply) to write changes.")
 		return
 
 	# apply mode: write the bumped pins back, preserving every other key
 	written = 0
 	for path in targets:
 		data = read_package_json(path)
-		target_dev = data.get("devDependencies", {})
-		new_dev = apply_changes(target_dev, latest)
-		if new_dev == target_dev:
+		changed = False
+		for section in DEP_SECTIONS:
+			old_section = data.get(section, {})
+			if not old_section:
+				continue
+			new_section = apply_changes(old_section, latest)
+			if new_section != old_section:
+				data[section] = new_section
+				changed = True
+		if not changed:
 			continue
-		data["devDependencies"] = new_dev
 		write_package_json(path, data)
 		written += 1
 		print(f"updated: {os.path.relpath(path)}")
 	print(f"\nwrote {written} file(s).")
+	# package.json is only the constraint; the lockfile and node_modules
+	# still hold the old resolved versions. npm owns that resolution, so
+	# point the user at the commands rather than editing the lockfile here.
+	print("\nnext: regenerate the lockfile and check for known flaws:")
+	print("  npm install   # resolves the new >= pins, rewrites package-lock.json")
+	print("  npm audit     # report known vulnerabilities in resolved versions")
 
 #============================================
 
