@@ -17,6 +17,16 @@
 
 ### Behavior or Interface Changes
 
+- `templates/typescript/tools/sync_typescript_package_pins.py`: flipped the default mode to
+  apply (write changes back). `-a`/`--apply` now sets `dry_run=False` (still accepted, redundant
+  with the new default); added `-n`/`--dry-run` to preview the per-target diff and write nothing.
+  Default ships to typescript consumer repos as a write-by-default pin bump.
+- `sync_typescript_package_pins.py`: broadened scope from `devDependencies` only to both
+  `dependencies` and `devDependencies` (new `DEP_SECTIONS` constant). The diff now groups bumps
+  under per-section `[dependencies]` / `[devDependencies]` headers, and `collect_devdep_keys` was
+  renamed to `collect_dep_keys`. The tool still rewrites `package.json` only; after an apply run
+  it prints the follow-up `npm install` (lockfile regen) and `npm audit` commands rather than
+  editing `package-lock.json` or `node_modules`, which npm owns.
 - Migrated 11 plan hygiene modules (WP1 + WP2) plus `tests/test_init_files.py` (finished as
   obvious follow-on) to the shared harness: autouse module-scope `collect_report` fixture,
   `VIOLATIONS_BY_FILE: dict[str, list[str]]` precomputed once, `write_report_lines` called only
@@ -85,9 +95,43 @@
   `tools/` files survive. The `git rm -r tools/` step now guards on tracked content (logs and
   skips when `tools/` holds only untracked propagated files) instead of failing on a no-match
   pathspec, mirroring the existing `templates/` handling.
+- Moved `run_web_server.sh` from `templates/typescript/noexist/` to
+  `templates/typescript/run_web_server.sh` (overwrite/always-propagate bucket) via `git mv`,
+  reversing the prior audit decision at CHANGELOG.md:478 that placed it in `noexist/` for
+  per-consumer port choice. Rationale: the port is now random with a `PORT` override and the
+  fleet shows consumers do not customize the file, so the hardened script can always overwrite.
+  Propagation routing verified (WP-A2): `compute_propagation_plan` typed-overlay walk (step 2,
+  `repolib/files.py:1018-1025`) routes every non-special-prefix file under `templates/<type>/`
+  to `overwrite_files` at its relative path; `run_web_server.sh` at the `templates/typescript/`
+  root has no `noexist/`, `devel/`, or `tests/` prefix and is not a META file, so it lands in
+  `overwrite_files` as `run_web_server.sh` and ships to every TypeScript consumer on every
+  propagation run. Consumer-impact summary (WP-A2): 2 of 6 deployed copies diverged --
+  `stem-lesson-quiz-game` had a comment-only rewrite of the header and a different
+  setup-missing error message (`setup_game.sh` reference instead of `devel/setup_typescript.sh`);
+  `virtual-lab-protocol-simulation` had the auto-install path already present (bare
+  `bash devel/setup_typescript.sh`, no existence guard) plus comment-only diffs. Neither
+  carries any logic not already folded into the canonical hardened script by WP-A1. Overwrite
+  is safe; nothing of value is lost. `pytest tests/` confirmed green: 1032 passed in 2.04s
+  (includes `tests/test_shebangs.py` and `tests/meta/` routing tests). Doc link
+  `templates/typescript/docs/TYPESCRIPT_STYLE.md:269` (`../run_web_server.sh`) resolves to
+  the new location. `templates/typescript/noexist/package.json` `"serve": "./run_web_server.sh"`
+  still points at the consumer-root script (package.json stays in `noexist/`; unchanged).
+  (WP-A1/WP-A2)
+- `run_web_server.sh` auto-install: on missing `node_modules` the script now runs
+  `bash devel/setup_typescript.sh` (when present) instead of erroring; if the setup script is
+  missing it exits with a helpful message. Folds in the `virtual-lab-protocol-simulation`
+  consumer's useful divergence. Reported separately from the lifecycle fix so future setup
+  debugging is easy. (WP-A1)
 
 ### Fixes and Maintenance
 
+- `run_web_server.sh` lifecycle fix: added an idempotent cleanup `trap` on EXIT/INT/TERM/HUP that
+  kills only the http.server child and the script's own browser-open helper (own-child-only; no
+  `pkill`/`pgrep`/`ps` scanning, no PID file). The server now starts in the background with its
+  PID captured and `wait`ed on, and cleanup preserves the real exit status. Stops the script from
+  leaving orphaned `http.server` processes when a backgrounded launcher's parent shell dies.
+  Caveat: the trap only fires for trappable signals; `SIGKILL` and some shell-death cases remain
+  out of scope. (WP-A1/WP-A2)
 - Changed `file_utils.run_fixer_script(script_name, target)` contract: function now
   returns `(returncode: int, stderr: str)` for every subprocess completion and never raises on a
   non-zero exit code. Previously it raised `AssertionError` on any non-zero exit, which caused
