@@ -51,6 +51,7 @@ LANG_UNKNOWN = 'unknown'
 #   UNIVERSAL_NOEXIST: files that ship only when absent at the consumer.
 #   MERGE_FILES: files routed to the set-union @-import merge bucket.
 #   META_FILES / META_DIRS: files and dirs that NEVER ship (template-meta).
+#   META_FILE_PATTERNS: glob patterns that never ship, e.g. changelog archives.
 #   SKIP_WALK_DIRS: dirs skipped during os.walk of the source template.
 #   AUTO_DISCOVER_DOCS_EXCLUDE: docs excluded from auto-discovery.
 #   META_TEST_PREFIXES: template-meta test filename prefixes.
@@ -89,6 +90,8 @@ ROOT_PROPAGATE_ALLOWLIST = _MANIFESTS['root_propagate_allowlist']
 UNIVERSAL_NOEXIST = _MANIFESTS['universal_noexist']
 MERGE_FILES = _MANIFESTS['merge_files']
 META_FILES = _MANIFESTS['meta_files']
+# Glob patterns (template-root-relative) that never ship, e.g. changelog archives.
+META_FILE_PATTERNS = _MANIFESTS['meta_file_patterns']
 META_DIRS = _MANIFESTS['meta_dirs']
 SKIP_WALK_DIRS = _MANIFESTS['skip_walk_dirs']
 AUTO_DISCOVER_DOCS_EXCLUDE = _MANIFESTS['auto_discover_docs_exclude']

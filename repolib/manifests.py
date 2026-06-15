@@ -23,6 +23,7 @@ SET_MANIFEST_KEYS = (
 	'universal_noexist',
 	'merge_files',
 	'meta_files',
+	'meta_file_patterns',
 	'meta_dirs',
 	'skip_walk_dirs',
 	'auto_discover_docs_exclude',

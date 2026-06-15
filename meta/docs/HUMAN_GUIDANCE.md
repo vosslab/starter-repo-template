@@ -51,15 +51,42 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 - Edit `meta/propagation/manifests.yaml` to change any manifest. Do not add
   inline literals back to `repolib/model.py`.
 
-## reset_repo.py is interactive-first
+## reset_repo.py design
 
 - `reset_repo.py` is the bootstrap entry point for new consumer repos.
-- It interviews the user for project type, license, PyPI intent, and optionally
-  stage/commit controls.
-- CLI surface is minimal: `-h` (help), `--dry-run`, `--yes` (skip confirms),
-  `--force` (overwrite existing files). No flags for automating business choices
-  such as project type or PyPI intent; those belong to the interactive interview.
+- Interactive interview is the human default: the script asks project type, license,
+  PyPI intent, stage, and commit choices at the terminal.
+- CLI surface is minimal: `-h`, `--dry-run`, and `--config <file>`. The `--force` and
+  `--yes` flags were removed; `--force` had no use case and `--yes` is replaced by
+  `--config` for non-interactive runs.
+- `--config <file>` is the testing/reproducibility interface: a JSON answer file
+  drives a non-interactive reset for e2e and subagent testing. It is not required for
+  normal human use. Required JSON keys: `project_type` and `code_license`. Optional
+  keys with defaults: `docs_license` (CC-BY-4.0), `pypi` (false, python-only),
+  `stage` (true), `commit` (false). Short aliases are accepted for both required keys.
+- Folder-name guard: reset refuses to run when the repo root basename is exactly
+  `starter-repo-template`. This protects the template development checkout. Guard is
+  folder name only; no remote or origin inspection (remote-slug detection is fragile
+  for freshly cloned consumer repos that have not yet renamed their remote).
+- Running outside a git repository exits with a clear message instead of a raw
+  subprocess traceback.
 - Do not add automation flags for decisions the user makes once at repo creation.
+
+## E2E harness design
+
+- `tests/meta/e2e/e2e_reset_routing.py` clones the template into consumer-named `/tmp` dirs
+  (e.g. `/tmp/my_project_python/`) so each test case is isolated and ephemeral.
+  Template-meta: lives under `tests/meta/e2e/`; never propagates to consumers; removed by reset.
+- LOCAL mode (default): offline, clones committed local history only. Uncommitted
+  working-tree changes are not exercised; commit before running LOCAL if you need the
+  harness to see them.
+- REMOTE mode (opt-in via `remote` argument): GitHub HTTPS clone (read-only); exercises
+  what a consumer receives from origin/main. New code must be pushed to origin/main by the
+  human first; REMOTE clones whatever is already there.
+- Each case uses an ephemeral per-case JSON config; verified against the live
+  propagation engine (oracle) plus reset-specific anchor checks.
+- `tests/meta/e2e/run_all.sh` iterates all `e2e_*` scripts under `tests/meta/e2e/`
+  and reports pass/fail; offline only (LOCAL mode). Also template-meta.
 
 ## Tests follow live config
 

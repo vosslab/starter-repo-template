@@ -100,12 +100,63 @@ def test_typescript_overlay_tools_meta_file_basename_excluded(tmp_path: pathlib.
 
 
 def test_meta_test_prefix_excluded(tmp_path: pathlib.Path) -> None:
-	"""test_propagate_* files excluded."""
+	"""A META_TEST_PREFIXES file at tests/ root never ships under the denylist."""
 	tests_dir = tmp_path / 'tests'
 	tests_dir.mkdir()
-	(tests_dir / 'test_propagate_x.py').write_text('test')
+	(tests_dir / 'test_repolib_x.py').write_text('test')
 	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
-	assert 'test_propagate_x.py' not in plan['test_files']
+	assert 'tests/test_repolib_x.py' not in plan['test_files']
+
+
+def test_tests_denylist_ships_non_test_helper(tmp_path: pathlib.Path) -> None:
+	"""Denylist routing ships a non-test_-prefixed tests/ helper by location.
+
+	The old enumerated allowlist only shipped test_*/check_*/fix_*/file_utils.py;
+	the denylist ships all non-meta tests/ files, so a plain helper now ships.
+	"""
+	tests_dir = tmp_path / 'tests'
+	tests_dir.mkdir()
+	(tests_dir / 'test_foo.py').write_text('test')
+	(tests_dir / 'helper_thing.py').write_text('test')
+	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
+	assert 'tests/test_foo.py' in plan['test_files']
+	assert 'tests/helper_thing.py' in plan['test_files']
+
+
+def test_tests_denylist_skips_scratch(tmp_path: pathlib.Path) -> None:
+	"""An underscore-prefixed scratch file under tests/ is never shipped."""
+	tests_dir = tmp_path / 'tests'
+	tests_dir.mkdir()
+	(tests_dir / '_scratch.py').write_text('test')
+	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
+	all_entries = (
+		plan['overwrite_files']
+		+ plan['noexist_files']
+		+ plan['devel_files']
+		+ plan['test_files']
+	)
+	assert not any(entry.endswith('_scratch.py') for entry in all_entries)
+
+
+def test_tests_denylist_skips_conftest(tmp_path: pathlib.Path) -> None:
+	"""tests/conftest.py is merge-owned and never appears in any bucket.
+
+	conftest.py is handled by merge_conftest in process.py (additive merge of
+	collect_ignore/REPO_HYGIENE_FILTERS), not by bucket routing.
+	"""
+	tests_dir = tmp_path / 'tests'
+	tests_dir.mkdir()
+	(tests_dir / 'conftest.py').write_text('test')
+	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
+	all_entries = (
+		plan['overwrite_files']
+		+ plan['noexist_files']
+		+ plan['merge_files']
+		+ plan['devel_files']
+		+ plan['test_files']
+	)
+	assert 'tests/conftest.py' not in all_entries
+	assert 'conftest.py' not in all_entries
 
 
 def test_typescript_overlay_routes_to_overwrite(tmp_path: pathlib.Path) -> None:

@@ -6,17 +6,21 @@ Interactive bootstrap tool. Prompts for project type, SPDX licenses, PyPI
 publishing (python only), staging, and commit. Writes the REPO_TYPE marker,
 installs selected LICENSE files, optionally seeds pyproject.toml, calls
 repolib directly to lay down type-dispatched files in bootstrap mode,
-truncates README + CHANGELOG, and removes itself. The only CLI flags are
-safety controls: --dry-run, --yes, and --force.
+truncates README + CHANGELOG, and removes itself. Answers come from either an
+interactive interview or a json config (--config); the only other CLI flag is
+--dry-run, which previews actions without changing files.
 """
 
 # Standard Library
 import os
 import sys
+import glob
+import json
 import argparse
 import datetime
-import subprocess
 import tempfile
+import subprocess
+import dataclasses
 
 # local repo modules
 import repolib.model
@@ -66,17 +70,28 @@ def resolve_license(user_input: str, canonical: list, aliases: dict, default: st
 
 #============================================
 def get_repo_root() -> str:
-	"""Return the repository root path via git rev-parse."""
-	try:
-		result = subprocess.run(
-			["git", "rev-parse", "--show-toplevel"],
-			capture_output=True,
-			text=True,
-			check=True,
+	"""Return the repository root path via git rev-parse.
+
+	Fails with a clear message rather than an obscure subprocess traceback when
+	run outside a git repository (or when git is not installed).
+
+	Returns:
+		str: Absolute path to the repository root.
+	"""
+	# Resolve the repo root via git; a non-repo cwd makes git exit non-zero.
+	result = subprocess.run(
+		["git", "rev-parse", "--show-toplevel"],
+		capture_output=True,
+		text=True,
+		check=False,
+	)
+	repo_root = result.stdout.strip()
+	if result.returncode != 0 or repo_root == "":
+		sys.exit(
+			"Error: reset_repo must run inside a git repository. "
+			"Clone the template, then run reset from the clone root."
 		)
-		return result.stdout.strip()
-	except subprocess.CalledProcessError:
-		sys.exit("Error: not in a git repository")
+	return repo_root
 
 
 #============================================
@@ -92,7 +107,7 @@ def preflight_check(repo_root: str, code_license: str, docs_license: str) -> Non
 
 
 #============================================
-def verify_license_copy(repo_root: str, license_type: str, spdx_id: str) -> bool:
+def verify_license_copy(repo_root: str, spdx_id: str) -> bool:
 	"""Check if license file was copied and contains recognizable license text."""
 	target = os.path.join(repo_root, f"LICENSE.{spdx_id}.md")
 	if not os.path.isfile(target):
@@ -112,22 +127,16 @@ def parse_args() -> argparse.Namespace:
 		description="Reset a cloned starter-repo-template to base configuration"
 	)
 	parser.add_argument(
+		"--config",
+		dest="config",
+		default=None,
+		help="Path to a json answers file (non-interactive mode)",
+	)
+	parser.add_argument(
 		"--dry-run",
 		dest="dry_run",
 		action="store_true",
 		help="Print actions without executing",
-	)
-	parser.add_argument(
-		"--yes",
-		dest="skip_confirm",
-		action="store_true",
-		help="Skip final confirmation prompt",
-	)
-	parser.add_argument(
-		"--force",
-		dest="force",
-		action="store_true",
-		help="Allow overwriting existing marker and package.json",
 	)
 	return parser.parse_args()
 
@@ -159,7 +168,10 @@ def write_marker(repo_root: str, project_type: str, dry_run: bool) -> int:
 	return 1
 
 
-def copy_and_verify_license(repo_root: str, source_path: str, target_filename: str, spdx_id: str, dry_run: bool) -> int:
+def copy_and_verify_license(
+	repo_root: str, source_path: str, target_filename: str,
+	spdx_id: str, dry_run: bool,
+) -> int:
 	"""Copy LICENSES/LICENSE.<spdx>.md to repo root and verify."""
 	target_path = os.path.join(repo_root, target_filename)
 	if dry_run:
@@ -173,7 +185,7 @@ def copy_and_verify_license(repo_root: str, source_path: str, target_filename: s
 			content = src.read()
 		with open(target_path, "w") as dst:
 			dst.write(content)
-		if not verify_license_copy(repo_root, "code", spdx_id):
+		if not verify_license_copy(repo_root, spdx_id):
 			rollback_msg = "Rollback: run 'git restore --staged . && git restore .' to discard staged and working-tree changes."
 			sys.exit(
 				f"License copy verification failed: {target_filename}\n{rollback_msg}"
@@ -446,16 +458,62 @@ def truncate_file(path: str, repo_root: str, dry_run: bool) -> int:
 # Config resolution helpers
 #============================================
 
-def resolve_project_type(repo_root: str, force: bool) -> str:
-	"""Resolve project type interactively, seeded by detection or existing marker."""
+def normalize_project_type(raw: str, default: str) -> str:
+	"""Normalize a raw project-type answer to a canonical token.
+
+	Accepts the single-letter menu shortcuts (p/t/r/o), the full token names
+	(python/typescript/rust/other), or an empty string (which selects the
+	supplied default). Shared by the interview and the config producers so the
+	accepted values cannot drift between the two paths.
+
+	Args:
+		raw (str): The raw user answer or config value.
+		default (str): Token to use when raw is empty.
+
+	Returns:
+		str: One of "python", "typescript", "rust", "other".
+	"""
+	token = raw.strip().lower()
+	if token == "":
+		return default
+	# Map menu shortcuts and full names to the canonical token.
+	mapping = {
+		"p": "python",
+		"python": "python",
+		"t": "typescript",
+		"typescript": "typescript",
+		"r": "rust",
+		"rust": "rust",
+		"o": "other",
+		"other": "other",
+	}
+	if token not in mapping:
+		sys.exit(f"Invalid project type: {raw!r}")
+	return mapping[token]
+
+
+def resolve_project_type(repo_root: str) -> str:
+	"""Resolve project type interactively, seeded by detection or existing marker.
+
+	The existing REPO_TYPE marker (when present) is offered as the prompt
+	default; an empty answer accepts it. Bootstrap overwrites the marker without
+	a force guard.
+
+	Args:
+		repo_root (str): Repository root path.
+
+	Returns:
+		str: The resolved project type token.
+	"""
 	marker_path = os.path.join(repo_root, "REPO_TYPE")
 	existing_marker = None
 	if os.path.isfile(marker_path):
 		with open(marker_path, "r") as f:
 			existing_marker = f.read().strip()
 
-	# Choose the default offered at the prompt.
-	if existing_marker and not force:
+	# Choose the default offered at the prompt: an existing marker wins, then
+	# detection, then python.
+	if existing_marker:
 		default_type = existing_marker
 	elif detect_repo_type:
 		# Try to predict repo type when the detector module is available.
@@ -473,25 +531,7 @@ def resolve_project_type(repo_root: str, force: bool) -> str:
 	user_input = input(
 		f"Project type? [p]ython / [t]ypescript / [r]ust / [o]ther [{default_type[0]}]: "
 	).strip()
-	if user_input == "":
-		project_type = default_type
-	elif user_input.lower() == "p":
-		project_type = "python"
-	elif user_input.lower() == "t":
-		project_type = "typescript"
-	elif user_input.lower() == "r":
-		project_type = "rust"
-	elif user_input.lower() == "o":
-		project_type = "other"
-	else:
-		sys.exit("Invalid project type")
-
-	if existing_marker and existing_marker != project_type and not force:
-		sys.exit(
-			f"Marker already exists ({existing_marker}); use --force to change to {project_type}"
-		)
-
-	return project_type
+	return normalize_project_type(user_input, default_type)
 
 
 def resolve_pypi(project_type: str) -> bool:
@@ -556,17 +596,182 @@ def resolve_commit() -> bool:
 	return user_input.lower() == "y"
 
 
-def confirm_plan(project_type: str, code_license: str, docs_license: str, stage: bool, commit: bool, dry_run: bool, skip_confirm: bool) -> None:
-	"""Print summary and prompt for confirmation."""
+#============================================
+# Answers seam: interview and config producers
+#============================================
+
+@dataclasses.dataclass
+class ResetAnswers:
+	"""Resolved bootstrap answers, from interview or config.
+
+	Attributes:
+		project_type (str): Canonical project type token.
+		code_license (str): Resolved SPDX code license id.
+		docs_license (str): Resolved SPDX docs license id, or "none".
+		pypi (bool): Whether to seed pyproject.toml for PyPI publishing.
+		stage (bool): Whether to stage changes with git add -A.
+		commit (bool): Whether to create a commit after staging.
+	"""
+	project_type: str
+	code_license: str
+	docs_license: str
+	pypi: bool
+	stage: bool
+	commit: bool
+
+
+def answers_from_interview(repo_root: str) -> ResetAnswers:
+	"""Collect answers via the interactive prompts.
+
+	Asks, in order: project type, code license, docs license, PyPI (python
+	only), stage changes, create a commit. Returns the resolved answers.
+
+	Args:
+		repo_root (str): Repository root path.
+
+	Returns:
+		ResetAnswers: The resolved answers.
+	"""
+	project_type = resolve_project_type(repo_root)
+	code_license, docs_license = resolve_licenses()
+	pypi = resolve_pypi(project_type)
+	stage = resolve_stage()
+	commit = resolve_commit()
+	answers = ResetAnswers(
+		project_type=project_type,
+		code_license=code_license,
+		docs_license=docs_license,
+		pypi=pypi,
+		stage=stage,
+		commit=commit,
+	)
+	return answers
+
+
+def load_config(path: str) -> dict:
+	"""Load and validate a json answers file.
+
+	Parses the file with the stdlib json reader and raises a clear error
+	(rather than leaking a bare FileNotFoundError, JSONDecodeError, or type
+	confusion) when the file is missing, is not valid json, or does not parse
+	to a json object (dict) at the top level.
+
+	Args:
+		path (str): Path to the json answers file.
+
+	Returns:
+		dict: The parsed top-level json object.
+	"""
+	if not os.path.isfile(path):
+		sys.exit(f"Error: config file not found: {path}")
+	with open(path, "r") as f:
+		raw_text = f.read()
+	# Parse json; convert a decode failure into a clear, named error.
+	try:
+		data = json.loads(raw_text)
+	except json.JSONDecodeError as exc:
+		sys.exit(f"Error: config file is not valid json: {path} ({exc})")
+	if not isinstance(data, dict):
+		sys.exit(
+			f"Error: config file must be a json object at the top level: {path}"
+		)
+	return data
+
+
+def answers_from_config(path: str) -> ResetAnswers:
+	"""Build ResetAnswers from a json config file.
+
+	Required keys (project_type, code_license) are read so a missing one raises
+	a clear message naming the key. Optional keys use defaults that match the
+	interview defaults exactly: docs_license=CC-BY-4.0, pypi=False, stage=True,
+	commit=False. License values reuse resolve_license so accepted values cannot
+	drift from the interview path.
+
+	Args:
+		path (str): Path to the json answers file.
+
+	Returns:
+		ResetAnswers: The resolved answers.
+	"""
+	config = load_config(path)
+	# Required keys: name the missing key clearly instead of leaking KeyError.
+	if "project_type" not in config:
+		sys.exit(f"Error: config missing required key 'project_type': {path}")
+	if "code_license" not in config:
+		sys.exit(f"Error: config missing required key 'code_license': {path}")
+	# Normalize project type through the shared helper; no default fallback is
+	# needed since the key is required, but pass python as a harmless default.
+	project_type = normalize_project_type(str(config["project_type"]), "python")
+	# Resolve licenses through resolve_license so config tokens accept the same
+	# aliases and prefixes as the interview.
+	try:
+		code_license = resolve_license(
+			str(config["code_license"]), CODE_LICENSES, CODE_ALIASES, default=None
+		)
+	except ValueError as exc:
+		sys.exit(f"Error: invalid code_license in config: {exc}")
+	# Optional docs_license defaults to CC-BY-4.0 (matches interview default).
+	docs_raw = config.get("docs_license", "CC-BY-4.0")
+	try:
+		docs_license = resolve_license(
+			str(docs_raw), DOCS_LICENSES, DOCS_ALIASES, default="CC-BY-4.0"
+		)
+	except ValueError as exc:
+		sys.exit(f"Error: invalid docs_license in config: {exc}")
+	# Optional behavior flags default to the interview defaults.
+	pypi = config.get("pypi", False)
+	stage = config.get("stage", True)
+	commit = config.get("commit", False)
+	# PyPI seeding only applies to python repos, mirroring resolve_pypi.
+	if project_type != "python":
+		pypi = False
+	answers = ResetAnswers(
+		project_type=project_type,
+		code_license=code_license,
+		docs_license=docs_license,
+		pypi=bool(pypi),
+		stage=bool(stage),
+		commit=bool(commit),
+	)
+	return answers
+
+
+def is_template_source_dir(repo_root: str) -> bool:
+	"""Return True when repo_root is the template source checkout.
+
+	Detects the template by folder name only (no remote/origin inspection) so
+	the refuse-guard is deterministic and unit-testable.
+
+	Args:
+		repo_root (str): Repository root path.
+
+	Returns:
+		bool: True when the basename is "starter-repo-template".
+	"""
+	# normpath strips a trailing slash so basename cannot return "" and bypass the guard
+	return os.path.basename(os.path.normpath(repo_root)) == "starter-repo-template"
+
+
+def confirm_plan(answers: ResetAnswers, dry_run: bool, skip_confirm: bool) -> None:
+	"""Print the plan summary and prompt the user to confirm before applying.
+
+	Args:
+		answers: The resolved bootstrap answers describing what will be applied.
+		dry_run: When True, prefix the mode label with DRY-RUN for clarity.
+		skip_confirm: When True, skip printing and the Proceed prompt entirely.
+			Set to True in config mode (bool(args.config)) because config runs
+			are non-interactive; interactive mode passes False so the user sees
+			the summary and must type 'y' to proceed.
+	"""
 	if not skip_confirm:
 		mode = "DRY-RUN" if dry_run else "LIVE"
 		print("")
 		print("Summary:")
-		print(f"  type:         {project_type}")
-		print(f"  code license: {code_license}")
-		print(f"  docs license: {docs_license}")
-		print(f"  stage:        {'yes' if stage else 'no'}")
-		print(f"  commit:       {'yes' if commit else 'no'}")
+		print(f"  type:         {answers.project_type}")
+		print(f"  code license: {answers.code_license}")
+		print(f"  docs license: {answers.docs_license}")
+		print(f"  stage:        {'yes' if answers.stage else 'no'}")
+		print(f"  commit:       {'yes' if answers.commit else 'no'}")
 		print(f"  mode:         {mode}")
 		confirm_input = input("Proceed? [y/N]: ").strip()
 		if not confirm_input or confirm_input.lower() != "y":
@@ -574,22 +779,42 @@ def confirm_plan(project_type: str, code_license: str, docs_license: str, stage:
 
 
 def main() -> None:
+	"""Run the interactive bootstrap flow: gather answers, preflight, then apply phases."""
 	args = parse_args()
 	repo_root = get_repo_root()
 
-	# === phase: interactive interview ===
-	# Ask, in order: project type, code license, docs license, PyPI (python only),
-	# stage changes, create a commit. Staging and commit are driven by these
-	# answers, not by CLI flags.
-	project_type = resolve_project_type(repo_root, args.force)
-	code_license, docs_license = resolve_licenses()
+	# === phase: source-repo refuse guard (SAFETY CRITICAL) ===
+	# Run FIRST, before any phase and regardless of --dry-run/--config: refuse to
+	# reset the template source checkout itself.
+	if is_template_source_dir(repo_root):
+		sys.exit(
+			"This repo is named starter-repo-template. Clone or rename it to "
+			"the consumer project name before running reset."
+		)
+
+	# === phase: gather answers (config or interview) ===
+	# Config mode (--config) is non-interactive; the interview asks, in order:
+	# project type, code license, docs license, PyPI (python only), stage
+	# changes, create a commit. Staging and commit are driven by these answers.
+	if args.config:
+		answers = answers_from_config(args.config)
+	else:
+		answers = answers_from_interview(repo_root)
+
+	# Pull the resolved answers into locals for the phase bodies below.
+	project_type = answers.project_type
+	code_license = answers.code_license
+	docs_license = answers.docs_license
+	publish_pypi = answers.pypi
+	stage = answers.stage
+	commit = answers.commit
+
 	preflight_check(repo_root, code_license, docs_license)
-	publish_pypi = resolve_pypi(project_type)
-	stage = resolve_stage()
-	commit = resolve_commit()
 
 	# === phase: summary and confirmation ===
-	confirm_plan(project_type, code_license, docs_license, stage, commit, args.dry_run, args.skip_confirm)
+	# Config mode auto-skips the Proceed prompt; interactive mode keeps it.
+	skip_confirm = bool(args.config)
+	confirm_plan(answers, args.dry_run, skip_confirm)
 
 	action_count = 0
 
@@ -632,6 +857,17 @@ def main() -> None:
 	# === phase: truncate boilerplate ===
 	action_count += truncate_file("README.md", repo_root, args.dry_run)
 	action_count += truncate_file("docs/CHANGELOG.md", repo_root, args.dry_run)
+
+	# === phase: remove changelog archives ===
+	# Rotation archives (docs/CHANGELOG-*.md) are template-meta: they record the
+	# template's own changelog history and must not linger in a consumer clone.
+	# The active docs/CHANGELOG.md is truncated above; the archives are matched by
+	# META_FILE_PATTERNS glob and removed here. META_FILE_PATTERNS is read before
+	# repolib/ is git-rm'd below, so this source remains valid.
+	for pattern in repolib.model.META_FILE_PATTERNS:
+		for archive_path in sorted(glob.glob(os.path.join(repo_root, pattern))):
+			archive_rel = os.path.relpath(archive_path, repo_root)
+			action_count += git_rm(archive_rel, args.dry_run)
 
 	# === phase: remove templates/ ===
 	# templates/ must be removed AFTER propagation has read from it and AFTER

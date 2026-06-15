@@ -28,7 +28,7 @@ tests/
 - Fast pytest lane: `pytest tests/`
 - Single browser test: `node tests/playwright/test_<name>.mjs` (TypeScript repos include `PLAYWRIGHT_USAGE.md` in their propagated `docs/` folder)
 - Single non-browser E2E: `bash tests/e2e/e2e_<name>.sh` or `source source_me.sh && python3 tests/e2e/e2e_<name>.py` (see [../docs/E2E_TESTS.md](../docs/E2E_TESTS.md))
-- Bulk non-browser E2E: `bash tests/e2e/run_all.sh` (if present)
+- Bulk non-browser E2E: `bash tests/e2e/run_all.sh` (if present; in the template repo the reset harness runner lives at `tests/meta/e2e/run_all.sh`)
 
 ## Why two folders for E2E
 

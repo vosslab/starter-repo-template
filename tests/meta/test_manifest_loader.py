@@ -43,6 +43,8 @@ merge_files:
   - SYNTH_MERGE.md
 meta_files:
   - SYNTH_META.md
+meta_file_patterns:
+  - docs/SYNTH-*.md
 meta_dirs:
   - synth_dir
 skip_walk_dirs:

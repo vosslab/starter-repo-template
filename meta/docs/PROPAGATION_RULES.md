@@ -34,7 +34,7 @@ Do not try to eliminate all hardcoding. Root has mixed semantics; explicit lists
 | Want to ... | Put the file under | Ships to |
 |---|---|---|
 | Doc that every repo gets | docs/ | every repo, overwrite |
-| Universal pytest helper | tests/ (test_*.py or helper) | every repo, overwrite |
+| Universal test or helper | tests/ (any non-meta file) | every repo, overwrite |
 | Helper script in devel/ | devel/ | every repo, overwrite |
 | Starter file that must not clobber existing | templates/<type>/noexist/<consumer-path> | only when missing |
 | TypeScript-only file (any subpath, including tools/) | templates/typescript/<consumer-path> | typescript repos only |
@@ -131,7 +131,7 @@ deprecation-strip list); consumer keeps any local `@`-imports and non-`@` conten
 
 - Adding `docs/SHELL_STYLE.md` -- drop in `docs/`, no manifest edit. Every repo gets it.
 - Adding `docs/PYTHON_STYLE.md` -- already universal; drop in `docs/`. Every repo type gets it.
-- Adding `tests/test_security_audit.py` -- drop in `tests/`, every repo gets it.
+- Adding `tests/test_security_audit.py` -- drop in `tests/`, every repo gets it. The `tests/` walk is a denylist: it ships every non-meta `tests/` file by location and skips only dotfiles, `_`-prefixed scratch, `conftest.py` (owned by `merge_conftest`), and `META_TEST_PREFIXES`. A non-`test_`-prefixed helper like `tests/helper_thing.py` ships too.
 - Adding `templates/typescript/.eslintignore` -- drop under `templates/typescript/`. TypeScript repos get it at consumer root.
 - Adding a new starter `Makefile` that must not clobber existing ones -- drop at `templates/<type>/noexist/Makefile` (per type) or add path to `UNIVERSAL_NOEXIST` + place at template root.
 - Adding a python-only tool needed only when `pyproject.toml` exists -- place under `templates/python/_pypi/<consumer-path>` and add a `conditional_overlays.python._pypi` rule (already defined). Example: `devel/submit_to_pypi.py` lives at `templates/python/_pypi/devel/submit_to_pypi.py`.

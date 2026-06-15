@@ -75,6 +75,12 @@ meta_files:
   - pip_requirements-meta.txt
   - docs/CHANGELOG.md
 
+# Glob patterns (template-root-relative) that NEVER ship. Rotation archives like
+# docs/CHANGELOG-2026-06a.md must not propagate; the active docs/CHANGELOG.md stays
+# in meta_files above.
+meta_file_patterns:
+  - docs/CHANGELOG-*.md
+
 # Dirs that NEVER ship. Walked but never produce routing entries.
 meta_dirs:
   - LICENSES

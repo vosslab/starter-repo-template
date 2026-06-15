@@ -4,6 +4,7 @@
 import os
 import shutil
 import filecmp
+import fnmatch
 import collections.abc
 
 # local repo modules
@@ -15,17 +16,40 @@ import repolib.model
 # META leak guard
 #============================================
 
+def is_meta_file(file_rel: str) -> bool:
+	"""Return True when a path is template-meta and must never ship.
+
+	A path is meta when it matches META_FILES exactly (by full rel-path or bare
+	basename) OR matches any META_FILE_PATTERNS glob (e.g. changelog archives).
+
+	Args:
+		file_rel (str): Repo-root-relative file path.
+
+	Returns:
+		bool: True when the path must never ship.
+	"""
+	basename = os.path.basename(file_rel)
+	if file_rel in repolib.model.META_FILES or basename in repolib.model.META_FILES:
+		return True
+	for pattern in repolib.model.META_FILE_PATTERNS:
+		if fnmatch.fnmatch(file_rel, pattern):
+			return True
+	return False
+
+
 def assert_not_meta_file(file_rel: str) -> None:
 	"""
-	Fail loud if a path matches META_FILES (by basename or full rel-path).
+	Fail loud if a path is template-meta and must never ship to a consumer.
 
-	This is the consumer-path-safe guard: it protects per-consumer files the
-	template must never clobber (README.md, VERSION, .gitignore, etc.) without
-	rejecting paths that merely traverse a META_DIRS component. Legitimate
-	consumer paths may live under a directory named like a META_DIRS entry --
-	for example templates/<type>/tools/ ships at the consumer's tools/ -- so
-	the apply-time dispatcher uses this check, not the stricter
-	directory-traversal check in assert_not_meta.
+	Delegates to is_meta_file, which checks both META_FILES (exact basename or
+	full rel-path) AND META_FILE_PATTERNS globs (e.g. changelog archive
+	patterns like docs/CHANGELOG-*.md). This is the consumer-path-safe guard:
+	it protects per-consumer files the template must never clobber (README.md,
+	VERSION, .gitignore, etc.) without rejecting paths that merely traverse a
+	META_DIRS component. Legitimate consumer paths may live under a directory
+	named like a META_DIRS entry -- for example templates/<type>/tools/ ships
+	at the consumer's tools/ -- so the apply-time dispatcher uses this check,
+	not the stricter directory-traversal check in assert_not_meta.
 
 	Args:
 		file_rel: Repo-root-relative file path about to be copied to a consumer.
@@ -33,8 +57,7 @@ def assert_not_meta_file(file_rel: str) -> None:
 	Raises:
 		RuntimeError: file_rel matches META_FILES by basename or rel-path.
 	"""
-	basename = os.path.basename(file_rel)
-	if file_rel in repolib.model.META_FILES or basename in repolib.model.META_FILES:
+	if is_meta_file(file_rel):
 		raise RuntimeError(
 			f"META leak: {file_rel!r} is in META_FILES and must never ship. "
 			"Fix the upstream walker or dispatcher branch that produced this entry."
@@ -838,8 +861,8 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 
 	Routing rules:
 	- Universal docs/ (not in META_FILES/META_DIRS) -> overwrite_files
-	- Universal tests/test_*.py|.mjs (not matching META_TEST_PREFIXES) -> test_files
-	- Universal tests/ helper files (TESTS_README.md, check_*, fix_*, file_utils.py) -> test_files
+	- Universal tests/ (denylist): ship all non-meta tests/ files by location;
+	  skip dotfiles, `_`-scratch, conftest.py (merge-owned), and META_TEST_PREFIXES
 	- Universal devel/ -> devel_files
 	- Root files in ROOT_PROPAGATE_ALLOWLIST -> overwrite_files
 	- ROUTING_OVERRIDES (via should_ship_override) applies to routing decisions
@@ -892,7 +915,7 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 				# Skip META_FILES (matches by full rel-path OR bare basename for
 				# entries that may appear at any depth). docs/active_plans and
 				# docs/archive are caught by is_in_meta_dir().
-				if file_rel in repolib.model.META_FILES or name in repolib.model.META_FILES:
+				if is_meta_file(file_rel):
 					continue
 
 				# Skip if under a meta directory
@@ -915,17 +938,24 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 						plan['devel_files'].append(bare_name)
 				elif file_rel.startswith('tests/'):
 					bare_name = os.path.basename(file_rel)
-					# Skip template-meta test prefixes
+					# Denylist routing: ship all non-meta tests/ files by location.
+					# Skip underscore-prefixed scratch files (repo convention: _temp
+					# = scratch, safe to delete).
+					if bare_name.startswith('_'):
+						continue
+					# conftest.py is owned by merge_conftest (process.py), which
+					# additively merges collect_ignore/REPO_HYGIENE_FILTERS; it is
+					# not bucket-routed.
+					if bare_name == 'conftest.py':
+						continue
+					# Skip template-meta test prefixes (defensive: template-meta
+					# tests must never ship even if one appears at tests/ root).
 					if any(bare_name.startswith(p) for p in repolib.model.META_TEST_PREFIXES):
 						continue
-					# Include test files and helpers
-					if (bare_name.startswith('test_') and (bare_name.endswith('.py') or bare_name.endswith('.mjs'))) or \
-						bare_name in ('TESTS_README.md',) or \
-						bare_name.startswith(('check_', 'fix_')) or \
-						bare_name in ('file_utils.py',):
-						if file_rel not in plan['test_files']:
-							assert_not_meta(file_rel)
-							plan['test_files'].append(file_rel)
+					# Ship everything else by location.
+					if file_rel not in plan['test_files']:
+						assert_not_meta(file_rel)
+						plan['test_files'].append(file_rel)
 				elif file_rel in repolib.model.ROOT_PROPAGATE_ALLOWLIST:
 					assert_not_meta(file_rel)
 					plan['overwrite_files'].append(file_rel)
@@ -999,7 +1029,7 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 				# Standard: every file under the overlay ships at its relative path.
 				# Only the META_FILES basename/path guard applies here; subdirectories such
 				# as tools/ ship verbatim (no META_DIRS directory-segment filtering).
-				if name in repolib.model.META_FILES or file_rel in repolib.model.META_FILES:
+				if is_meta_file(file_rel):
 					continue
 
 				# Route by subdirectory. Conditional overlays route identically to
@@ -1012,8 +1042,7 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 					# stripped path collides with a META name cannot ship.
 					if not consumer_path:
 						continue
-					consumer_basename = os.path.basename(consumer_path)
-					if consumer_path in repolib.model.META_FILES or consumer_basename in repolib.model.META_FILES:
+					if is_meta_file(consumer_path):
 						continue
 					if consumer_path not in plan['noexist_files']:
 						typed_overlay_assert_not_meta(consumer_path)
