@@ -53,6 +53,10 @@
 
 ### Behavior or Interface Changes
 
+- `reset_repo.py` `confirm_plan` summary now prints the resolved `pypi:` choice
+  alongside type/code/docs/stage/commit/mode, so an interactive user sees the one
+  reset decision that controls whether `pyproject.toml` is seeded and the
+  `_pypi` overlay applies before confirming.
 - `tests/` propagation routing changed from an enumerated allowlist to a denylist in
   `repolib/files.py`. The universal walk now ships every non-meta `tests/` file by location;
   it skips only dotfiles, `_`-prefixed scratch files, `conftest.py` (still owned by
@@ -101,6 +105,20 @@
 
 ### Fixes and Maintenance
 
+- `reset_repo.py` git calls now resolve against the resolved `repo_root` instead
+  of the launch directory. `git_rm`/`git_rm_recursive` gained a `repo_root`
+  parameter and pass `cwd=repo_root`; the meta-dir-walk `git ls-files` and the
+  `git add -A`/`git commit`/`git status --short` calls also pass `cwd=repo_root`,
+  matching the existing `templates/` and `tools/` calls. File-copy ops already
+  used absolute `repo_root` paths; this removes the prior inconsistency where a
+  reset launched from a subdirectory would copy files correctly but fail the
+  `git rm` cleanup pathspecs.
+- `reset_repo.py` typescript `package.json` version substitution now zero-pads the
+  month (`f"{now.year}.{now.month:02d}.0"`, e.g. `2026.06.0`) to match the
+  zero-padded CalVer convention in `docs/REPO_STYLE.md`.
+- `reset_repo.py` license-copy-failure rollback hint now names the offending file
+  with per-file `git restore --staged <file>` / `git restore <file>` wording,
+  replacing the wholesale `git restore .` form that the permissions hook blocks.
 - Moved reset E2E harness (`tests/e2e/e2e_reset_routing.py`) and its runner
   (`tests/e2e/run_all.sh`) to `tests/meta/e2e/` via `git mv`. The harness tests
   the propagation/reset engine that is removed at consumers and must therefore be

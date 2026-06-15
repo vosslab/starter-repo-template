@@ -186,28 +186,35 @@ def copy_and_verify_license(
 		with open(target_path, "w") as dst:
 			dst.write(content)
 		if not verify_license_copy(repo_root, spdx_id):
-			rollback_msg = "Rollback: run 'git restore --staged . && git restore .' to discard staged and working-tree changes."
+			rollback_msg = (
+				f"Rollback: discard the offending file with "
+				f"'git restore --staged {target_filename}' then 'git restore {target_filename}'."
+			)
 			sys.exit(
 				f"License copy verification failed: {target_filename}\n{rollback_msg}"
 			)
 		return 1
 
 
-def git_rm(path: str, dry_run: bool) -> int:
-	"""Remove tracked file via git rm."""
+def git_rm(path: str, repo_root: str, dry_run: bool) -> int:
+	"""Remove tracked file via git rm, anchored at repo_root."""
 	if dry_run:
 		dry_run_print(f"git rm {path}", dry_run)
 	else:
-		subprocess.run(["git", "rm", path], check=True, capture_output=True)
+		# cwd=repo_root so the relative pathspec resolves against the resolved
+		# repo root, not the caller's working directory.
+		subprocess.run(["git", "rm", path], check=True, capture_output=True, cwd=repo_root)
 	return 1
 
 
-def git_rm_recursive(path: str, dry_run: bool) -> int:
-	"""Remove tracked directory recursively via git rm -r."""
+def git_rm_recursive(path: str, repo_root: str, dry_run: bool) -> int:
+	"""Remove tracked directory recursively via git rm -r, anchored at repo_root."""
 	if dry_run:
 		dry_run_print(f"git rm -r {path}", dry_run)
 	else:
-		subprocess.run(["git", "rm", "-r", path], check=True, capture_output=True)
+		# cwd=repo_root so the relative pathspec resolves against the resolved
+		# repo root, not the caller's working directory.
+		subprocess.run(["git", "rm", "-r", path], check=True, capture_output=True, cwd=repo_root)
 	return 1
 
 
@@ -224,9 +231,9 @@ def substitute_typescript_package_json(repo_root: str, dry_run: bool) -> int:
 	if "__REPO_NAME__" not in content:
 		return 0
 	repo_name = os.path.basename(repo_root)
-	# CalVer: YYYY.M.0 (no leading zero on month per CalVer convention)
+	# CalVer: zero-padded month per docs/REPO_STYLE.md (0Y.0M), e.g. 2026.06.0
 	now = datetime.datetime.now()
-	repo_version = f"{now.year}.{now.month}.0"
+	repo_version = f"{now.year}.{now.month:02d}.0"
 	if dry_run:
 		dry_run_print(
 			f"substitute __REPO_NAME__ -> {repo_name}, __REPO_VERSION__ -> {repo_version} in {package_json_path}", dry_run
@@ -770,6 +777,7 @@ def confirm_plan(answers: ResetAnswers, dry_run: bool, skip_confirm: bool) -> No
 		print(f"  type:         {answers.project_type}")
 		print(f"  code license: {answers.code_license}")
 		print(f"  docs license: {answers.docs_license}")
+		print(f"  pypi:         {'yes' if answers.pypi else 'no'}")
 		print(f"  stage:        {'yes' if answers.stage else 'no'}")
 		print(f"  commit:       {'yes' if answers.commit else 'no'}")
 		print(f"  mode:         {mode}")
@@ -830,7 +838,7 @@ def main() -> None:
 		action_count += copy_and_verify_license(repo_root, docs_source, f"LICENSE.{docs_license}.md", docs_license, args.dry_run)
 
 	# === phase: cleanup LICENSES/ ===
-	action_count += git_rm_recursive("LICENSES/", args.dry_run)
+	action_count += git_rm_recursive("LICENSES/", repo_root, args.dry_run)
 
 	# === phase: seed pyproject (BEFORE propagate) ===
 	# On a PyPI-publishing python repo, seed pyproject.toml from the _pypi stub
@@ -867,7 +875,7 @@ def main() -> None:
 	for pattern in repolib.model.META_FILE_PATTERNS:
 		for archive_path in sorted(glob.glob(os.path.join(repo_root, pattern))):
 			archive_rel = os.path.relpath(archive_path, repo_root)
-			action_count += git_rm(archive_rel, args.dry_run)
+			action_count += git_rm(archive_rel, repo_root, args.dry_run)
 
 	# === phase: remove templates/ ===
 	# templates/ must be removed AFTER propagation has read from it and AFTER
@@ -887,7 +895,7 @@ def main() -> None:
 		)
 		if ls_templates.stdout.strip():
 			# templates/ has tracked files; remove them via git rm -r
-			action_count += git_rm_recursive("templates/", args.dry_run)
+			action_count += git_rm_recursive("templates/", repo_root, args.dry_run)
 		elif os.path.isdir(templates_dir):
 			# untracked templates/ directory present; log and skip (no git state to touch)
 			print("templates/ is untracked -- skipping git rm (directory left on disk)")
@@ -898,8 +906,8 @@ def main() -> None:
 	# === phase: git rm cleanup ===
 	# Remove the template-only propagation infrastructure from the consumer:
 	# entry script and the repolib package (renamed from propagate/ in the template).
-	action_count += git_rm("propagate_style_guides.py", args.dry_run)
-	action_count += git_rm_recursive("repolib/", args.dry_run)
+	action_count += git_rm("propagate_style_guides.py", repo_root, args.dry_run)
+	action_count += git_rm_recursive("repolib/", repo_root, args.dry_run)
 	# Remove the template's own tracked root tools/ (e.g. tools/detect_repo_type.py).
 	# `git rm -r tools/` removes tracked entries only; freshly propagated untracked
 	# files (e.g. tools/sync_typescript_package_pins.py for typescript consumers)
@@ -915,7 +923,7 @@ def main() -> None:
 			check=True, capture_output=True, text=True, cwd=repo_root,
 		)
 		if ls_tools.stdout.strip():
-			action_count += git_rm_recursive("tools/", args.dry_run)
+			action_count += git_rm_recursive("tools/", repo_root, args.dry_run)
 		else:
 			print("tools/ has no tracked files -- skipping git rm (any propagated files left on disk)")
 	# Strip every directory named "meta/" anywhere in the tree (template-only
@@ -924,7 +932,7 @@ def main() -> None:
 	# in each path so a nested case like a/meta/sub/meta/ collapses to a/meta/
 	# and `git rm -r` is not asked to remove the same subtree twice.
 	ls_result = subprocess.run(
-		["git", "ls-files"], check=True, capture_output=True, text=True
+		["git", "ls-files"], check=True, capture_output=True, text=True, cwd=repo_root
 	)
 	tracked = ls_result.stdout.splitlines()
 	meta_dirs: list[str] = []
@@ -947,7 +955,7 @@ def main() -> None:
 		if not covered:
 			pruned.append(candidate)
 	for meta_dir in pruned:
-		action_count += git_rm_recursive(meta_dir, args.dry_run)
+		action_count += git_rm_recursive(meta_dir, repo_root, args.dry_run)
 
 	# Keep submit_to_pypi.py only when the python/_pypi overlay applies to this
 	# repo. Compute a single pypi_applies boolean so the dry-run path does not
@@ -986,7 +994,7 @@ def main() -> None:
 			else:
 				print("devel/submit_to_pypi.py untracked -- skipping git rm")
 
-	action_count += git_rm("reset_repo.py", args.dry_run)
+	action_count += git_rm("reset_repo.py", repo_root, args.dry_run)
 
 	# === phase: end-state verification ===
 	# Verify no template-owned paths remain (git index + disk). In dry-run, logs
@@ -999,7 +1007,7 @@ def main() -> None:
 		if args.dry_run:
 			dry_run_print("git add -A", args.dry_run)
 		else:
-			subprocess.run(["git", "add", "-A"], check=True, capture_output=True)
+			subprocess.run(["git", "add", "-A"], check=True, capture_output=True, cwd=repo_root)
 
 	# === phase: commit ===
 	if commit:
@@ -1009,7 +1017,7 @@ def main() -> None:
 			dry_run_print(f"git commit -m {repr(commit_msg)}", args.dry_run)
 		else:
 			subprocess.run(
-				["git", "commit", "-m", commit_msg], check=True, capture_output=True
+				["git", "commit", "-m", commit_msg], check=True, capture_output=True, cwd=repo_root
 			)
 
 	# === phase: summary print ===
@@ -1023,7 +1031,7 @@ def main() -> None:
 		else:
 			print("Staged. Run 'git commit' when ready.")
 
-		subprocess.run(["git", "status", "--short"], check=False)
+		subprocess.run(["git", "status", "--short"], check=False, cwd=repo_root)
 
 	# Next-step hint lists the dependency files actually present for this repo type.
 	# python ships both pip_requirements.txt (python-only) and the universal
