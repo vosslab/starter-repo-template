@@ -36,6 +36,16 @@ link to that file from `AGENTS.md`.
 Concise `AGENTS.md` files help coding agents perform better because the
 instructions are easier to scan, prioritize, and follow.
 
+### Human guidance
+
+- `docs/HUMAN_GUIDANCE.md`: durable human preferences, project-specific guidance, review expectations, and stable decisions that agents should preserve across planning and implementation work.
+- Use this file for long-term guidance that prevents drift across manager and subagent runs.
+- Keep entries focused on stable preferences and recurring project decisions, not transient task notes.
+- Link to `docs/HUMAN_GUIDANCE.md` from `AGENTS.md` when agents need the guidance during routine work.
+- Update this file when the human gives a stable correction, workflow preference, review rule, or project priority that should apply to future tasks.
+- Prefer positive phrasing. State the behavior agents should follow.
+- Keep detailed history in `docs/CHANGELOG.md`; keep current human guidance in `docs/HUMAN_GUIDANCE.md`.
+
 ## README.md and GitHub About descriptions
 
 - The first paragraph of `README.md` is the source text for the GitHub About description.

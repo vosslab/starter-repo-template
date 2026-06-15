@@ -1,3 +1,18 @@
+## 2026-06-15
+
+### Behavior or Interface Changes
+
+- `devel/DEVEL_README.md`: shortened the folder README from script-help-style function
+  inventories into a quick summary of what belongs in `devel/`, with a compact current-script
+  table and a note that type-specific developer helpers live under `templates/<type>/devel/`.
+- `devel/flatten_broken_md_links.py`: added `-i`/`--input` file mode (`nargs='+'`) and
+  `-n`/`--dry-run`. Accepts one or more paths or glob patterns; patterns are expanded in
+  Python via `glob.glob`, so quoted globs work even when the shell does not expand them
+  (for example `-i 'devel/*.md'`). In this mode `--apply` is the default (writes the files);
+  pass `--dry-run` to preview only. Directory mode is unchanged: dry-run by default, `--apply`
+  to write. Extracted the per-file loop and summary printer into a shared `run_files()` helper
+  used by both modes.
+
 ## 2026-06-12
 
 ### Additions and New Features
