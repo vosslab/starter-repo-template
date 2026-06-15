@@ -2,12 +2,15 @@
 """
 reset_repo.py - bootstrap a fresh clone of starter-repo-template.
 
-Prompts (or accepts flags) for project type and SPDX licenses, writes the
-REPO_TYPE marker, installs selected LICENSE files, calls repolib directly
-to lay down type-dispatched files in bootstrap mode, truncates README +
-CHANGELOG, and removes itself.
+Interactive bootstrap tool. Prompts for project type, SPDX licenses, PyPI
+publishing (python only), staging, and commit. Writes the REPO_TYPE marker,
+installs selected LICENSE files, optionally seeds pyproject.toml, calls
+repolib directly to lay down type-dispatched files in bootstrap mode,
+truncates README + CHANGELOG, and removes itself. The only CLI flags are
+safety controls: --dry-run, --yes, and --force.
 """
 
+# Standard Library
 import os
 import sys
 import argparse
@@ -16,6 +19,7 @@ import subprocess
 import tempfile
 
 # local repo modules
+import repolib.model
 import repolib.console
 import repolib.process
 
@@ -44,9 +48,7 @@ DOCS_ALIASES = {
 	"n": "none",
 }
 
-TYPE_TOKENS = ["python", "typescript", "rust", "other"]
-
-
+#============================================
 def resolve_license(user_input: str, canonical: list, aliases: dict, default: str | None = None) -> str:
 	"""Resolve license token via alias or unique prefix."""
 	token = user_input.strip().lower()
@@ -62,6 +64,7 @@ def resolve_license(user_input: str, canonical: list, aliases: dict, default: st
 	raise ValueError(f"ambiguous or unknown license: {user_input!r}")
 
 
+#============================================
 def get_repo_root() -> str:
 	"""Return the repository root path via git rev-parse."""
 	try:
@@ -76,6 +79,7 @@ def get_repo_root() -> str:
 		sys.exit("Error: not in a git repository")
 
 
+#============================================
 def preflight_check(repo_root: str, code_license: str, docs_license: str) -> None:
 	"""Verify that license files exist in LICENSES/ before proceeding."""
 	code_path = os.path.join(repo_root, f"LICENSES/LICENSE.{code_license}.md")
@@ -87,6 +91,7 @@ def preflight_check(repo_root: str, code_license: str, docs_license: str) -> Non
 			sys.exit(f"license file missing: {docs_path}")
 
 
+#============================================
 def verify_license_copy(repo_root: str, license_type: str, spdx_id: str) -> bool:
 	"""Check if license file was copied and contains recognizable license text."""
 	target = os.path.join(repo_root, f"LICENSE.{spdx_id}.md")
@@ -100,37 +105,11 @@ def verify_license_copy(repo_root: str, license_type: str, spdx_id: str) -> bool
 	return spdx_id in first_bytes or normalized_spdx in first_bytes
 
 
+#============================================
 def parse_args() -> argparse.Namespace:
+	"""Parse command-line arguments and return the populated namespace."""
 	parser = argparse.ArgumentParser(
 		description="Reset a cloned starter-repo-template to base configuration"
-	)
-	parser.add_argument(
-		"--type",
-		dest="project_type",
-		choices=TYPE_TOKENS,
-		help="Project type (python, typescript, rust, other)",
-	)
-	parser.add_argument(
-		"--code-license",
-		dest="code_license",
-		help="Code license (SPDX id, alias, or unique prefix)",
-	)
-	parser.add_argument(
-		"--docs-license",
-		dest="docs_license",
-		help="Docs license (SPDX id, alias, unique prefix, or 'none')",
-	)
-	parser.add_argument(
-		"--non-interactive",
-		dest="non_interactive",
-		action="store_true",
-		help="Non-interactive mode (requires all three content flags)",
-	)
-	parser.add_argument(
-		"--yes",
-		dest="skip_confirm",
-		action="store_true",
-		help="Skip final confirmation prompt",
 	)
 	parser.add_argument(
 		"--dry-run",
@@ -139,16 +118,10 @@ def parse_args() -> argparse.Namespace:
 		help="Print actions without executing",
 	)
 	parser.add_argument(
-		"--commit",
-		dest="commit",
+		"--yes",
+		dest="skip_confirm",
 		action="store_true",
-		help="Create commit after staging changes",
-	)
-	parser.add_argument(
-		"--no-stage",
-		dest="no_stage",
-		action="store_true",
-		help="Leave changes in working tree, do not stage",
+		help="Skip final confirmation prompt",
 	)
 	parser.add_argument(
 		"--force",
@@ -287,6 +260,75 @@ def run_propagate(repo_root: str, dry_run: bool) -> int:
 	return 1
 
 
+def read_stub_version(stub_path: str) -> str:
+	"""Read the [project] version string from the pyproject stub.
+
+	The stub is minimal (a [project] table with name + version). Parse the
+	version line directly so no toml library dependency is introduced.
+
+	Args:
+		stub_path (str): Path to templates/python/_pypi/noexist/pyproject.toml.
+
+	Returns:
+		str: The version string, e.g. "26.06".
+
+	Raises:
+		RuntimeError: When no version line is found in the stub.
+	"""
+	with open(stub_path, "r") as f:
+		stub_lines = f.read().splitlines()
+	for line in stub_lines:
+		stripped = line.strip()
+		# Match a top-level version assignment: version = "..."
+		if stripped.startswith("version") and "=" in stripped:
+			# Split on the first '=' and strip surrounding quotes/space.
+			value = stripped.split("=", 1)[1].strip()
+			version = value.strip('"').strip("'")
+			return version
+	raise RuntimeError(f"no [project] version found in stub: {stub_path}")
+
+
+def seed_pyproject(repo_root: str, dry_run: bool) -> int:
+	"""Seed pyproject.toml from the _pypi stub and write a synced VERSION file.
+
+	Runs BEFORE propagation so select_overlay_dirs sees pyproject.toml and the
+	python/_pypi overlay (submit_to_pypi.py) ships in the same reset. Skips
+	seeding when pyproject.toml already exists at the repo root (a consumer file
+	is left untouched). VERSION is written to match the stub's [project] version
+	per docs/REPO_STYLE.md.
+
+	Args:
+		repo_root (str): Repository root path.
+		dry_run (bool): When True, log the actions without writing.
+
+	Returns:
+		int: Count of actions taken or announced.
+	"""
+	pyproject_path = os.path.join(repo_root, "pyproject.toml")
+	# A consumer-supplied pyproject already selects the overlay; leave it alone.
+	if os.path.isfile(pyproject_path):
+		dry_run_print("pyproject.toml already present -- skip seeding", dry_run)
+		return 0
+	# Anchor the stub path on the script location, not a repo_root-relative
+	# hardcode, so seeding works regardless of where the script is invoked from.
+	script_dir = os.path.dirname(os.path.abspath(__file__))
+	stub_path = os.path.join(script_dir, "templates/python/_pypi/noexist/pyproject.toml")
+	with open(stub_path, "r") as src:
+		stub_content = src.read()
+	version = read_stub_version(stub_path)
+	version_path = os.path.join(repo_root, "VERSION")
+	if dry_run:
+		dry_run_print(f"seed pyproject.toml from {stub_path}", dry_run)
+		dry_run_print(f"write VERSION ({version})", dry_run)
+		return 2
+	# Write the seed pyproject and a VERSION file holding the same version string.
+	with open(pyproject_path, "w") as dst:
+		dst.write(stub_content)
+	with open(version_path, "w") as vf:
+		vf.write(f"{version}\n")
+	return 2
+
+
 # Template-owned root-level directories that must be absent after reset cleanup.
 # Only the specific template convention locations for "meta" are checked:
 # root meta/ and tests/meta/. Legitimate consumer meta/ elsewhere is not rejected.
@@ -404,53 +446,45 @@ def truncate_file(path: str, repo_root: str, dry_run: bool) -> int:
 # Config resolution helpers
 #============================================
 
-def resolve_project_type(repo_root: str, project_type: str, force: bool, non_interactive: bool) -> str:
-	"""Resolve project type via detection, existing marker, or user input."""
+def resolve_project_type(repo_root: str, force: bool) -> str:
+	"""Resolve project type interactively, seeded by detection or existing marker."""
 	marker_path = os.path.join(repo_root, "REPO_TYPE")
 	existing_marker = None
 	if os.path.isfile(marker_path):
 		with open(marker_path, "r") as f:
 			existing_marker = f.read().strip()
 
-	if not project_type:
-		if existing_marker and not force:
-			default_type = existing_marker
+	# Choose the default offered at the prompt.
+	if existing_marker and not force:
+		default_type = existing_marker
+	elif detect_repo_type:
+		# Try to predict repo type when the detector module is available.
+		token, confidence, _ = detect_repo_type.detect_repo_type(repo_root)
+		if confidence == 'high' and token != 'ambiguous':
+			default_type = token
+		elif confidence == 'medium':
+			default_type = token
 		else:
-			# Try to predict repo type (if detect_repo_type module is available)
-			if detect_repo_type:
-				token, confidence, _ = detect_repo_type.detect_repo_type(repo_root)
-				if confidence == 'high' and token != 'ambiguous':
-					default_type = token
-					if not force:
-						# Auto-select high confidence without prompting
-						print(f"Detected: {token} (auto-selected; use --force to override)")
-						project_type = token
-				elif confidence == 'medium':
-					default_type = token
-				else:
-					default_type = "python"
-			else:
-				default_type = "python"
+			default_type = "python"
+	else:
+		default_type = "python"
 
-		if project_type is None:
-			if non_interactive:
-				project_type = default_type
-			else:
-				user_input = input(
-					f"Project type? [p]ython / [t]ypescript / [r]ust / [o]ther [{default_type[0]}]: "
-				).strip()
-				if user_input == "":
-					project_type = default_type
-				elif user_input.lower() == "p":
-					project_type = "python"
-				elif user_input.lower() == "t":
-					project_type = "typescript"
-				elif user_input.lower() == "r":
-					project_type = "rust"
-				elif user_input.lower() == "o":
-					project_type = "other"
-				else:
-					sys.exit("Invalid project type")
+	# Always prompt; an empty answer accepts the default.
+	user_input = input(
+		f"Project type? [p]ython / [t]ypescript / [r]ust / [o]ther [{default_type[0]}]: "
+	).strip()
+	if user_input == "":
+		project_type = default_type
+	elif user_input.lower() == "p":
+		project_type = "python"
+	elif user_input.lower() == "t":
+		project_type = "typescript"
+	elif user_input.lower() == "r":
+		project_type = "rust"
+	elif user_input.lower() == "o":
+		project_type = "other"
+	else:
+		sys.exit("Invalid project type")
 
 	if existing_marker and existing_marker != project_type and not force:
 		sys.exit(
@@ -460,57 +494,71 @@ def resolve_project_type(repo_root: str, project_type: str, force: bool, non_int
 	return project_type
 
 
-def resolve_licenses(code_license: str, docs_license: str, non_interactive: bool) -> tuple:
-	"""Resolve code and docs licenses via alias, prefix, or user input."""
-	if not code_license:
-		if non_interactive:
-			sys.exit("--code-license required in non-interactive mode")
-		while True:
-			user_input = input(
-				"Code license?\n  [m] MIT\n  [a] Apache-2.0\n  [l] LGPL-3.0\n  [g] GPL-3.0\n  [ag] AGPL-3.0\n  [mp] MPL-2.0\nChoice: "
-			).strip()
-			try:
-				code_license = resolve_license(
-					user_input, CODE_LICENSES, CODE_ALIASES, default=None
-				)
-				break
-			except ValueError as e:
-				print(f"Error: {e}. Please try again.")
-	else:
+def resolve_pypi(project_type: str) -> bool:
+	"""Resolve whether a python project publishes to PyPI.
+
+	Only meaningful for python repos. Non-python types never seed pyproject.toml.
+	For python repos, prompt the user; default is no.
+
+	Args:
+		project_type (str): Resolved project type token.
+
+	Returns:
+		bool: True when pyproject.toml should be seeded before propagation.
+	"""
+	# PyPI seeding only applies to python repos.
+	if project_type != "python":
+		return False
+	# Interactive python run: ask, default no.
+	user_input = input("Will this Python project be published as a pypi package? [y/N]: ").strip()
+	return user_input.lower() == "y"
+
+
+def resolve_licenses() -> tuple:
+	"""Prompt for code and docs licenses, resolving via alias or unique prefix."""
+	# Code license: prompt until a valid choice is entered (no default).
+	while True:
+		user_input = input(
+			"Code license?\n  [m] MIT\n  [a] Apache-2.0\n  [l] LGPL-3.0\n  [g] GPL-3.0\n  [ag] AGPL-3.0\n  [mp] MPL-2.0\nChoice: "
+		).strip()
 		try:
 			code_license = resolve_license(
-				code_license, CODE_LICENSES, CODE_ALIASES, default=None
+				user_input, CODE_LICENSES, CODE_ALIASES, default=None
 			)
+			break
 		except ValueError as e:
-			sys.exit(f"Invalid code license: {e}")
+			print(f"Error: {e}. Please try again.")
 
-	if not docs_license:
-		if non_interactive:
-			docs_license = "CC-BY-4.0"
-		else:
-			user_input = input(
-				"Docs license?\n  [cb] CC-BY-4.0\n  [cs] CC-BY-SA-4.0\n  [n] none\nChoice [cb]: "
-			).strip()
-			try:
-				docs_license = resolve_license(
-					user_input, DOCS_LICENSES, DOCS_ALIASES, default="CC-BY-4.0"
-				)
-			except ValueError as e:
-				sys.exit(f"Invalid docs license: {e}")
-	else:
-		try:
-			docs_license = resolve_license(
-				docs_license, DOCS_LICENSES, DOCS_ALIASES, default=None
-			)
-		except ValueError as e:
-			sys.exit(f"Invalid docs license: {e}")
+	# Docs license: empty answer accepts the CC-BY-4.0 default.
+	user_input = input(
+		"Docs license?\n  [cb] CC-BY-4.0\n  [cs] CC-BY-SA-4.0\n  [n] none\nChoice [cb]: "
+	).strip()
+	try:
+		docs_license = resolve_license(
+			user_input, DOCS_LICENSES, DOCS_ALIASES, default="CC-BY-4.0"
+		)
+	except ValueError as e:
+		sys.exit(f"Invalid docs license: {e}")
 
 	return code_license, docs_license
 
 
-def confirm_plan(project_type: str, code_license: str, docs_license: str, stage: bool, commit: bool, dry_run: bool, skip_confirm: bool, non_interactive: bool) -> None:
+def resolve_stage() -> bool:
+	"""Prompt whether to stage changes; default yes."""
+	user_input = input("Stage changes? [Y/n]: ").strip()
+	# Empty answer accepts the yes default; only an explicit 'n' declines.
+	return user_input.lower() != "n"
+
+
+def resolve_commit() -> bool:
+	"""Prompt whether to create a commit; default no."""
+	user_input = input("Create a commit? [y/N]: ").strip()
+	return user_input.lower() == "y"
+
+
+def confirm_plan(project_type: str, code_license: str, docs_license: str, stage: bool, commit: bool, dry_run: bool, skip_confirm: bool) -> None:
 	"""Print summary and prompt for confirmation."""
-	if not skip_confirm and not non_interactive:
+	if not skip_confirm:
 		mode = "DRY-RUN" if dry_run else "LIVE"
 		print("")
 		print("Summary:")
@@ -529,24 +577,19 @@ def main() -> None:
 	args = parse_args()
 	repo_root = get_repo_root()
 
-	# === phase: arg validation ===
-	if args.non_interactive:
-		if not args.project_type or not args.code_license or not args.docs_license:
-			sys.exit("--non-interactive requires --type, --code-license, and --docs-license")
-		if not args.skip_confirm:
-			sys.exit("--non-interactive requires --yes")
-
-	if args.commit and args.no_stage:
-		sys.exit("--commit and --no-stage conflict")
-
-	# === phase: config resolution ===
-	project_type = resolve_project_type(repo_root, args.project_type, args.force, args.non_interactive)
-	code_license, docs_license = resolve_licenses(args.code_license, args.docs_license, args.non_interactive)
+	# === phase: interactive interview ===
+	# Ask, in order: project type, code license, docs license, PyPI (python only),
+	# stage changes, create a commit. Staging and commit are driven by these
+	# answers, not by CLI flags.
+	project_type = resolve_project_type(repo_root, args.force)
+	code_license, docs_license = resolve_licenses()
 	preflight_check(repo_root, code_license, docs_license)
+	publish_pypi = resolve_pypi(project_type)
+	stage = resolve_stage()
+	commit = resolve_commit()
 
 	# === phase: summary and confirmation ===
-	stage = not args.no_stage
-	confirm_plan(project_type, code_license, docs_license, stage, args.commit, args.dry_run, args.skip_confirm, args.non_interactive)
+	confirm_plan(project_type, code_license, docs_license, stage, commit, args.dry_run, args.skip_confirm)
 
 	action_count = 0
 
@@ -563,6 +606,14 @@ def main() -> None:
 
 	# === phase: cleanup LICENSES/ ===
 	action_count += git_rm_recursive("LICENSES/", args.dry_run)
+
+	# === phase: seed pyproject (BEFORE propagate) ===
+	# On a PyPI-publishing python repo, seed pyproject.toml from the _pypi stub
+	# (plus a synced VERSION file) so select_overlay_dirs includes python/_pypi
+	# during the propagate phase below and submit_to_pypi.py ships in this reset.
+	# This MUST run before run_propagate so the overlay selection sees the file.
+	if publish_pypi:
+		action_count += seed_pyproject(repo_root, args.dry_run)
 
 	# === phase: propagate (direct repolib call) ===
 	action_count += run_propagate(repo_root, args.dry_run)
@@ -662,8 +713,42 @@ def main() -> None:
 	for meta_dir in pruned:
 		action_count += git_rm_recursive(meta_dir, args.dry_run)
 
-	if project_type != "python":
-		action_count += git_rm("devel/submit_to_pypi.py", args.dry_run)
+	# Keep submit_to_pypi.py only when the python/_pypi overlay applies to this
+	# repo. Compute a single pypi_applies boolean so the dry-run path does not
+	# mislog a cleanup it would not perform: select_overlay_dirs sees pyproject.toml
+	# only when it exists on disk, which in dry-run is never (seed_pyproject skipped
+	# writing it). OR in the chosen PyPI answer so a dry-run with PyPI=yes does NOT
+	# log a misleading "git rm devel/submit_to_pypi.py".
+	overlay_dirs = repolib.model.select_overlay_dirs(project_type, repo_root)
+	pypi_applies = publish_pypi or (f"{project_type}/_pypi" in overlay_dirs)
+	if not pypi_applies:
+		# Guard on tracked content so a fresh repo that never received the PyPI
+		# overlay (PyPI=no, or a non-python type, or python-without-pyproject)
+		# does not fail on a no-match pathspec. `git rm` aborts with exit 128 when
+		# the path is untracked, so only remove devel/submit_to_pypi.py when the
+		# git index actually tracks it, mirroring the tools/ handling above.
+		if args.dry_run:
+			dry_run_print("git rm -f devel/submit_to_pypi.py", args.dry_run)
+			action_count += 1
+		else:
+			ls_pypi = subprocess.run(
+				["git", "ls-files", "devel/submit_to_pypi.py"],
+				check=True, capture_output=True, text=True, cwd=repo_root,
+			)
+			if ls_pypi.stdout.strip():
+				# Force-remove: when the overlay does not apply, this file must not
+				# exist. The propagate phase may have refreshed it on disk from the
+				# _pypi overlay source (a consumer with a stale, tracked
+				# devel/submit_to_pypi.py), leaving the working tree differing from
+				# the index. Plain `git rm` aborts on that difference; `-f` removes
+				# it unconditionally, which is the intended PyPI=no end state.
+				subprocess.run(
+					["git", "rm", "-f", "devel/submit_to_pypi.py"],
+					check=True, capture_output=True, cwd=repo_root,
+				)
+				action_count += 1
+			else:
+				print("devel/submit_to_pypi.py untracked -- skipping git rm")
 
 	action_count += git_rm("reset_repo.py", args.dry_run)
 
@@ -673,7 +758,7 @@ def main() -> None:
 	action_count += verify_clean_end_state(repo_root, args.dry_run)
 
 	# === phase: stage changes ===
-	if not args.no_stage:
+	if stage:
 		action_count += 1
 		if args.dry_run:
 			dry_run_print("git add -A", args.dry_run)
@@ -681,7 +766,7 @@ def main() -> None:
 			subprocess.run(["git", "add", "-A"], check=True, capture_output=True)
 
 	# === phase: commit ===
-	if args.commit:
+	if commit:
 		action_count += 1
 		commit_msg = f"initial commit: reset repo to base template ({project_type})"
 		if args.dry_run:
@@ -695,24 +780,32 @@ def main() -> None:
 	if args.dry_run:
 		print(f"DRY-RUN: {action_count} actions planned. No files changed.")
 	else:
-		if args.commit:
+		if commit:
 			print("Committed.")
-		elif args.no_stage:
+		elif not stage:
 			print("Working tree modified. Run 'git add -A && git commit' when ready.")
 		else:
 			print("Staged. Run 'git commit' when ready.")
 
 		subprocess.run(["git", "status", "--short"], check=False)
 
+	# Next-step hint lists the dependency files actually present for this repo type.
+	# python ships both pip_requirements.txt (python-only) and the universal
+	# pip_requirements-dev.txt; every other type ships only the universal dev file.
 	if project_type == "python":
 		print("\nNext steps:")
 		print("  pip install -r pip_requirements.txt && pip install -r pip_requirements-dev.txt")
 	elif project_type == "typescript":
 		print("\nNext steps:")
 		print("  npm install && bash devel/setup_playwright.sh")
+		print("  pip install -r pip_requirements-dev.txt")
 	elif project_type == "rust":
 		print("\nNext steps:")
 		print("  cargo build")
+		print("  pip install -r pip_requirements-dev.txt")
+	else:
+		print("\nNext steps:")
+		print("  pip install -r pip_requirements-dev.txt")
 
 
 if __name__ == "__main__":

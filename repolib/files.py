@@ -1,10 +1,12 @@
 """File operations, I/O helpers, and merge logic."""
 
+# Standard Library
 import os
 import shutil
 import filecmp
 import collections.abc
 
+# local repo modules
 import repolib.console
 import repolib.model
 
@@ -77,38 +79,31 @@ def should_ship_override(file_rel: str, repo_lang: str, repo_dir: str) -> bool |
 	"""
 	Apply routing overrides on top of the walker's default routing.
 
-	Checks ROUTING_OVERRIDES table for language-specific, requirement-based, or
-	per-destination-repo exclusion rules.
-	Returns None if no override applies (walker's default decision stands).
+	Location is now the primary propagation determinant, so the only override this
+	predicate evaluates is `exclude_repos`: it blocks a file when the destination
+	repo basename is on that file's exclusion list. All other keys are unlisted and
+	return None (the walker's location-based decision stands).
 
-	Note: this predicate only evaluates the gate fields (`language`, `requires_repo_file`).
-	The `bucket` field is NOT consumed here; callers that receive True must re-read the rule
-	dict from `repolib.model.ROUTING_OVERRIDES` to apply bucket overrides (see
-	compute_propagation_plan in this module for the canonical pattern).
+	The `repo_lang` parameter is retained for caller compatibility but is no longer
+	consulted; language gating moved into the template folder layout.
 
 	Args:
 		file_rel (str): Repo-root-relative file path.
-		repo_lang (str): Repository language type (python, typescript, rust, other, unknown).
+		repo_lang (str): Repository language type (kept for caller compatibility; unused).
 		repo_dir (str): Repository directory path.
 
 	Returns:
-		bool or None: True if override allows the file to ship, False if override blocks it,
-		              None if no override applies.
+		bool or None: False if exclude_repos blocks the file for this destination repo,
+		              None if no override applies (the common case).
 	"""
 	rule = repolib.model.ROUTING_OVERRIDES.get(file_rel)
 	if rule is None:
 		return None
-	rule_lang = rule.get('language')
-	if rule_lang is not None and rule_lang != repo_lang:
-		return False
-	required = rule.get('requires_repo_file')
-	if required is not None and not os.path.isfile(os.path.join(repo_dir, required)):
-		return False
-	# Per-destination-repo exclusion: block when this dest repo is on the exclude list
+	# Per-destination-repo exclusion: block when this dest repo is on the exclude list.
 	exclude_repos = rule.get('exclude_repos')
 	if exclude_repos is not None and os.path.basename(os.path.normpath(repo_dir)) in exclude_repos:
 		return False
-	return True
+	return None
 
 
 #============================================
@@ -757,7 +752,7 @@ _init_module_constants()
 #============================================
 def resolve_spec_for_type(repo_type: str, template_root: str | None = None, counters: dict | None = None, repo_dir: str | None = None) -> dict:
 	"""
-	Return the five-bucket propagation spec for the given repo_type.
+	Return the six-bucket propagation spec for the given repo_type.
 	Uses compute_propagation_plan with template_root (defaults to script directory).
 	"""
 	if repo_type not in ('universal', 'python', 'typescript', 'rust', 'other', 'unknown'):
@@ -815,11 +810,12 @@ def auto_discover_test_files(template_root: str, repo_type: str) -> list[str]:
 #============================================
 def compute_propagation_plan(template_root: str, repo_type: str, counters: dict | None = None, repo_dir: str | None = None) -> dict:
 	"""
-	Compute the five-bucket propagation plan by walking the filesystem.
+	Compute the six-bucket propagation plan by walking the filesystem.
 
 	Walks template_root and returns a dict with:
 	- 'overwrite_files': repo-root-relative paths that overwrite at consumer
 	- 'noexist_files': repo-root-relative paths that ship only when missing
+	- 'merge_files': paths routed to the set-union @-import merge bucket
 	- 'devel_files': bare filenames under devel/ at consumer
 	- 'test_files': paths under tests/ at consumer
 	- 'gitignore_block': pattern lines for .gitignore
@@ -833,7 +829,7 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 
 	Precedence (apply in this order; earlier rules win on conflict):
 	  1. META_FILES / META_DIRS              -> never ship (drop from all buckets)
-	  2. ROUTING_OVERRIDES (via should_ship_override) -> language/requirement-based rules
+	  2. ROUTING_OVERRIDES (via should_ship_override) -> exclude_repos gate only
 	  3. UNIVERSAL_NOEXIST                   -> override universal overwrite -> noexist
 	  4. templates/<type>/noexist/<path>     -> override typed overlay overwrite -> noexist
 	  5. Type overlay wins over universal     -> when both target the same consumer destination,
@@ -903,18 +899,9 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 				if is_in_meta_dir(file_rel):
 					continue
 
-				# Apply routing overrides (language and requirement-based gates)
+				# Apply routing overrides (exclude_repos gate only)
 				override = should_ship_override(file_rel, repo_type, repo_dir)
 				if override is False:
-					continue
-
-				# Check for override bucket assignment (e.g., pip_requirements -> noexist)
-				rule = repolib.model.ROUTING_OVERRIDES.get(file_rel)
-				if rule is not None and 'bucket' in rule:
-					bucket_name = rule['bucket'] + '_files'
-					if file_rel not in plan[bucket_name]:
-						assert_not_meta(file_rel)
-						plan[bucket_name].append(file_rel)
 					continue
 
 				# Route by prefix/location
@@ -945,17 +932,29 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 
 
 
-	# 2. Walk typed overlay under templates/<repo_type>/
+	# 2. Walk the SELECTED SET of typed overlays under templates/.
 	#
-	# Standard: EVERY file under templates/<type>/ ships at its relative path to
+	# select_overlay_dirs() returns ordered overlay path segments: the base
+	# repo_type folder first (e.g. 'python'), then each conditional overlay
+	# 'python/_<name>' (e.g. 'python/_pypi') whose marker file exists at repo_dir.
+	# Overlay SELECTION is what gates conditional content -- a _<name> folder ships
+	# only when its marker is present, so the typed-overlay walk does NOT call
+	# should_ship_override (the universal walk in block 1 still applies the
+	# exclude_repos gate).
+	#
+	# Standard: EVERY file under a selected overlay ships at its relative path to
 	# consumers of that type. The typed overlay deliberately does NOT skip the
 	# META_DIRS-style 'tools' directory the way the universal walk does: the ROOT
 	# tools/ is template infrastructure (never ships), but templates/<type>/tools/
 	# is consumer-bound content (e.g. tools/sync_typescript_package_pins.py).
 	# The genuine walk-efficiency skips (node_modules, build, dist, caches, .git)
 	# still apply; only 'tools' and 'meta' are removed from the trim so typed
-	# overlay subpaths under them ship verbatim. The META_FILES basename guard
-	# below is the only exclusion that applies to typed-overlay files.
+	# overlay subpaths under them ship verbatim.
+	#
+	# In the BASE overlay walk (segment == repo_type, no '/'), underscore-prefixed
+	# subdirectories are conditional overlays. They are skipped here so the base
+	# walk never ships their content wholesale; instead they ride in as their own
+	# selected overlay segment when their marker is present.
 	typed_overlay_skip_dirs = repolib.model.SKIP_WALK_DIRS - {'tools', 'meta'}
 
 	# Typed-overlay append guard: enforce META_FILES only, not META_DIRS. The
@@ -965,31 +964,47 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 	# ship under any subdirectory, so only the META_FILES guard applies.
 	typed_overlay_assert_not_meta = assert_not_meta_file
 
-	type_overlay_root = os.path.join(template_root, 'templates', repo_type)
-	if os.path.isdir(type_overlay_root):
-		for root, dirs, files in os.walk(type_overlay_root, topdown=True, followlinks=False):
-			dirs[:] = [d for d in dirs if d not in typed_overlay_skip_dirs and not d.startswith('.')]
+	overlay_segments = repolib.model.select_overlay_dirs(repo_type, repo_dir)
+	for segment in overlay_segments:
+		# The base overlay segment is the bare repo_type with no path separator;
+		# a conditional overlay segment contains '/', e.g. 'python/_pypi'.
+		is_base_overlay = '/' not in segment
+		overlay_root = os.path.join(template_root, 'templates', segment)
+		if not os.path.isdir(overlay_root):
+			continue
+		for root, dirs, files in os.walk(overlay_root, topdown=True, followlinks=False):
+			# Standard walk-efficiency skips plus dotdirs. In the BASE overlay,
+			# also skip underscore-prefixed conditional-overlay folders so they are
+			# never shipped wholesale by the base walk.
+			dirs[:] = [
+				d for d in dirs
+				if d not in typed_overlay_skip_dirs and not d.startswith('.')
+				and not (is_base_overlay and d.startswith('_'))
+			]
 
-			rel_root = os.path.relpath(root, type_overlay_root)
+			rel_root = os.path.relpath(root, overlay_root)
 			if rel_root == '.':
 				rel_root = ''
 
 			for name in files:
-				# Ship every file under the typed overlay; META filter below handles exclusions.
-				# No .gitkeep filter needed -- the repo deliberately holds zero .gitkeep files
-				# (verified via `find templates -name '.gitkeep'`); add one back here only if
+				# Ship every file under the selected overlay; META filter below
+				# handles exclusions. No .gitkeep filter needed -- the repo
+				# deliberately holds zero .gitkeep files (verified via
+				# `find templates -name '.gitkeep'`); add one back here only if
 				# .gitkeep placeholders are reintroduced.
 				file_rel = os.path.join(rel_root, name) if rel_root else name
 
 				# META guard: typed overlays must filter template-internal files so a stray
 				# templates/<type>/README.md (or any META name) cannot ship to consumers.
-				# Standard: every file under templates/<type>/ ships at its relative path.
+				# Standard: every file under the overlay ships at its relative path.
 				# Only the META_FILES basename/path guard applies here; subdirectories such
 				# as tools/ ship verbatim (no META_DIRS directory-segment filtering).
 				if name in repolib.model.META_FILES or file_rel in repolib.model.META_FILES:
 					continue
 
-				# Route by subdirectory
+				# Route by subdirectory. Conditional overlays route identically to
+				# the base overlay: file_rel is relative to the overlay root, so a
+				# _pypi/devel/submit_to_pypi.py source has file_rel 'devel/...'.
 				if file_rel.startswith('noexist/'):
 					# Strip 'noexist/' prefix for the consumer path
 					consumer_path = file_rel[8:]  # len('noexist/') = 8
@@ -1016,7 +1031,7 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 					# Skip; will be loaded separately
 					pass
 				else:
-					# Any non-special-prefix file under templates/<type>/, at any depth
+					# Any non-special-prefix file under the overlay, at any depth
 					# (top-level files, and subdirs like tools/), routes to the overwrite
 					# bucket at its relative path. rule 5: typed overlay shadows universal.
 					if file_rel in plan['overwrite_files']:

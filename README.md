@@ -16,9 +16,7 @@ Only `README.md` and `docs/CHANGELOG.md` are intentionally repository-specific; 
 
 ## Template layout
 
-The starter template ships universal + Python files at the template root (their final consumer location) and type-specific overlays under `templates/<type>/`. Currently `templates/typescript/` and `templates/rust/` exist; `rust/` is a stub. The propagator resolves universal/python sources at template root and typescript/rust sources under `templates/<type>/`. Template-only tooling (e.g., `tools/detect_repo_type.py`) lives under `tools/`; it never propagates and is removed by `reset_repo.py` at consumer bootstrap.
-
-- See [meta/docs/PROPAGATION_RULES.md](meta/docs/PROPAGATION_RULES.md) for the folder convention and manifest rules that route files to consumers.
+File location is the primary routing determinant. Files under `docs/`, `tests/`, and `devel/` ship universally to every consumer repo. Files under `templates/<type>/` (e.g., `templates/typescript/`, `templates/python/`, `templates/rust/`) ship only to repos of that type. Root-level files ship only when listed in `ROOT_PROPAGATE_ALLOWLIST`. Template-only tooling (e.g., `tools/detect_repo_type.py`) lives under `tools/`; it never propagates and is removed by `reset_repo.py` at consumer bootstrap. Propagation manifests live in `meta/propagation/manifests.yaml` (template-only; never ships to consumers).
 
 ## Quick start
 
@@ -28,7 +26,7 @@ Bootstrap a fresh clone (sets project type + licenses, installs canonical files)
 python3 reset_repo.py
 ```
 
-Type tokens: `python` (default), `typescript`, `rust`, `other`. Use `--non-interactive --type <token> --code-license <spdx> --docs-license <spdx>` for scripted runs. `--dry-run` prints planned actions without writing.
+The script runs an interactive interview: it asks for repo type (`python`, `typescript`, `rust`, `other`), code and docs licenses, whether the project targets PyPI (python only), whether to stage changes, and whether to commit. Safety flags: `--dry-run` prints planned actions without writing; `--yes` accepts all defaults; `--force` overwrites existing files.
 
 Run the fast test suite:
 

@@ -1,187 +1,214 @@
 """
-Tests for should_ship_override predicate routing logic.
+Tests for routing-override behavior (location-primary routing).
 
-Covers language-specific and requirement-based file routing rules.
+Location is now the primary propagation determinant. The only routing override
+that survives is the per-destination `exclude_repos` gate. These tests are
+data-driven over the LIVE ROUTING_OVERRIDES table so they cannot drift when the
+table shrinks or grows, plus a synthetic anchor that keeps gate coverage alive
+even if the live table ever empties. They also exercise the
+override_key_source() resolver against synthetic template trees.
 """
 
 import os
-import tempfile
+import pathlib
 
-import file_utils
+import pytest
 
-repo_root = file_utils.get_repo_root()
-
-from repolib.files import should_ship_override
-from repolib.model import LANG_PYTHON, LANG_TYPESCRIPT, LANG_OTHER, LANG_UNKNOWN
-
-
-class TestShouldShipOverridePythonRepo:
-	"""Test cases for Python repository type."""
-
-	def test_python_style_ships_to_python_repo(self) -> None:
-		"""docs/PYTHON_STYLE.md ships to python repos."""
-		with tempfile.TemporaryDirectory() as tmpdir:
-			result = should_ship_override('docs/PYTHON_STYLE.md', LANG_PYTHON, tmpdir)
-			assert result is True
-
-	def test_python_style_blocked_from_typescript_repo(self) -> None:
-		"""docs/PYTHON_STYLE.md is blocked for typescript repos."""
-		with tempfile.TemporaryDirectory() as tmpdir:
-			result = should_ship_override('docs/PYTHON_STYLE.md', LANG_TYPESCRIPT, tmpdir)
-			assert result is False
-
-	def test_pip_requirements_ships_to_python_repo(self) -> None:
-		"""pip_requirements.txt ships to python repos (bucket: noexist)."""
-		with tempfile.TemporaryDirectory() as tmpdir:
-			result = should_ship_override('pip_requirements.txt', LANG_PYTHON, tmpdir)
-			assert result is True
-
-	def test_pip_requirements_dev_ships_to_python_repo(self) -> None:
-		"""pip_requirements-dev.txt ships to python repos (bucket: noexist)."""
-		with tempfile.TemporaryDirectory() as tmpdir:
-			result = should_ship_override('pip_requirements-dev.txt', LANG_PYTHON, tmpdir)
-			assert result is True
-
-	def test_submit_to_pypi_requires_pyproject_toml(self) -> None:
-		"""devel/submit_to_pypi.py requires pyproject.toml to exist."""
-		# Case: pyproject.toml missing
-		with tempfile.TemporaryDirectory() as tmpdir:
-			result = should_ship_override('devel/submit_to_pypi.py', LANG_PYTHON, tmpdir)
-			assert result is False
-
-		# Case: pyproject.toml present
-		with tempfile.TemporaryDirectory() as tmpdir:
-			pyproject_path = os.path.join(tmpdir, 'pyproject.toml')
-			with open(pyproject_path, 'w') as f:
-				f.write('[project]\nname = "test"\n')
-			result = should_ship_override('devel/submit_to_pypi.py', LANG_PYTHON, tmpdir)
-			assert result is True
+import repolib.files
+import repolib.model
+import repolib.repo
 
 
-class TestShouldShipOverrideOtherRepos:
-	"""Test cases for 'other' and non-python repository types."""
+#============================================
+# Helpers (keep test bodies free of logic)
+#============================================
 
-	def test_python_style_blocked_from_other_repo(self) -> None:
-		"""docs/PYTHON_STYLE.md is blocked for 'other' repos."""
-		with tempfile.TemporaryDirectory() as tmpdir:
-			result = should_ship_override('docs/PYTHON_STYLE.md', LANG_OTHER, tmpdir)
-			assert result is False
+def excluded_name_for(rule: dict) -> str | None:
+	"""
+	Return one repo name from a rule's exclude_repos set, or None.
 
-	def test_submit_to_pypi_blocked_from_other_repo(self) -> None:
-		"""devel/submit_to_pypi.py is blocked for non-python repos."""
-		with tempfile.TemporaryDirectory() as tmpdir:
-			result = should_ship_override('devel/submit_to_pypi.py', LANG_OTHER, tmpdir)
-			assert result is False
-
-
-class TestShouldShipOverrideUnknownRepos:
-	"""Test cases for unknown/unmarked repository type."""
-
-	def test_python_style_blocked_from_unknown_repo(self) -> None:
-		"""docs/PYTHON_STYLE.md is blocked for unknown repos."""
-		with tempfile.TemporaryDirectory() as tmpdir:
-			result = should_ship_override('docs/PYTHON_STYLE.md', LANG_UNKNOWN, tmpdir)
-			assert result is False
+	Returns:
+		str | None: An arbitrary member of exclude_repos, or None when the rule
+		            declares no exclude_repos gate.
+	"""
+	exclude_repos = rule.get('exclude_repos')
+	if not exclude_repos:
+		return None
+	# frozenset has no ordering; any single member proves the gate fires.
+	return next(iter(exclude_repos))
 
 
-class TestShouldShipOverrideNoOverride:
-	"""Test cases where no override applies."""
+def repo_dir_named(parent: pathlib.Path, basename: str) -> str:
+	"""
+	Create a child directory whose basename drives the exclude_repos match.
 
-	def test_no_override_for_unregistered_file(self) -> None:
-		"""Unregistered files return None (no override)."""
-		with tempfile.TemporaryDirectory() as tmpdir:
-			result = should_ship_override('docs/README.md', LANG_PYTHON, tmpdir)
-			assert result is None
-
-	def test_no_override_for_random_path(self) -> None:
-		"""Random paths not in ROUTING_OVERRIDES return None."""
-		with tempfile.TemporaryDirectory() as tmpdir:
-			result = should_ship_override('src/app.py', LANG_TYPESCRIPT, tmpdir)
-			assert result is None
+	Returns:
+		str: Absolute path to the created directory.
+	"""
+	dest = parent / basename
+	dest.mkdir()
+	return str(dest)
 
 
-class TestShouldShipOverrideExcludeRepos:
-	"""Test cases for per-destination-repo exclusion."""
+#============================================
+# Data-driven coverage of the live ROUTING_OVERRIDES table
+#============================================
 
-	def test_hook_guide_blocked_from_source_repo(self) -> None:
-		"""docs/CLAUDE_HOOK_USAGE_GUIDE.md is blocked for claude-code-permissions-hook."""
-		with tempfile.TemporaryDirectory() as tmpdir:
-			dest = os.path.join(tmpdir, 'claude-code-permissions-hook')
-			os.makedirs(dest)
-			result = should_ship_override('docs/CLAUDE_HOOK_USAGE_GUIDE.md', LANG_PYTHON, dest)
-			assert result is False
-
-	def test_hook_guide_ships_to_other_repo(self) -> None:
-		"""docs/CLAUDE_HOOK_USAGE_GUIDE.md ships to any other repo."""
-		with tempfile.TemporaryDirectory() as tmpdir:
-			dest = os.path.join(tmpdir, 'some-other-repo')
-			os.makedirs(dest)
-			result = should_ship_override('docs/CLAUDE_HOOK_USAGE_GUIDE.md', LANG_PYTHON, dest)
-			assert result is True
-
-	def test_hook_guide_exclusion_ignores_trailing_slash(self) -> None:
-		"""Trailing slash on repo_dir does not defeat the exclusion."""
-		with tempfile.TemporaryDirectory() as tmpdir:
-			dest = os.path.join(tmpdir, 'claude-code-permissions-hook') + os.sep
-			os.makedirs(dest)
-			result = should_ship_override('docs/CLAUDE_HOOK_USAGE_GUIDE.md', LANG_PYTHON, dest)
-			assert result is False
+# Parametrize over the live table so no key names, counts, or expected-value
+# lists are hardcoded here. Each case asserts the predicate honors whatever the
+# entry declares, not a specific entry.
+LIVE_OVERRIDE_ITEMS = list(repolib.model.ROUTING_OVERRIDES.items())
 
 
-class TestShouldShipOverrideGuardrails:
-	"""Guardrail tests: verify ROUTING_OVERRIDES table structure."""
+@pytest.mark.parametrize('file_rel, rule', LIVE_OVERRIDE_ITEMS, ids=lambda item: str(item))
+def test_exclude_repos_blocks_listed_destination(
+	file_rel: str, rule: dict, tmp_path: pathlib.Path
+) -> None:
+	"""An exclude_repos entry blocks a destination whose basename is listed."""
+	excluded = excluded_name_for(rule)
+	if excluded is None:
+		pytest.skip("entry declares no exclude_repos gate")
+	dest = repo_dir_named(tmp_path, excluded)
+	result = repolib.files.should_ship_override(file_rel, repolib.model.LANG_PYTHON, dest)
+	assert result is False
 
-	def test_all_override_keys_are_valid_paths(self) -> None:
-		"""Every ROUTING_OVERRIDES key exists in the template."""
-		from repolib.model import ROUTING_OVERRIDES
 
-		# template_root is the repo root (tests/meta/../.. = repo root)
-		template_root = repo_root
+@pytest.mark.parametrize('file_rel, rule', LIVE_OVERRIDE_ITEMS, ids=lambda item: str(item))
+def test_exclude_repos_allows_unlisted_destination(
+	file_rel: str, rule: dict, tmp_path: pathlib.Path
+) -> None:
+	"""An exclude_repos entry returns None for a destination not on the list."""
+	if excluded_name_for(rule) is None:
+		pytest.skip("entry declares no exclude_repos gate")
+	dest = repo_dir_named(tmp_path, 'some-unlisted-consumer-repo')
+	result = repolib.files.should_ship_override(file_rel, repolib.model.LANG_PYTHON, dest)
+	assert result is None
 
-		# Each key must be a repo-root-relative path that exists in the template
-		for file_rel in ROUTING_OVERRIDES.keys():
-			full_path = os.path.join(template_root, file_rel)
-			assert os.path.exists(full_path), (
-				f"ROUTING_OVERRIDES key {file_rel!r} does not exist at {full_path}"
-			)
 
-	def test_all_override_values_have_valid_schema(self) -> None:
-		"""Every ROUTING_OVERRIDES rule has valid schema."""
-		from repolib.model import ROUTING_OVERRIDES
+def test_no_override_for_unregistered_file(tmp_path: pathlib.Path) -> None:
+	"""A file absent from ROUTING_OVERRIDES yields None (location decides)."""
+	result = repolib.files.should_ship_override(
+		'docs/A_FILE_WITH_NO_OVERRIDE.md', repolib.model.LANG_PYTHON, str(tmp_path)
+	)
+	assert result is None
 
-		valid_lang_values = {'universal', 'python', 'typescript', 'rust', 'other', 'unknown'}
-		valid_bucket_values = {'overwrite_files', 'noexist_files', 'devel_files', 'test_files', 'noexist'}
 
-		for file_rel, rule in ROUTING_OVERRIDES.items():
-			# Rule must be a dict
-			assert isinstance(rule, dict), f"Rule for {file_rel!r} is not a dict"
+#============================================
+# Synthetic anchor: exclude_repos gate survives a shrinking live table
+#============================================
 
-			# language: if present, must be valid
-			if 'language' in rule:
-				assert rule['language'] in valid_lang_values, (
-					f"Invalid language {rule['language']!r} in rule for {file_rel!r}"
-				)
+def test_exclude_repos_gate_with_synthetic_table(
+	tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+	"""A synthetic exclude_repos rule blocks its named repo and allows others."""
+	# Build a tiny synthetic table independent of the live one so gate coverage
+	# survives even if the live ROUTING_OVERRIDES shrinks further.
+	synthetic = {
+		'docs/SYNTHETIC.md': {'exclude_repos': frozenset({'forbidden-repo'})},
+	}
+	monkeypatch.setattr(repolib.model, 'ROUTING_OVERRIDES', synthetic)
 
-			# bucket: if present, must be valid (shorthand 'noexist' or full 'noexist_files', etc.)
-			if 'bucket' in rule:
-				assert rule['bucket'] in valid_bucket_values, (
-					f"Invalid bucket {rule['bucket']!r} in rule for {file_rel!r}"
-				)
+	blocked_dest = repo_dir_named(tmp_path, 'forbidden-repo')
+	allowed_dest = repo_dir_named(tmp_path, 'allowed-repo')
 
-			# requires_repo_file: if present, must be a string (path fragment)
-			if 'requires_repo_file' in rule:
-				assert isinstance(rule['requires_repo_file'], str), (
-					f"requires_repo_file {rule['requires_repo_file']!r} is not a string"
-				)
-				assert rule['requires_repo_file'], (
-					f"requires_repo_file cannot be empty for {file_rel!r}"
-				)
+	blocked = repolib.files.should_ship_override(
+		'docs/SYNTHETIC.md', repolib.model.LANG_PYTHON, blocked_dest
+	)
+	allowed = repolib.files.should_ship_override(
+		'docs/SYNTHETIC.md', repolib.model.LANG_PYTHON, allowed_dest
+	)
 
-			# exclude_repos: if present, must be a non-empty collection of repo names
-			if 'exclude_repos' in rule:
-				assert isinstance(rule['exclude_repos'], (frozenset, set, tuple, list)), (
-					f"exclude_repos for {file_rel!r} must be a set/frozenset/list/tuple"
-				)
-				assert rule['exclude_repos'], (
-					f"exclude_repos cannot be empty for {file_rel!r}"
-				)
+	assert blocked is False
+	assert allowed is None
+
+
+def test_exclude_repos_gate_ignores_trailing_slash(
+	tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+	"""A trailing slash on repo_dir does not defeat the exclude_repos match."""
+	synthetic = {
+		'docs/SYNTHETIC.md': {'exclude_repos': frozenset({'forbidden-repo'})},
+	}
+	monkeypatch.setattr(repolib.model, 'ROUTING_OVERRIDES', synthetic)
+	dest = repo_dir_named(tmp_path, 'forbidden-repo')
+
+	result = repolib.files.should_ship_override(
+		'docs/SYNTHETIC.md', repolib.model.LANG_PYTHON, dest + os.sep
+	)
+	assert result is False
+
+
+#============================================
+# override_key_source() resolver over synthetic template trees
+#============================================
+
+def write_file(path: pathlib.Path, text: str = 'x') -> pathlib.Path:
+	"""
+	Create parent dirs and write a small file.
+
+	Returns:
+		pathlib.Path: The written file path.
+	"""
+	path.parent.mkdir(parents=True, exist_ok=True)
+	path.write_text(text, encoding='utf-8')
+	return path
+
+
+def test_override_key_source_resolves_universal_root(tmp_path: pathlib.Path) -> None:
+	"""A source under the universal template root resolves to that file."""
+	source = write_file(tmp_path / 'docs' / 'X.md')
+	result = repolib.model.override_key_source(str(tmp_path), 'docs/X.md')
+	assert result == str(source)
+
+
+def test_override_key_source_resolves_typed_overlay(tmp_path: pathlib.Path) -> None:
+	"""A source under templates/python/ resolves to the typed overlay file."""
+	source = write_file(tmp_path / 'templates' / 'python' / 'docs' / 'Y.md')
+	result = repolib.model.override_key_source(str(tmp_path), 'docs/Y.md')
+	assert result == str(source)
+
+
+def test_override_key_source_resolves_conditional_overlay(tmp_path: pathlib.Path) -> None:
+	"""A devel source under a configured conditional overlay resolves."""
+	# Discover the overlay folder name from live config rather than hardcoding it,
+	# because override_key_source consults the live CONDITIONAL_OVERLAYS table.
+	overlays = repolib.model.CONDITIONAL_OVERLAYS[repolib.model.LANG_PYTHON]
+	overlay_name = next(iter(overlays))
+	source = write_file(
+		tmp_path / 'templates' / 'python' / overlay_name / 'devel' / 'z.py'
+	)
+	result = repolib.model.override_key_source(str(tmp_path), 'devel/z.py')
+	assert result == str(source)
+
+
+def test_override_key_source_returns_none_when_unresolved(tmp_path: pathlib.Path) -> None:
+	"""A key with no matching source anywhere resolves to None."""
+	result = repolib.model.override_key_source(str(tmp_path), 'docs/DOES_NOT_EXIST.md')
+	assert result is None
+
+
+#============================================
+# Guardrails over the live table (trivial bodies)
+#============================================
+
+@pytest.mark.parametrize('file_rel', list(repolib.model.ROUTING_OVERRIDES.keys()))
+def test_all_override_keys_resolve_to_a_source(file_rel: str) -> None:
+	"""Every live override key resolves to an existing template source."""
+	template_root = repolib.repo.resolve_source_dir(None)
+	assert repolib.model.override_key_source(template_root, file_rel) is not None
+
+
+@pytest.mark.parametrize(
+	'file_rel, rule', LIVE_OVERRIDE_ITEMS, ids=lambda item: str(item)
+)
+def test_all_override_values_have_valid_schema(file_rel: str, rule: dict) -> None:
+	"""Every live override rule uses only the supported exclude_repos schema."""
+	# Location-primary routing dropped bucket/language/requires_repo_file; only
+	# exclude_repos remains a valid rule field.
+	valid_fields = {'exclude_repos'}
+	assert isinstance(rule, dict)
+	assert set(rule).issubset(valid_fields)
+	if 'exclude_repos' in rule:
+		exclude_repos = rule['exclude_repos']
+		assert isinstance(exclude_repos, frozenset)
+		assert exclude_repos

@@ -1,7 +1,59 @@
 ## 2026-06-15
 
+### Additions and New Features
+
+- Added `tests/e2e/e2e_reset_routing.py`, a reset end-to-end harness that drives the interactive
+  interview via stdin and asserts the per-type routing matrix, stale-file handling, second-run
+  noexist-vs-overwrite behavior, and the `exclude_repos` gate (checked via the propagation plan,
+  since it is a cross-repo concern).
+- WP9 (`templates/python/_pypi/` overlay): moved `submit_to_pypi.py` from `devel/` into
+  `templates/python/_pypi/devel/` via `git mv` so the file location gates whether it ships to
+  consumer repos. Added a minimal `templates/python/_pypi/noexist/pyproject.toml` stub
+  (`[project]` table with `name = "PROJECT_NAME"` and CalVer `version = "26.06"`) that the
+  reset interview will later use to seed the marker file.
+- WP14 (`reset_repo.py`): added the PyPI reset interview. After a python type is chosen, the
+  interactive interview asks `Will this Python project be published as a pypi package? [y/N]:`
+  (default no). On yes, a new seed phase runs strictly before propagation: `seed_pyproject()`
+  copies `templates/python/_pypi/noexist/pyproject.toml` to the repo root when absent and writes
+  a synced `VERSION` file holding the same `[project] version` string (read from the stub). This
+  makes `repolib.model.select_overlay_dirs` include `python/_pypi`, so `submit_to_pypi.py` ships
+  in the same reset. `--dry-run` logs the seed without writing. CLI exposes only
+  `-h/--dry-run/--yes/--force`; all choices (type, licenses, PyPI, stage, commit) are handled
+  by the interactive interview.
+- WP10 (`meta/propagation/manifests.yaml`): added the single source of propagation config as a
+  template-meta YAML data file (never ships). It holds every propagation manifest that
+  `repolib/model.py` previously defined as a Python literal: `routing_overrides`,
+  `conditional_overlays`, and the set/sequence manifests (`root_propagate_allowlist`,
+  `universal_noexist`, `merge_files`, `meta_files`, `meta_dirs`, `skip_walk_dirs`,
+  `auto_discover_docs_exclude`, `meta_test_prefixes`, `default_repo_skip_names`). Values match the
+  prior literals exactly.
+- WP11 (`repolib/manifests.py`): added `load_manifests(template_root)`, which reads
+  `meta/propagation/manifests.yaml` with `yaml.safe_load` and returns the same Python types
+  `model.py` exposed (set manifests as `frozenset`, `meta_test_prefixes` as a tuple,
+  `routing_overrides` as a dict with `frozenset` `exclude_repos`, `conditional_overlays` as the
+  nested dict). A missing file or non-mapping YAML raises loudly (no empty fallback).
+- WP18 (`meta/docs/HUMAN_GUIDANCE.md`): expanded the single-line stub into a full durable
+  guidance file covering location-primary routing, `ROUTING_OVERRIDES` holds only `exclude_repos`,
+  `_folder` conditional overlay convention, `meta/propagation/manifests.yaml` as single source of
+  truth, `reset_repo.py` interactive-first design, test-follows-live-config pattern, and the
+  prefer-rule-based-over-per-file preference. Linked from `meta/docs/PROPAGATION_RULES.md`
+  (meta-to-meta link; `AGENTS.md` does not link to `meta/` because that path does not exist in
+  consumer repos).
+
 ### Behavior or Interface Changes
 
+- WP14 (`reset_repo.py`): the keep/remove decision for `devel/submit_to_pypi.py` now derives from
+  `repolib.model.select_overlay_dirs(project_type, repo_root)` (the same overlay-selection rule the
+  propagator uses) instead of the old `project_type != "python"` check. A python repo without a
+  `pyproject.toml` now correctly drops the tool, which the old check missed. The next-step hint now
+  lists the dependency files actually present per type: python lists both `pip_requirements.txt`
+  and the universal `pip_requirements-dev.txt`; typescript, rust, and other types now also list the
+  universal `pip_requirements-dev.txt`.
+- WP17 (propagation routing): file location is now the primary routing determinant. `docs/PYTHON_STYLE.md`
+  ships universally to all repo types (previously restricted to python repos by a `language` gate in
+  `ROUTING_OVERRIDES`). `devel/submit_to_pypi.py` ships via the `_pypi` conditional overlay
+  (previously gated by `language + requires_repo_file` in `ROUTING_OVERRIDES`).
+  `pip_requirements-dev.txt` ships universally (root allowlist + universal noexist).
 - `devel/DEVEL_README.md`: shortened the folder README from script-help-style function
   inventories into a quick summary of what belongs in `devel/`, with a compact current-script
   table and a note that type-specific developer helpers live under `templates/<type>/devel/`.
@@ -12,6 +64,74 @@
   pass `--dry-run` to preview only. Directory mode is unchanged: dry-run by default, `--apply`
   to write. Extracted the per-file loop and summary printer into a shared `run_files()` helper
   used by both modes.
+
+### Fixes and Maintenance
+
+- WP11 (`repolib/model.py`): removed the inline manifest literals and now loads them once at
+  import from `meta/propagation/manifests.yaml` via `repolib.manifests.load_manifests`, assigning
+  the same module-level public names (`ROUTING_OVERRIDES`, `CONDITIONAL_OVERLAYS`,
+  `ROOT_PROPAGATE_ALLOWLIST`, `UNIVERSAL_NOEXIST`, `MERGE_FILES`, `META_FILES`, `META_DIRS`,
+  `SKIP_WALK_DIRS`, `AUTO_DISCOVER_DOCS_EXCLUDE`, `META_TEST_PREFIXES`, `DEFAULT_REPO_SKIP_NAMES`)
+  so existing importers and `dir()` keep working. `LANG_*` constants, `PropagateContext`, and the
+  path-resolution helpers are unchanged.
+- `repolib/repo.py`: moved its `import repolib.model` from module top into `read_repo_type` (the
+  only caller) to break a `repolib.model` <-> `repolib.repo` import cycle. `model.py` resolves the
+  template root via `repolib.repo.resolve_source_dir` at import; the top-level import left
+  `resolve_source_dir` undefined when `repolib.repo` was imported first. Deferring both imports
+  fixes every import order.
+- Root `pip_requirements.txt`: added `pyyaml` because the propagation engine now imports `yaml`.
+  This root manifest is template-meta and does not propagate; the empty consumer seed at
+  `templates/python/noexist/pip_requirements.txt` stays empty.
+- WP17 (`repolib/repo.py`): fixed stale comments at lines 25-26 and 114-116 that said
+  `LANG_UNKNOWN gates language-specific file routing via should_ship_override`. The accurate
+  statement is that `LANG_UNKNOWN` means no `ROUTING_OVERRIDES` `exclude_repos` rule applies;
+  universal walker-routed files still ship. Comment-only change; no code or logic altered.
+- WP17 (`docs/REPO_STYLE.md`): updated the `## Project type marker` paragraph. Replaced the
+  stale claim that `other`-typed repos do not receive `docs/PYTHON_STYLE.md` (that exception was
+  removed). Stated that `docs/PYTHON_STYLE.md` is now a universal doc shipping to all repo types.
+  Added location-primary routing summary, `ROUTING_OVERRIDES` holds only `exclude_repos`, and a
+  pointer to `meta/docs/PROPAGATION_RULES.md` for the `_folder` conditional overlay convention.
+- WP17 (`meta/docs/PROPAGATION_RULES.md`): updated to the location-primary model. Added the
+  `_folder` / conditional overlay section with the `_pypi` YAML example. Updated the Hardcoding
+  principles section to point at `meta/propagation/manifests.yaml` as the manifest home. Updated
+  the Exceptions section (`ROUTING_OVERRIDES` now holds only `exclude_repos`; removed `language`,
+  `requires_repo_file`, and `bucket` field documentation). Updated the Routing override gates
+  section accordingly. Updated Examples to show `docs/PYTHON_STYLE.md` as universal and
+  `devel/submit_to_pypi.py` via `_pypi` overlay. Removed the stale `ROUTING_OVERRIDES` python-only
+  language gate example.
+- `README.md`: removed the Markdown link to `meta/docs/PROPAGATION_RULES.md` from the Template
+  layout section. That path never ships to consumer repos, so the link 404s there. Inlined the
+  key fact (manifests live in `meta/propagation/manifests.yaml`) as prose.
+- `docs/CHANGELOG.md`: corrected the WP14 Additions bullet to state the final CLI flag set
+  positively (`-h/--dry-run/--yes/--force` only; all choices handled by the interactive interview)
+  instead of listing removed flags.
+- `repolib/model.py` `find_source_for_bucket`: fixed devel-bucket source resolution to search
+  typed/overlay roots before the universal root, mirroring overwrite-bucket precedence. A
+  consumer-modified `devel/submit_to_pypi.py` is now correctly refreshed from
+  `templates/python/_pypi/` during a single-repo reset instead of resolving to the consumer's
+  own stale file.
+- `reset_repo.py`: the PyPI=no cleanup of `devel/submit_to_pypi.py` now uses a forced removal so
+  a just-refreshed working-tree copy is reliably removed when the `_pypi` overlay does not apply.
+- Docs: removed the shipped-markdown link from `README.md` that pointed to
+  `meta/docs/PROPAGATION_RULES.md`; shipped markdown no longer links to local meta files so
+  consumer links stay valid. Corrected a CHANGELOG WP-era bullet that described removed reset
+  flags; reset CLI is interactive-first with only `-h/--dry-run/--yes/--force`.
+- Cleanup: removed the unused `LANG_UNIVERSAL` constant; fixed a stale "five-bucket" docstring
+  (now six) in `repolib/files.py`; tightened the manifest-loader override schema test to assert
+  `frozenset`; added missing import-section headings, function separators, and a `parse_args`
+  docstring; corrected a `parse_repo_type_choice` type hint.
+
+### Removals and Deprecations
+
+- Removed the redundant empty root `pip_requirements.txt`. The propagation manifest seed for
+  python consumers is `templates/python/noexist/pip_requirements.txt`; the template's `pyyaml`
+  tooling dependency is declared in the template-only `pip_requirements-meta.txt`.
+- WP17 (`ROUTING_OVERRIDES`): removed `language`, `requires_repo_file`, and `bucket` fields from
+  `ROUTING_OVERRIDES` in `meta/propagation/manifests.yaml`. These per-file gates are replaced by
+  location-based routing: typed overlay folders (`templates/<type>/`) handle language specificity
+  and `_folder` conditional overlays (with `has_file` rules) handle `requires_repo_file` cases.
+  The `bucket` shorthand is no longer needed because location already determines noexist/overwrite
+  classification. `ROUTING_OVERRIDES` now holds only `exclude_repos` exceptions.
 
 ## 2026-06-12
 

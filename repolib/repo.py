@@ -4,7 +4,10 @@ import os
 import sys
 
 import repolib.console
-import repolib.model
+# repolib.model is imported lazily inside read_repo_type (not at module top) to
+# break an import cycle: repolib.model loads propagation manifests at import time
+# and resolves the template root via repolib.repo.resolve_source_dir. A top-level
+# import here would leave resolve_source_dir undefined when model imports repo first.
 
 
 #============================================
@@ -19,8 +22,8 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 
 	In single-repo mode with write_marker, predicts type and writes marker.
 	In batch mode with missing marker, attempts detection; falls back to LANG_UNKNOWN.
-	LANG_UNKNOWN gates language-specific file routing via should_ship_override;
-	universal files still ship via walker.
+	LANG_UNKNOWN means no ROUTING_OVERRIDES exclude_repos rule applies;
+	universal walker-routed files still ship.
 
 	Returns token (python, typescript, rust, other, unknown).
 	Raises ValueError if marker contains unknown token.
@@ -109,8 +112,11 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 				return chosen_type
 
 		# Batch mode with missing marker: try detection, fall back to LANG_UNKNOWN.
-		# LANG_UNKNOWN gates language-specific routing via should_ship_override;
+		# LANG_UNKNOWN means no ROUTING_OVERRIDES exclude_repos rule applies;
 		# universal walker-routed files still ship.
+		# Lazy import (see module-top note) so the LANG_* constants are read at
+		# call time, after repolib.model has finished loading.
+		import repolib.model
 		if detect_repo_type:
 			token, confidence, _reasoning = detect_repo_type.detect_repo_type(repo_path)
 			if confidence == 'high' and token in (repolib.model.LANG_PYTHON, repolib.model.LANG_TYPESCRIPT, repolib.model.LANG_RUST, repolib.model.LANG_OTHER):
@@ -147,7 +153,7 @@ def write_repo_type_marker(path: str, token: str, dry_run: bool = False) -> bool
 
 
 #============================================
-def parse_repo_type_choice(text: str, default: str = None) -> str | None:
+def parse_repo_type_choice(text: str, default: str | None = None) -> str | None:
 	"""
 	Parse user input for repo type choice.
 
@@ -206,7 +212,7 @@ def find_repo_root(start_dir: str) -> str | None:
 	"""
 	current = os.path.abspath(start_dir)
 	while True:
-		# Check for canonical template overlay (post-WP-F3 architecture)
+		# Check for canonical template overlay (typed templates/ layout)
 		if os.path.isdir(os.path.join(current, 'templates', 'typescript')):
 			return current
 		if os.path.isfile(os.path.join(current, 'docs', 'PYTHON_STYLE.md')):

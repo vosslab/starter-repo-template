@@ -1,186 +1,212 @@
-"""Tests for folder-convention propagation routing."""
+"""Tests for folder-convention propagation routing.
 
-import os
-import tempfile
+Routing is LOCATION-PRIMARY: where a file lives in the template tree decides its
+bucket and which repo types receive it. Universal-root files (docs/, allowlisted
+root files, tests/ helpers) ship to every type; language-specific content lives
+under templates/<type>/ and conditional overlays templates/<type>/_<name>/.
 
-import repolib.model
+Each test builds a synthetic template root under tmp_path and asserts on the
+buckets returned by compute_propagation_plan.
+"""
+
+import pathlib
+
 import repolib.files
 
 
-def test_universal_doc_routes_overwrite() -> None:
+def test_universal_doc_routes_overwrite(tmp_path: pathlib.Path) -> None:
 	"""Docs/ file routes to overwrite_files for all repo types."""
-	with tempfile.TemporaryDirectory() as tmpdir:
-		os.makedirs(os.path.join(tmpdir, 'docs'))
-		with open(os.path.join(tmpdir, 'docs', 'FOO.md'), 'w') as f:
-			f.write('test')
-		plan = repolib.files.compute_propagation_plan(tmpdir, 'python')
-		assert 'docs/FOO.md' in plan['overwrite_files']
+	docs_dir = tmp_path / 'docs'
+	docs_dir.mkdir()
+	(docs_dir / 'FOO.md').write_text('test')
+	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
+	assert 'docs/FOO.md' in plan['overwrite_files']
 
 
-def test_meta_file_excluded_basename_form() -> None:
+def test_universal_doc_reaches_every_type(tmp_path: pathlib.Path) -> None:
+	"""A universal docs/ file reaches python, typescript, and other alike.
+
+	Under the location model, universal-root placement means universal delivery;
+	there is no per-type gating for a file that lives at the universal root.
+	"""
+	docs_dir = tmp_path / 'docs'
+	docs_dir.mkdir()
+	(docs_dir / 'SHARED.md').write_text('test')
+	for repo_type in ('python', 'typescript', 'other'):
+		plan = repolib.files.compute_propagation_plan(str(tmp_path), repo_type)
+		assert 'docs/SHARED.md' in plan['overwrite_files']
+
+
+def test_meta_file_excluded_basename_form(tmp_path: pathlib.Path) -> None:
 	"""META_FILES entry by basename (e.g. README.md) excludes the file."""
-	with tempfile.TemporaryDirectory() as tmpdir:
-		with open(os.path.join(tmpdir, 'README.md'), 'w') as f:
-			f.write('test')
-		plan = repolib.files.compute_propagation_plan(tmpdir, 'python')
-		assert 'README.md' not in plan['overwrite_files']
+	(tmp_path / 'README.md').write_text('test')
+	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
+	assert 'README.md' not in plan['overwrite_files']
 
 
-def test_meta_dir_excludes_nested_files() -> None:
+def test_meta_dir_excludes_nested_files(tmp_path: pathlib.Path) -> None:
 	"""Files under meta/ (META_DIRS entry) never ship, regardless of depth."""
-	with tempfile.TemporaryDirectory() as tmpdir:
-		os.makedirs(os.path.join(tmpdir, 'meta', 'docs'))
-		with open(os.path.join(tmpdir, 'meta', 'docs', 'PROPAGATION_RULES.md'), 'w') as f:
-			f.write('test')
-		plan = repolib.files.compute_propagation_plan(tmpdir, 'python')
-		assert 'meta/docs/PROPAGATION_RULES.md' not in plan['overwrite_files']
+	meta_docs = tmp_path / 'meta' / 'docs'
+	meta_docs.mkdir(parents=True)
+	(meta_docs / 'PROPAGATION_RULES.md').write_text('test')
+	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
+	assert 'meta/docs/PROPAGATION_RULES.md' not in plan['overwrite_files']
 
 
-def test_meta_dir_excludes_root_tools_nested() -> None:
+def test_meta_dir_excludes_root_tools_nested(tmp_path: pathlib.Path) -> None:
 	"""ROOT tools/ (META_DIRS entry) never ships, regardless of file name.
 
 	This guards the template's own root infrastructure (e.g.
 	tools/detect_repo_type.py). The separate templates/<type>/tools/ overlay
 	path DOES ship -- see test_typescript_overlay_tools_ships.
 	"""
-	with tempfile.TemporaryDirectory() as tmpdir:
-		os.makedirs(os.path.join(tmpdir, 'tools'))
-		with open(os.path.join(tmpdir, 'tools', 'detect_repo_type.py'), 'w') as f:
-			f.write('test')
-		plan = repolib.files.compute_propagation_plan(tmpdir, 'python')
-		assert 'tools/detect_repo_type.py' not in plan['overwrite_files']
+	tools_dir = tmp_path / 'tools'
+	tools_dir.mkdir()
+	(tools_dir / 'detect_repo_type.py').write_text('test')
+	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
+	assert 'tools/detect_repo_type.py' not in plan['overwrite_files']
 
 
-def test_typescript_overlay_tools_ships() -> None:
+def test_typescript_overlay_tools_ships(tmp_path: pathlib.Path) -> None:
 	"""templates/typescript/tools/<file> ships at consumer tools/<file>.
 
 	Standard: every file under templates/<type>/ ships at its relative path,
 	including tools/ subpaths. This is the typed-overlay counterpart to the
 	ROOT tools/ exclusion above.
 	"""
-	with tempfile.TemporaryDirectory() as tmpdir:
-		tools_dir = os.path.join(tmpdir, 'templates', 'typescript', 'tools')
-		os.makedirs(tools_dir)
-		with open(os.path.join(tools_dir, 'sync_typescript_package_pins.py'), 'w') as f:
-			f.write('test')
-		plan_ts = repolib.files.compute_propagation_plan(tmpdir, 'typescript')
-		plan_py = repolib.files.compute_propagation_plan(tmpdir, 'python')
-		assert 'tools/sync_typescript_package_pins.py' in plan_ts['overwrite_files']
-		# Other repo types do not get the typescript overlay file.
-		assert 'tools/sync_typescript_package_pins.py' not in plan_py['overwrite_files']
+	tools_dir = tmp_path / 'templates' / 'typescript' / 'tools'
+	tools_dir.mkdir(parents=True)
+	(tools_dir / 'sync_typescript_package_pins.py').write_text('test')
+	plan_ts = repolib.files.compute_propagation_plan(str(tmp_path), 'typescript')
+	plan_py = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
+	assert 'tools/sync_typescript_package_pins.py' in plan_ts['overwrite_files']
+	# Other repo types do not get the typescript overlay file.
+	assert 'tools/sync_typescript_package_pins.py' not in plan_py['overwrite_files']
 
 
-def test_typescript_overlay_tools_meta_file_basename_excluded() -> None:
+def test_typescript_overlay_tools_meta_file_basename_excluded(tmp_path: pathlib.Path) -> None:
 	"""A META_FILES basename inside templates/<type>/tools/ still does not ship.
 
 	The META_FILES basename guard is retained in the typed overlay so a stray
 	README.md (or any META name) under the overlay -- even in a shipping subdir
 	like tools/ -- cannot clobber the consumer's file.
 	"""
-	with tempfile.TemporaryDirectory() as tmpdir:
-		tools_dir = os.path.join(tmpdir, 'templates', 'typescript', 'tools')
-		os.makedirs(tools_dir)
-		with open(os.path.join(tools_dir, 'README.md'), 'w') as f:
-			f.write('test')
-		plan = repolib.files.compute_propagation_plan(tmpdir, 'typescript')
-		assert 'tools/README.md' not in plan['overwrite_files']
-		assert 'README.md' not in plan['overwrite_files']
+	tools_dir = tmp_path / 'templates' / 'typescript' / 'tools'
+	tools_dir.mkdir(parents=True)
+	(tools_dir / 'README.md').write_text('test')
+	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'typescript')
+	assert 'tools/README.md' not in plan['overwrite_files']
+	assert 'README.md' not in plan['overwrite_files']
 
 
-def test_meta_test_prefix_excluded() -> None:
+def test_meta_test_prefix_excluded(tmp_path: pathlib.Path) -> None:
 	"""test_propagate_* files excluded."""
-	with tempfile.TemporaryDirectory() as tmpdir:
-		os.makedirs(os.path.join(tmpdir, 'tests'))
-		with open(os.path.join(tmpdir, 'tests', 'test_propagate_x.py'), 'w') as f:
-			f.write('test')
-		plan = repolib.files.compute_propagation_plan(tmpdir, 'python')
-		assert 'test_propagate_x.py' not in plan['test_files']
+	tests_dir = tmp_path / 'tests'
+	tests_dir.mkdir()
+	(tests_dir / 'test_propagate_x.py').write_text('test')
+	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
+	assert 'test_propagate_x.py' not in plan['test_files']
 
 
-def test_typescript_overlay_routes_to_overwrite() -> None:
+def test_typescript_overlay_routes_to_overwrite(tmp_path: pathlib.Path) -> None:
 	"""templates/typescript/foo.ts routes to overwrite_files for typescript type."""
-	with tempfile.TemporaryDirectory() as tmpdir:
-		type_dir = os.path.join(tmpdir, 'templates', 'typescript')
-		os.makedirs(type_dir)
-		with open(os.path.join(type_dir, 'foo.ts'), 'w') as f:
-			f.write('test')
-		plan = repolib.files.compute_propagation_plan(tmpdir, 'typescript')
-		assert 'foo.ts' in plan['overwrite_files']
+	type_dir = tmp_path / 'templates' / 'typescript'
+	type_dir.mkdir(parents=True)
+	(type_dir / 'foo.ts').write_text('test')
+	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'typescript')
+	assert 'foo.ts' in plan['overwrite_files']
 
 
-def test_typescript_noexist_routes_to_noexist() -> None:
+def test_typescript_noexist_routes_to_noexist(tmp_path: pathlib.Path) -> None:
 	"""templates/typescript/noexist/package.json routes to noexist_files."""
-	with tempfile.TemporaryDirectory() as tmpdir:
-		noexist_dir = os.path.join(tmpdir, 'templates', 'typescript', 'noexist')
-		os.makedirs(noexist_dir)
-		with open(os.path.join(noexist_dir, 'package.json'), 'w') as f:
-			f.write('test')
-		plan = repolib.files.compute_propagation_plan(tmpdir, 'typescript')
-		assert 'package.json' in plan['noexist_files']
+	noexist_dir = tmp_path / 'templates' / 'typescript' / 'noexist'
+	noexist_dir.mkdir(parents=True)
+	(noexist_dir / 'package.json').write_text('test')
+	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'typescript')
+	assert 'package.json' in plan['noexist_files']
 
 
-def test_python_lang_files_only_for_python() -> None:
-	"""docs/PYTHON_STYLE.md only ships to python repos."""
-	with tempfile.TemporaryDirectory() as tmpdir:
-		os.makedirs(os.path.join(tmpdir, 'docs'))
-		with open(os.path.join(tmpdir, 'docs', 'PYTHON_STYLE.md'), 'w') as f:
-			f.write('test')
-		plan_py = repolib.files.compute_propagation_plan(tmpdir, 'python')
-		plan_ts = repolib.files.compute_propagation_plan(tmpdir, 'typescript')
-		plan_other = repolib.files.compute_propagation_plan(tmpdir, 'other')
-		assert 'docs/PYTHON_STYLE.md' in plan_py['overwrite_files']
-		assert 'docs/PYTHON_STYLE.md' not in plan_ts['overwrite_files']
-		assert 'docs/PYTHON_STYLE.md' not in plan_other['overwrite_files']
+def test_typed_overlay_doc_is_language_specific(tmp_path: pathlib.Path) -> None:
+	"""A doc placed under templates/<type>/docs/ ships only to that type.
+
+	MODEL CHANGE: the old test_python_lang_files_only_for_python relied on a
+	docs/PYTHON_STYLE.md at the universal root being gated to python by override.
+	Under the location model, language-specificity comes from typed-overlay
+	PLACEMENT: a doc under templates/python/docs/ reaches python only, and a doc
+	under templates/typescript/docs/ reaches typescript only.
+	"""
+	py_docs = tmp_path / 'templates' / 'python' / 'docs'
+	py_docs.mkdir(parents=True)
+	(py_docs / 'PY_ONLY.md').write_text('test')
+	plan_py = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
+	plan_ts = repolib.files.compute_propagation_plan(str(tmp_path), 'typescript')
+	plan_other = repolib.files.compute_propagation_plan(str(tmp_path), 'other')
+	assert 'docs/PY_ONLY.md' in plan_py['overwrite_files']
+	assert 'docs/PY_ONLY.md' not in plan_ts['overwrite_files']
+	assert 'docs/PY_ONLY.md' not in plan_other['overwrite_files']
 
 
-def test_other_gets_python_style_only() -> None:
-	"""'other' repo type does not get Python-specific files."""
-	with tempfile.TemporaryDirectory() as tmpdir:
-		os.makedirs(os.path.join(tmpdir, 'docs'))
-		os.makedirs(os.path.join(tmpdir, 'devel'))
-		with open(os.path.join(tmpdir, 'docs', 'PYTHON_STYLE.md'), 'w') as f:
-			f.write('test')
-		with open(os.path.join(tmpdir, 'devel', 'submit_to_pypi.py'), 'w') as f:
-			f.write('test')
-		plan = repolib.files.compute_propagation_plan(tmpdir, 'other')
-		assert 'docs/PYTHON_STYLE.md' not in plan['overwrite_files']
-		assert 'submit_to_pypi.py' not in plan['devel_files']
+def test_typed_overlay_devel_is_language_specific(tmp_path: pathlib.Path) -> None:
+	"""A devel tool under templates/python/devel/ ships only to python repos.
+
+	MODEL CHANGE: the old test_other_gets_python_style_only placed
+	devel/submit_to_pypi.py at the UNIVERSAL devel root and asserted 'other' did
+	not get it via override gating. A universal devel/ file now ships to every
+	type by location; language-specific devel content must live in the typed
+	overlay, where placement -- not an override -- restricts delivery.
+	"""
+	py_devel = tmp_path / 'templates' / 'python' / 'devel'
+	py_devel.mkdir(parents=True)
+	(py_devel / 'py_tool.py').write_text('test')
+	plan_py = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
+	plan_ts = repolib.files.compute_propagation_plan(str(tmp_path), 'typescript')
+	plan_other = repolib.files.compute_propagation_plan(str(tmp_path), 'other')
+	assert 'py_tool.py' in plan_py['devel_files']
+	assert 'py_tool.py' not in plan_ts['devel_files']
+	assert 'py_tool.py' not in plan_other['devel_files']
 
 
-def test_universal_noexist_overrides_overwrite() -> None:
+def test_universal_noexist_overrides_overwrite(tmp_path: pathlib.Path) -> None:
 	"""AGENTS.md in UNIVERSAL_NOEXIST moves to noexist_files, not overwrite."""
-	with tempfile.TemporaryDirectory() as tmpdir:
-		with open(os.path.join(tmpdir, 'AGENTS.md'), 'w') as f:
-			f.write('test')
-		plan = repolib.files.compute_propagation_plan(tmpdir, 'python')
-		assert 'AGENTS.md' not in plan['overwrite_files']
-		assert 'AGENTS.md' in plan['noexist_files']
+	(tmp_path / 'AGENTS.md').write_text('test')
+	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
+	assert 'AGENTS.md' not in plan['overwrite_files']
+	assert 'AGENTS.md' in plan['noexist_files']
 
 
-def test_root_file_not_in_allowlist_excluded() -> None:
+def test_universal_noexist_root_file_reaches_every_type(tmp_path: pathlib.Path) -> None:
+	"""An allowlisted UNIVERSAL_NOEXIST root file lands in noexist for all types.
+
+	source_me.sh is on ROOT_PROPAGATE_ALLOWLIST and in UNIVERSAL_NOEXIST, so it
+	ships only-when-absent to python, typescript, and other alike -- universal
+	delivery driven by location, not per-type override.
+	"""
+	(tmp_path / 'source_me.sh').write_text('test')
+	for repo_type in ('python', 'typescript', 'other'):
+		plan = repolib.files.compute_propagation_plan(str(tmp_path), repo_type)
+		assert 'source_me.sh' in plan['noexist_files']
+		assert 'source_me.sh' not in plan['overwrite_files']
+
+
+def test_root_file_not_in_allowlist_excluded(tmp_path: pathlib.Path) -> None:
 	"""Root file outside allowlist not in plan."""
-	with tempfile.TemporaryDirectory() as tmpdir:
-		with open(os.path.join(tmpdir, 'random_root.md'), 'w') as f:
-			f.write('test')
-		plan = repolib.files.compute_propagation_plan(tmpdir, 'python')
-		assert 'random_root.md' not in plan['overwrite_files']
+	(tmp_path / 'random_root.md').write_text('test')
+	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
+	assert 'random_root.md' not in plan['overwrite_files']
+	assert 'random_root.md' not in plan['noexist_files']
 
 
-def test_gitignore_blocks_loaded_from_files() -> None:
+def test_gitignore_blocks_loaded_from_files(tmp_path: pathlib.Path) -> None:
 	"""Gitignore blocks loaded from gitignore.universal and templates/<type>/gitignore.<type>."""
-	with tempfile.TemporaryDirectory() as tmpdir:
-		# Universal lives under templates/, not at template root
-		templates_dir = os.path.join(tmpdir, 'templates')
-		os.makedirs(templates_dir)
-		with open(os.path.join(templates_dir, 'gitignore.universal'), 'w') as f:
-			f.write('report_*.txt\n.DS_Store\n')
-		# Typed
-		ts_dir = os.path.join(tmpdir, 'templates', 'typescript')
-		os.makedirs(ts_dir)
-		with open(os.path.join(ts_dir, 'gitignore.typescript'), 'w') as f:
-			f.write('node_modules/\ndist/\n')
-		plan = repolib.files.compute_propagation_plan(tmpdir, 'typescript')
-		assert 'report_*.txt' in plan['gitignore_block']
-		assert '.DS_Store' in plan['gitignore_block']
-		assert 'node_modules/' in plan['gitignore_block']
-		assert 'dist/' in plan['gitignore_block']
+	# Universal lives under templates/, not at template root.
+	templates_dir = tmp_path / 'templates'
+	templates_dir.mkdir()
+	(templates_dir / 'gitignore.universal').write_text('report_*.txt\n.DS_Store\n')
+	ts_dir = tmp_path / 'templates' / 'typescript'
+	ts_dir.mkdir()
+	(ts_dir / 'gitignore.typescript').write_text('node_modules/\ndist/\n')
+	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'typescript')
+	assert 'report_*.txt' in plan['gitignore_block']
+	assert '.DS_Store' in plan['gitignore_block']
+	assert 'node_modules/' in plan['gitignore_block']
+	assert 'dist/' in plan['gitignore_block']
