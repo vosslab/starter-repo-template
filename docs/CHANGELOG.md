@@ -1,3 +1,27 @@
+## 2026-06-16
+
+### Behavior or Interface Changes
+
+- `templates/typescript/tools/sync_typescript_package_pins.py`: `fetch_latest_versions` now prints
+  live `[index/total] pkg: version` progress as each `npm view` round-trip resolves (or a
+  `[index/total] skip (not on registry)` line), flushed per line. Previously the script printed
+  nothing during the query phase and dumped all resolved versions only after every package
+  finished, so a 343-package sweep looked hung. The redundant post-loop print in `main()` was
+  removed.
+
+### Fixes and Maintenance
+
+- `templates/typescript/tools/sync_typescript_package_pins.py`: stop crashing on private or
+  workspace-local packages that are not published to the npm registry. `npm view <pkg>` returns
+  `E404` for such packages (e.g. `@kobalte/tests`); the script previously raised `RuntimeError`
+  on the first one and aborted the whole sweep. Now `fetch_latest_version` returns `None` on
+  `E404` and `fetch_latest_versions` omits it from the version map, routing it through the
+  existing unmanaged-extras path: a `skip (not on registry)` line during the query phase and the
+  existing `WARN consumer-extra (unmanaged)` line in the per-target diff. The pin is left
+  untouched; never auto-bumped against the public registry. Non-404 npm failures (network, auth)
+  still raise. The `main()` resolved-version print loop now guards `pkg in latest` so skipped
+  packages do not `KeyError`.
+
 ## 2026-06-15
 
 ### Additions and New Features
