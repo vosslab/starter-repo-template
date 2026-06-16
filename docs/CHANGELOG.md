@@ -11,6 +11,18 @@
 
 ### Fixes and Maintenance
 
+- `repolib/repo.py` `read_repo_type`: fixed an `UnboundLocalError: cannot access local variable
+  'repolib'` that crashed `propagate_style_guides.py -R <repo>` on the predict-and-write-marker
+  path. The function-scoped `import repolib.model` bound the package name `repolib` as a
+  function-local for the whole scope, so earlier `repolib.console.*` references (the
+  high-confidence "auto-wrote marker" log line, and the legacy-marker warn line) raised
+  `UnboundLocalError`. Hoisted the lazy `import repolib.model` to the top of the function body so
+  `repolib` is bound before any use; removed the now-redundant second inline import in the batch
+  path. The import stays function-scoped, so the model/repo import cycle remains broken. Latent
+  because every previously-processed repo already had a `REPO_TYPE` marker, which takes the early
+  file-read return that never touches `repolib`; the crash only fires on `-R` single-repo mode
+  with a missing marker plus high-confidence detection.
+
 - `templates/typescript/tools/sync_typescript_package_pins.py`: stop crashing on private or
   workspace-local packages that are not published to the npm registry. `npm view <pkg>` returns
   `E404` for such packages (e.g. `@kobalte/tests`); the script previously raised `RuntimeError`

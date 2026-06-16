@@ -30,6 +30,16 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 
 	Fallback to legacy STARTER_REPO_TYPE for backward compatibility.
 	"""
+	# repolib.model is imported here, at the top of the function body, not at
+	# module level. Two reasons: (1) it breaks the import cycle described in the
+	# module-top note (model loads manifests at import time and calls
+	# resolve_source_dir from this module); a function-scoped import runs only at
+	# call time, after both modules have finished loading. (2) `import
+	# repolib.model` binds the package name `repolib` as a function-local for the
+	# whole scope, so it MUST run before any `repolib.console.*` reference below,
+	# or those references raise UnboundLocalError on the predict-and-write path.
+	import repolib.model
+
 	# Optional import: tools/detect_repo_type is present in template, removed at consumer bootstrap.
 	detect_repo_type = None
 	template_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -113,10 +123,8 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 
 		# Batch mode with missing marker: try detection, fall back to LANG_UNKNOWN.
 		# LANG_UNKNOWN means no ROUTING_OVERRIDES exclude_repos rule applies;
-		# universal walker-routed files still ship.
-		# Lazy import (see module-top note) so the LANG_* constants are read at
-		# call time, after repolib.model has finished loading.
-		import repolib.model
+		# universal walker-routed files still ship. repolib.model was imported at
+		# the top of this function (see note there).
 		if detect_repo_type:
 			token, confidence, _reasoning = detect_repo_type.detect_repo_type(repo_path)
 			if confidence == 'high' and token in (repolib.model.LANG_PYTHON, repolib.model.LANG_TYPESCRIPT, repolib.model.LANG_RUST, repolib.model.LANG_OTHER):
