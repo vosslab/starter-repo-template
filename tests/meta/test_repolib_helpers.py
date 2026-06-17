@@ -192,6 +192,11 @@ class TestParseRepoTypeChoice:
 		assert repolib.repo.parse_repo_type_choice('r') == 'rust'
 		assert repolib.repo.parse_repo_type_choice('o') == 'other'
 
+	def test_parse_repo_type_choice_swift(self) -> None:
+		"""Test swift single-letter and full-word choices resolve to swift."""
+		assert repolib.repo.parse_repo_type_choice('s') == 'swift'
+		assert repolib.repo.parse_repo_type_choice('swift') == 'swift'
+
 	def test_parse_repo_type_choice_full_words(self) -> None:
 		"""Test full-word choices."""
 		assert repolib.repo.parse_repo_type_choice('python') == 'python'
@@ -220,6 +225,43 @@ class TestParseRepoTypeChoice:
 		"""Test whitespace handling."""
 		assert repolib.repo.parse_repo_type_choice('  p  ') == 'python'
 		assert repolib.repo.parse_repo_type_choice('  python  ') == 'python'
+
+
+class TestReadRepoType:
+	"""Test read_repo_type marker reading: unknown-token fallback and precedence."""
+
+	def test_unknown_repo_type_token_falls_back_to_other(self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture) -> None:
+		"""Unknown REPO_TYPE token warns (naming token + REPO_TYPE) and returns other, no raise."""
+		marker = tmp_path / "REPO_TYPE"
+		marker.write_text("pyton\n", encoding='utf-8')
+
+		result = repolib.repo.read_repo_type(str(tmp_path))
+
+		assert result == repolib.model.LANG_OTHER
+		warn_text = capsys.readouterr().out
+		assert "pyton" in warn_text
+		assert "REPO_TYPE" in warn_text
+
+	def test_unknown_legacy_token_falls_back_to_other(self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture) -> None:
+		"""Unknown STARTER_REPO_TYPE token (no REPO_TYPE) warns and returns other, no raise."""
+		legacy = tmp_path / "STARTER_REPO_TYPE"
+		legacy.write_text("pyton\n", encoding='utf-8')
+
+		result = repolib.repo.read_repo_type(str(tmp_path))
+
+		assert result == repolib.model.LANG_OTHER
+		warn_text = capsys.readouterr().out
+		assert "pyton" in warn_text
+		assert "STARTER_REPO_TYPE" in warn_text
+
+	def test_repo_type_takes_precedence_over_legacy(self, tmp_path: pathlib.Path) -> None:
+		"""When both markers exist, REPO_TYPE wins and the legacy marker is ignored."""
+		(tmp_path / "REPO_TYPE").write_text("swift\n", encoding='utf-8')
+		(tmp_path / "STARTER_REPO_TYPE").write_text("python\n", encoding='utf-8')
+
+		result = repolib.repo.read_repo_type(str(tmp_path))
+
+		assert result == repolib.model.LANG_SWIFT
 
 
 class TestReplaceManagedBlock:

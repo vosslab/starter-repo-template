@@ -42,7 +42,7 @@ without prompting. This replaces the interactive interview for the run.
 
 | Key | Required | Values | Notes |
 | --- | --- | --- | --- |
-| `project_type` | YES | `python` / `p`, `typescript` / `t`, `rust` / `r`, `other` / `o` | Short alias or full token |
+| `project_type` | YES | `python` / `p`, `typescript` / `t`, `rust` / `r`, `swift` / `s`, `other` / `o` | Short alias or full token |
 | `code_license` | YES | SPDX identifier or alias (e.g. `MIT`, `m`, `GPL-3.0`, `g`) | Resolved via `resolve_license` |
 | `docs_license` | no | SPDX identifier or alias | Default: `CC-BY-4.0` |
 | `pypi` | no | `true` / `false` | Default: `false`; Python-only |

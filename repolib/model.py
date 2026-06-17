@@ -30,6 +30,7 @@ class PropagateContext:
 LANG_PYTHON = 'python'
 LANG_TYPESCRIPT = 'typescript'
 LANG_RUST = 'rust'
+LANG_SWIFT = 'swift'
 LANG_OTHER = 'other'
 LANG_UNKNOWN = 'unknown'
 
@@ -56,6 +57,9 @@ LANG_UNKNOWN = 'unknown'
 #   AUTO_DISCOVER_DOCS_EXCLUDE: docs excluded from auto-discovery.
 #   META_TEST_PREFIXES: template-meta test filename prefixes.
 #   DEFAULT_REPO_SKIP_NAMES: default skip list for repo discovery.
+#   KNOWN_REPO_TYPES: recognized consumer marker tokens (from the ordered
+#     known_repo_types manifest); REPO_TYPE_ORDER keeps display order, the
+#     KNOWN_REPO_TYPES frozenset is for membership only.
 
 #============================================
 # Manifest loading
@@ -97,6 +101,13 @@ SKIP_WALK_DIRS = _MANIFESTS['skip_walk_dirs']
 AUTO_DISCOVER_DOCS_EXCLUDE = _MANIFESTS['auto_discover_docs_exclude']
 META_TEST_PREFIXES = _MANIFESTS['meta_test_prefixes']
 DEFAULT_REPO_SKIP_NAMES = _MANIFESTS['default_repo_skip_names']
+# Recognized consumer marker tokens. REPO_TYPE_ORDER is the ordered tuple
+# (canonical display order for prompts and docs); KNOWN_REPO_TYPES is the derived
+# frozenset used only for membership checks. Internal routing pseudo-types
+# (universal, unknown) are NOT included here; they are added at their own guard
+# in repolib.files so they never leak into UI, docs, or marker validation.
+REPO_TYPE_ORDER = _MANIFESTS['known_repo_types']
+KNOWN_REPO_TYPES = frozenset(REPO_TYPE_ORDER)
 
 
 #============================================
@@ -112,7 +123,7 @@ def select_overlay_dirs(repo_type: str, repo_dir: str) -> list[str]:
 	at the consumer (currently only the 'has_file' verb is supported).
 
 	Args:
-		repo_type (str): Consumer repository type (python, typescript, rust, other).
+		repo_type (str): Consumer repository type (python, typescript, rust, swift, other).
 		repo_dir (str): Consumer repository directory to test marker files against.
 
 	Returns:
@@ -152,7 +163,7 @@ def overlay_roots_for_type(template_root: str, repo_type: str) -> list[str]:
 
 	Args:
 		template_root (str): Template root directory.
-		repo_type (str): Repository type (python, typescript, rust, other).
+		repo_type (str): Repository type (python, typescript, rust, swift, other).
 
 	Returns:
 		list[str]: Absolute candidate overlay root directories under templates/.
@@ -196,7 +207,7 @@ def find_source_for_bucket(template_root: str, bucket: str, file_rel: str, repo_
 		template_root (str): Template root directory.
 		bucket (str): Bucket name (overwrite_files, noexist_files, devel_files, test_files).
 		file_rel (str): Relative path of the file.
-		repo_type (str): Repository type (python, typescript, rust, other). Defaults to 'universal'.
+		repo_type (str): Repository type (python, typescript, rust, swift, other). Defaults to 'universal'.
 
 	Returns:
 		str | None: Canonical source path if found, None otherwise.

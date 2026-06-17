@@ -36,9 +36,11 @@ def detect_repo_type(repo_dir: str) -> tuple[str, str, list[str]]:
 	has_tsconfig = os.path.isfile(os.path.join(repo_dir, 'tsconfig.json'))
 	has_pyproject = os.path.isfile(os.path.join(repo_dir, 'pyproject.toml'))
 	has_setup_py = os.path.isfile(os.path.join(repo_dir, 'setup.py'))
+	has_swift_pkg = os.path.isfile(os.path.join(repo_dir, 'Package.swift'))
 
-	# Count multiple strong signals
-	strong_signals = sum([has_cargo, has_tsconfig, has_pyproject or has_setup_py])
+	# Count multiple strong signals; a Swift+Rust or Swift+Python repo is ambiguous
+	# like any other mixed pair (e.g. Cargo.toml + tsconfig.json)
+	strong_signals = sum([has_cargo, has_tsconfig, has_pyproject or has_setup_py, has_swift_pkg])
 
 	if strong_signals >= 2:
 		signals_found = []
@@ -48,6 +50,8 @@ def detect_repo_type(repo_dir: str) -> tuple[str, str, list[str]]:
 			signals_found.append('tsconfig.json')
 		if has_pyproject or has_setup_py:
 			signals_found.append('pyproject.toml/setup.py')
+		if has_swift_pkg:
+			signals_found.append('Package.swift')
 		reasoning.append(f"mixed strong signals: {', '.join(signals_found)}")
 		return ('ambiguous', 'low', reasoning)
 
@@ -65,6 +69,10 @@ def detect_repo_type(repo_dir: str) -> tuple[str, str, list[str]]:
 		else:
 			reasoning.append('Found setup.py at root')
 		return ('python', 'high', reasoning)
+
+	if has_swift_pkg:
+		reasoning.append('Found Package.swift at root')
+		return ('swift', 'high', reasoning)
 
 	# Priority 2: package.json with TypeScript dependency
 	has_package_json = os.path.isfile(os.path.join(repo_dir, 'package.json'))
@@ -102,6 +110,7 @@ def detect_repo_type(repo_dir: str) -> tuple[str, str, list[str]]:
 	py_count = 0
 	ts_count = 0
 	rs_count = 0
+	swift_count = 0
 	other_count = 0
 	file_count = 0
 	has_pg_files = False
@@ -121,6 +130,8 @@ def detect_repo_type(repo_dir: str) -> tuple[str, str, list[str]]:
 				ts_count += 1
 			elif name.endswith('.rs'):
 				rs_count += 1
+			elif name.endswith('.swift'):
+				swift_count += 1
 			elif name.endswith(('.pl', '.pm', '.pg')):
 				other_count += 1
 				if name.endswith('.pg'):
@@ -138,6 +149,7 @@ def detect_repo_type(repo_dir: str) -> tuple[str, str, list[str]]:
 		'python': py_count,
 		'typescript': ts_count,
 		'rust': rs_count,
+		'swift': swift_count,
 		'other': other_count,
 	}
 

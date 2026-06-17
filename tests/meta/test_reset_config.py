@@ -175,6 +175,38 @@ class TestLoadConfigNonDictTopLevel:
 
 
 #============================================
+# normalize_project_type swift aliases
+#============================================
+
+class TestNormalizeProjectTypeSwift:
+	"""normalize_project_type accepts 's' and 'swift' and returns 'swift'."""
+
+	def test_single_letter_s_returns_swift(self) -> None:
+		"""Single-letter alias 's' normalizes to 'swift'."""
+		result = reset_repo.normalize_project_type("s", "python")
+		assert result == "swift"
+
+	def test_full_name_swift_returns_swift(self) -> None:
+		"""Full name 'swift' normalizes to 'swift'."""
+		result = reset_repo.normalize_project_type("swift", "python")
+		assert result == "swift"
+
+	def test_swift_config_path_normalizes(self, tmp_path: pathlib.Path) -> None:
+		"""Config with project_type 'swift' resolves to 'swift' via answers_from_config."""
+		cfg = {"project_type": "swift", "code_license": "MIT"}
+		path = write_json(tmp_path, "cfg.json", cfg)
+		answers = reset_repo.answers_from_config(path)
+		assert answers.project_type == "swift"
+
+	def test_swift_short_alias_config_path_normalizes(self, tmp_path: pathlib.Path) -> None:
+		"""Config with project_type 's' resolves to 'swift' via answers_from_config."""
+		cfg = {"project_type": "s", "code_license": "MIT"}
+		path = write_json(tmp_path, "cfg.json", cfg)
+		answers = reset_repo.answers_from_config(path)
+		assert answers.project_type == "swift"
+
+
+#============================================
 # PyPI forced False for non-python types
 #============================================
 

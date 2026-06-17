@@ -10,7 +10,7 @@ def test_repolib_spec_all_entries_resolve_to_source() -> None:
 	"""Every propagation plan entry across all buckets resolves to an existing source file."""
 	repo_root = file_utils.get_repo_root()
 
-	for repo_type in ('python', 'typescript', 'rust', 'other'):
+	for repo_type in repolib.model.REPO_TYPE_ORDER:
 		plan = repolib.files.compute_propagation_plan(repo_root, repo_type)
 		for bucket, entries in plan.items():
 			if bucket == 'gitignore_block':

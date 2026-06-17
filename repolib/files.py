@@ -617,7 +617,7 @@ def merge_gitignore_blocks(repo_dir: str, repo_type: str, template_root: str, co
 
 	Args:
 		repo_dir (str): Repository directory path.
-		repo_type (str): Type of repository (python, typescript, rust, other).
+		repo_type (str): Type of repository (python, typescript, rust, swift, other).
 		template_root (str): Template root directory for gitignore sources.
 		context (PropagateContext): Context with dry_run and path formatting info.
 		counters (dict | None): Optional counter dict to update with created/merged counts.
@@ -778,7 +778,10 @@ def resolve_spec_for_type(repo_type: str, template_root: str | None = None, coun
 	Return the six-bucket propagation spec for the given repo_type.
 	Uses compute_propagation_plan with template_root (defaults to script directory).
 	"""
-	if repo_type not in ('universal', 'python', 'typescript', 'rust', 'other', 'unknown'):
+	# Accept consumer tokens from the shared set plus the internal pseudo-types.
+	# Pseudo-types (universal, unknown) are added here explicitly so they never
+	# leak into KNOWN_REPO_TYPES and the consumer-facing token set stays clean.
+	if repo_type not in repolib.model.KNOWN_REPO_TYPES | {'universal', 'unknown'}:
 		raise ValueError(f"unknown repo type {repo_type!r}")
 	if template_root is None:
 		template_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -793,19 +796,19 @@ def auto_discover_test_files(template_root: str, repo_type: str) -> list[str]:
 	Scan template tests/ for files matching test_*.py or test_*.mjs not already
 	in the spec's test_files list. Return their relative paths under tests/.
 
-	For universal and python types: scan template_root/tests/ directly.
-	For typescript and rust: scan templates/<repo_type>/tests/.
+	For universal, python, other, and swift types: scan template_root/tests/ directly.
+	For typed overlays (typescript, rust): scan templates/<repo_type>/tests/.
 	"""
 	spec = resolve_spec_for_type(repo_type, template_root)
 	spec_test_files = set(spec['test_files'])
 
 	discovered = []
 
-	if repo_type in ('universal', 'python', 'other'):
-		# Scan template root tests/
+	if repo_type in ('universal', 'python', 'other', 'swift'):
+		# Scan template root tests/ for universal, python, other, and swift (no overlay).
 		test_dir = os.path.join(template_root, 'tests')
 	else:
-		# Scan templates/<repo_type>/tests/
+		# Scan templates/<repo_type>/tests/ for typed overlays (typescript, rust).
 		test_dir = os.path.join(template_root, 'templates', repo_type, 'tests')
 
 	if not os.path.isdir(test_dir):
@@ -845,7 +848,7 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 
 	Args:
 		template_root (str): Root directory of template files to scan.
-		repo_type (str): Repository type (python, typescript, rust, other, unknown).
+		repo_type (str): Repository type (python, typescript, rust, swift, other, unknown).
 		counters (dict | None): Optional counter dict for progress tracking.
 		repo_dir (str | None): Optional repository directory for requirement checks.
 			Falls back to template_root for requirement predicate evaluation.
@@ -895,8 +898,10 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 				return True
 		return False
 
-	# 1. Walk universal files at template root
-	if repo_type in ('python', 'other', 'typescript', 'rust', 'unknown'):
+	# 1. Walk universal files at template root. Every known consumer type plus the
+	# 'unknown' pseudo-type receives the universal walk; derive from the shared set
+	# so a future type is covered without editing this condition.
+	if repo_type in repolib.model.KNOWN_REPO_TYPES | {'unknown'}:
 		for root, dirs, files in os.walk(template_root, topdown=True, followlinks=False):
 			# Skip directories: meta, templates (we walk it separately)
 			dirs[:] = [d for d in dirs if d not in repolib.model.META_DIRS]

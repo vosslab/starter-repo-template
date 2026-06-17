@@ -80,7 +80,7 @@ def _flatten_plan(plan: dict[str, list[str]]) -> list[str]:
 def test_meta_propagation_excluded_from_plan() -> None:
 	"""compute_propagation_plan() must not include any meta/propagation/ entry."""
 	template_root = repolib.files.TEMPLATE_ROOT
-	for repo_type in ('python', 'typescript', 'rust', 'other'):
+	for repo_type in repolib.model.REPO_TYPE_ORDER:
 		plan = repolib.files.compute_propagation_plan(template_root, repo_type)
 		flat = _flatten_plan(plan)
 		# No entry should contain 'meta/propagation' or just 'propagation' (devel-bucket bare name).

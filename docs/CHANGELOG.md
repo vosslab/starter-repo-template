@@ -1,6 +1,22 @@
 ## 2026-06-16
 
+### Additions and New Features
+
+- Added `swift` as a recognized `REPO_TYPE` token (`meta/propagation/manifests.yaml`
+  `known_repo_types`, `repolib/model.py` `LANG_SWIFT` / `REPO_TYPE_ORDER` / `KNOWN_REPO_TYPES`).
+  `swift` currently ships universal files only (no `templates/swift/` overlay); future swift files
+  are added by folder location with no code change. `meta/propagation/manifests.yaml` is now the
+  single ordered source of truth for the consumer token set; `reset_repo.py` and the propagate
+  prompt offer swift as a selectable type (`[s]wift`); `tools/detect_repo_type.py` recognizes
+  `Package.swift` (high confidence) and `.swift` file counts.
+
 ### Behavior or Interface Changes
+
+- `repolib/repo.py` `read_repo_type`: unrecognized tokens in `REPO_TYPE` or legacy
+  `STARTER_REPO_TYPE` now log a warning (`repo=<name> REPO_TYPE token '<tok>' not recognized;
+  treating as other`) and return `other` instead of raising `ValueError`. Previously
+  `propagate_style_guides.py -R ../swift-usb-imager` aborted the entire run on the first
+  unrecognized marker; the new fallback lets batch propagation continue past a single bad marker.
 
 - `templates/typescript/tools/sync_typescript_package_pins.py`: `fetch_latest_versions` now prints
   live `[index/total] pkg: version` progress as each `npm view` round-trip resolves (or a

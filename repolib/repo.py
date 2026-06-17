@@ -25,8 +25,9 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 	LANG_UNKNOWN means no ROUTING_OVERRIDES exclude_repos rule applies;
 	universal walker-routed files still ship.
 
-	Returns token (python, typescript, rust, other, unknown).
-	Raises ValueError if marker contains unknown token.
+	Returns token (python, typescript, rust, swift, other, unknown).
+	An unrecognized marker token logs a warning and falls back to other
+	instead of raising, so a single bad marker never aborts a batch run.
 
 	Fallback to legacy STARTER_REPO_TYPE for backward compatibility.
 	"""
@@ -56,8 +57,11 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 		repolib.console.log_action("warn", f"{repo_path}: legacy STARTER_REPO_TYPE marker found; rename to REPO_TYPE")
 		with open(legacy_marker_path, 'r', encoding='utf-8') as f:
 			token = f.read().strip()
-		if token not in ('python', 'typescript', 'rust', 'other'):
-			raise ValueError(f"unknown STARTER_REPO_TYPE token {token!r} in {legacy_marker_path}")
+		# Unknown legacy token: warn (naming token + STARTER_REPO_TYPE marker) and
+		# fall back to other instead of raising, so a bad marker does not abort a batch.
+		if token not in repolib.model.KNOWN_REPO_TYPES:
+			repolib.console.log_action("warn", f"repo={os.path.basename(repo_path)} STARTER_REPO_TYPE token {token!r} not recognized; treating as other")
+			return repolib.model.LANG_OTHER
 		return token
 
 	if not os.path.isfile(marker_path):
@@ -65,7 +69,7 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 		if single_repo_mode and write_marker and detect_repo_type:
 			token, confidence, reasoning = detect_repo_type.detect_repo_type(repo_path)
 
-			if confidence == 'high' and token != 'ambiguous':
+			if confidence == 'high' and token in repolib.model.KNOWN_REPO_TYPES:
 				# High confidence: write silently
 				write_repo_type_marker(marker_path, token, dry_run=False)
 				repolib.console.log_action("skip", f"repo={os.path.basename(repo_path)} type={token} confidence=high (auto-wrote marker, predicted)", counters)
@@ -94,7 +98,7 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 						# User rejected; re-prompt for explicit type
 						while True:
 							user_type = input(
-								"Project type? [p]ython / [t]ypescript / [r]ust / [o]ther [p]: "
+								"Project type? [p]ython / [t]ypescript / [r]ust / [s]wift / [o]ther [p]: "
 							).strip()
 							chosen_type = parse_repo_type_choice(user_type, 'python')
 							write_repo_type_marker(marker_path, chosen_type, dry_run=False)
@@ -112,7 +116,7 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 			# Interactive prompt for ambiguous
 			while True:
 				user_type = input(
-					"Project type? [p]ython / [t]ypescript / [r]ust / [o]ther: "
+					"Project type? [p]ython / [t]ypescript / [r]ust / [s]wift / [o]ther: "
 				).strip()
 				chosen_type = parse_repo_type_choice(user_type, None)
 				if chosen_type is None:
@@ -127,14 +131,17 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 		# the top of this function (see note there).
 		if detect_repo_type:
 			token, confidence, _reasoning = detect_repo_type.detect_repo_type(repo_path)
-			if confidence == 'high' and token in (repolib.model.LANG_PYTHON, repolib.model.LANG_TYPESCRIPT, repolib.model.LANG_RUST, repolib.model.LANG_OTHER):
+			if confidence == 'high' and token in repolib.model.KNOWN_REPO_TYPES:
 				return token
 		return repolib.model.LANG_UNKNOWN
 
 	with open(marker_path, 'r', encoding='utf-8') as f:
 		token = f.read().strip()
-	if token not in ('python', 'typescript', 'rust', 'other'):
-		raise ValueError(f"unknown REPO_TYPE token {token!r} in {marker_path}")
+	# Unknown token: warn (naming token + REPO_TYPE marker) and fall back to other
+	# instead of raising, so a single bad marker never aborts a batch propagation.
+	if token not in repolib.model.KNOWN_REPO_TYPES:
+		repolib.console.log_action("warn", f"repo={os.path.basename(repo_path)} REPO_TYPE token {token!r} not recognized; treating as other")
+		return repolib.model.LANG_OTHER
 	return token
 
 
@@ -145,7 +152,7 @@ def write_repo_type_marker(path: str, token: str, dry_run: bool = False) -> bool
 
 	Args:
 		path (str): Path to REPO_TYPE marker file.
-		token (str): Canonical type token (python, typescript, rust, other).
+		token (str): Canonical type token (python, typescript, rust, swift, other).
 		dry_run (bool): If True, do not write changes.
 
 	Returns:
@@ -173,7 +180,7 @@ def parse_repo_type_choice(text: str, default: str | None = None) -> str | None:
 		default (str): Default token if input is unrecognized.
 
 	Returns:
-		str: Canonical token (python, typescript, rust, other) or default.
+		str: Canonical token (python, typescript, rust, swift, other) or default.
 	"""
 	if not text:
 		return default
@@ -184,6 +191,8 @@ def parse_repo_type_choice(text: str, default: str | None = None) -> str | None:
 		return 'typescript'
 	if choice in ('r', 'rust'):
 		return 'rust'
+	if choice in ('s', 'swift'):
+		return 'swift'
 	if choice in ('o', 'other'):
 		return 'other'
 	return default

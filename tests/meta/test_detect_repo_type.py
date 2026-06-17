@@ -166,8 +166,55 @@ def test_detect_caps_at_max_files(tmp_path: pathlib.Path) -> None:
 		with open(subdir / f'file{i}.txt', 'w') as f:
 			f.write('x')
 	token, confidence, reasoning = detect_repo_type.detect_repo_type(str(tmp_path))
-	# Should complete without hanging
-	assert len(reasoning) >= 0
+	# Should complete without hanging and always produce at least one reasoning bullet
+	assert reasoning
 	# Check if cap is mentioned
 	# It's OK if cap not mentioned if detection happened before cap
-	assert token in ('ambiguous', 'python', 'typescript', 'rust', 'other')
+	assert token in ('ambiguous', 'python', 'typescript', 'rust', 'swift', 'other')
+
+
+#============================================
+def test_detect_swift_via_package_swift(tmp_path: pathlib.Path) -> None:
+	"""Write Package.swift at root -> expect (swift, high)."""
+	with open(tmp_path / 'Package.swift', 'w') as f:
+		f.write('// swift-tools-version: 5.9\n')
+	token, confidence, reasoning = detect_repo_type.detect_repo_type(str(tmp_path))
+	assert token == 'swift'
+	assert confidence == 'high'
+
+
+#============================================
+def test_detect_swift_via_package_swift_with_helper_scripts(tmp_path: pathlib.Path) -> None:
+	"""Package.swift + a few .py helper scripts -> swift wins via strong marker."""
+	with open(tmp_path / 'Package.swift', 'w') as f:
+		f.write('// swift-tools-version: 5.9\n')
+	# A handful of python helper scripts should not override Package.swift
+	for i in range(3):
+		with open(tmp_path / f'helper{i}.py', 'w') as f:
+			f.write('# helper\n')
+	token, confidence, reasoning = detect_repo_type.detect_repo_type(str(tmp_path))
+	assert token == 'swift'
+	assert confidence == 'high'
+
+
+#============================================
+def test_detect_swift_via_file_count_tiebreaker(tmp_path: pathlib.Path) -> None:
+	"""Write 10 .swift files, no markers -> expect (swift, medium) via count tiebreaker."""
+	for i in range(10):
+		with open(tmp_path / f'Source{i}.swift', 'w') as f:
+			f.write('// placeholder\n')
+	token, confidence, reasoning = detect_repo_type.detect_repo_type(str(tmp_path))
+	assert token == 'swift'
+	assert confidence == 'medium'
+
+
+#============================================
+def test_detect_swift_ambiguous_with_cargo(tmp_path: pathlib.Path) -> None:
+	"""Package.swift + Cargo.toml -> ambiguous (mixed strong signals)."""
+	with open(tmp_path / 'Package.swift', 'w') as f:
+		f.write('// swift-tools-version: 5.9\n')
+	with open(tmp_path / 'Cargo.toml', 'w') as f:
+		f.write('[package]\n')
+	token, confidence, reasoning = detect_repo_type.detect_repo_type(str(tmp_path))
+	assert token == 'ambiguous'
+	assert confidence == 'low'

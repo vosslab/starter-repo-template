@@ -2,8 +2,9 @@
 
 meta/propagation/manifests.yaml is the single source of propagation config.
 load_manifests() reads it and returns a dict whose values carry the SAME
-Python types repolib.model exposes (frozenset for set manifests, tuple for
-meta_test_prefixes, dict for routing_overrides and conditional_overlays).
+Python types repolib.model exposes (frozenset for set manifests, ordered tuple
+for meta_test_prefixes and known_repo_types, dict for routing_overrides and
+conditional_overlays).
 A missing file or malformed YAML raises loudly; there is no empty fallback.
 """
 
@@ -39,7 +40,8 @@ def load_manifests(template_root: str) -> dict:
 	Reads the YAML data file under template_root and converts each section to the
 	Python type repolib.model exposes. Set manifests become frozensets, the
 	routing_overrides exclude_repos value becomes a frozenset, conditional_overlays
-	keeps its nested-dict structure, and meta_test_prefixes becomes a tuple.
+	keeps its nested-dict structure, and meta_test_prefixes and known_repo_types
+	become ordered tuples.
 
 	A missing file or malformed YAML raises loudly so propagation never runs on a
 	silently empty config.
@@ -71,6 +73,11 @@ def load_manifests(template_root: str) -> dict:
 	manifests['conditional_overlays'] = raw['conditional_overlays']
 	# meta_test_prefixes: ordered tuple to match the model.py type.
 	manifests['meta_test_prefixes'] = tuple(raw['meta_test_prefixes'])
+	# known_repo_types: ORDERED tuple of consumer marker tokens. Order is
+	# preserved (NOT a frozenset, NOT in SET_MANIFEST_KEYS) because prompts and
+	# docs need stable display order; repolib.model derives KNOWN_REPO_TYPES
+	# (a frozenset) from it for membership. Direct key access fails loud here.
+	manifests['known_repo_types'] = tuple(raw['known_repo_types'])
 	return manifests
 
 

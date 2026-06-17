@@ -125,3 +125,16 @@ meta_test_prefixes:
 default_repo_skip_names:
   - starter-repo-template
   - vosslab-skills
+
+# Recognized consumer REPO_TYPE marker tokens, in canonical display order
+# (loaded as an ordered tuple, NOT a frozenset). This is the single source of
+# truth for valid marker tokens: prompts and docs use the order, while a derived
+# frozenset (KNOWN_REPO_TYPES in repolib.model) handles membership checks. Order
+# matters here; do not sort. Internal routing pseudo-types (universal, unknown)
+# are NOT consumer tokens and are added at their own guard in repolib.files.
+known_repo_types:
+  - python
+  - typescript
+  - rust
+  - swift
+  - other

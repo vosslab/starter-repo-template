@@ -10,7 +10,9 @@ import repolib.model
 
 TEMPLATE_ROOT = file_utils.get_repo_root()
 
-REPO_TYPES = ('python', 'typescript', 'rust', 'other', 'unknown')
+# Every consumer type (from the shared ordered set) plus the 'unknown' pseudo-type,
+# so a future type is covered here without editing this list.
+REPO_TYPES = repolib.model.REPO_TYPE_ORDER + ('unknown',)
 
 # Buckets that store repo-relative paths verbatim.
 PATH_BUCKETS = ('overwrite_files', 'noexist_files', 'merge_files', 'test_files')

@@ -12,6 +12,7 @@ buckets returned by compute_propagation_plan.
 import pathlib
 
 import repolib.files
+import repolib.model
 
 
 def test_universal_doc_routes_overwrite(tmp_path: pathlib.Path) -> None:
@@ -32,7 +33,7 @@ def test_universal_doc_reaches_every_type(tmp_path: pathlib.Path) -> None:
 	docs_dir = tmp_path / 'docs'
 	docs_dir.mkdir()
 	(docs_dir / 'SHARED.md').write_text('test')
-	for repo_type in ('python', 'typescript', 'other'):
+	for repo_type in repolib.model.REPO_TYPE_ORDER:
 		plan = repolib.files.compute_propagation_plan(str(tmp_path), repo_type)
 		assert 'docs/SHARED.md' in plan['overwrite_files']
 

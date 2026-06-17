@@ -4,7 +4,8 @@ Behavior tests for repolib.manifests.load_manifests over synthetic YAML.
 The loader reads meta/propagation/manifests.yaml under a template root and
 converts each section to the Python type repolib.model exposes (frozenset for
 set manifests, frozenset for exclude_repos, nested dict for conditional_overlays,
-tuple for meta_test_prefixes). These tests write their OWN small manifests.yaml
+ordered tuple for meta_test_prefixes and known_repo_types). These tests write
+their OWN small manifests.yaml
 in tmp_path so value assertions never depend on the live config. Type and
 key-presence assertions follow whatever the loader and model agree on, so they
 stay stable as live values change.
@@ -55,6 +56,10 @@ default_repo_skip_names:
   - synth-skip-repo
 meta_test_prefixes:
   - test_synth_
+known_repo_types:
+  - python
+  - synthlang
+  - other
 """
 
 
@@ -156,17 +161,28 @@ def test_malformed_yaml_raises(tmp_path: pathlib.Path) -> None:
 # Loader output exposes every model manifest name
 #============================================
 
+# Loader keys whose model attribute name is NOT the plain uppercase of the key.
+# known_repo_types is the ordered-tuple loader key; repolib.model binds that
+# tuple to REPO_TYPE_ORDER (same type) and derives the KNOWN_REPO_TYPES frozenset
+# from it, so the same-type model attribute for this key is REPO_TYPE_ORDER.
+MODEL_ATTR_OVERRIDES = {
+	'known_repo_types': 'REPO_TYPE_ORDER',
+}
+
+
 def model_manifest_attr_for(loader_key: str) -> str:
 	"""
 	Map a loader key to the module-level name repolib.model exposes for it.
 
-	repolib.model binds each loaded manifest to its uppercase name
-	(routing_overrides -> ROUTING_OVERRIDES, etc.).
+	repolib.model binds most loaded manifests to their uppercase name
+	(routing_overrides -> ROUTING_OVERRIDES, etc.). A few keys use a different
+	export name (see MODEL_ATTR_OVERRIDES); known_repo_types binds to the ordered
+	REPO_TYPE_ORDER tuple, with KNOWN_REPO_TYPES derived as a separate frozenset.
 
 	Returns:
-		str: The uppercase model attribute name.
+		str: The model attribute name for this loader key.
 	"""
-	return loader_key.upper()
+	return MODEL_ATTR_OVERRIDES.get(loader_key, loader_key.upper())
 
 
 def test_loader_keys_match_model_attribute_types(tmp_path: pathlib.Path) -> None:
