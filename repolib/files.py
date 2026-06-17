@@ -546,16 +546,30 @@ def merge_conftest(source_file: str, dest_file: str) -> str | None:
 	"""
 	Inject the canonical managed blocks into a destination conftest.py.
 
-	The canonical source tests/conftest.py carries two managed blocks:
+	The canonical source tests/conftest.py carries three managed blocks:
 	  1. the collect_ignore block (everything before the REPO_HYGIENE_FILTERS
 	     marker), which excludes the e2e and playwright tiers from pytest.
 	  2. the REPO_HYGIENE_FILTERS block (the documented comment block ending in
 	     REPO_HYGIENE_FILTERS = {}), the repo-local hygiene-exclusion registry.
+	  3. the optional helpers menu block, introduced by a line containing
+	     OPTIONAL_HELPERS_MENU, which documents optional conftest helpers.
 
-	Both blocks ship additively. Any other consumer content (imports, fixtures,
-	a consumer-set collect_ignore value, a consumer-set REPO_HYGIENE_FILTERS
-	value) is preserved verbatim. A missing block is appended; an existing block
-	is never overwritten.
+	Detection tokens:
+	  - Block 1: presence of 'collect_ignore' in dest text.
+	  - Block 2: presence of 'REPO_HYGIENE_FILTERS' in dest text.
+	  - Block 3: presence of 'OPTIONAL_HELPERS_MENU' in dest text.
+
+	All three blocks ship additively. Any other consumer content (imports,
+	fixtures, consumer-set values) is preserved verbatim. A missing block is
+	appended in canonical order; an existing or edited block is never
+	overwritten.
+
+	Graceful degradation when the source is missing a marker:
+	  - All three markers present -> three-way split.
+	  - Marker 3 absent -> two-way split, ship blocks 1-2 only (back-compat).
+	  - Marker 2 absent, marker 3 present -> block 1 is pre-menu text; block 3
+	    follows; block 2 is empty.
+	  - Neither marker 2 nor marker 3 -> entire source is block 1; no crash.
 
 	Args:
 		source_file (str): Path to the canonical tests/conftest.py.
@@ -563,43 +577,71 @@ def merge_conftest(source_file: str, dest_file: str) -> str | None:
 
 	Returns:
 		str | None: Merged content when an update is needed, None when the
-		consumer already carries both managed blocks.
+		consumer already carries all managed blocks present in the source.
 	"""
 	source_text = read_text(source_file)
 	if not os.path.isfile(dest_file):
 		return source_text
 
-	# Split the canonical source into its two managed blocks at the first line
-	# that starts the REPO_HYGIENE_FILTERS comment block.
+	# --- split the canonical source into up to three managed blocks ---
+	# Locate marker 2: first line that starts '# REPO_HYGIENE_FILTERS'.
+	# Locate marker 3: first line that contains 'OPTIONAL_HELPERS_MENU'.
 	source_lines = source_text.split('\n')
-	marker_idx = None
+	marker2_idx = None
+	marker3_idx = None
 	for idx, line in enumerate(source_lines):
-		if line.startswith('# REPO_HYGIENE_FILTERS'):
-			marker_idx = idx
-			break
-	if marker_idx is None:
-		# Canonical source lacks the registry marker; treat the whole source as
-		# the collect_ignore block and ship no filters block.
+		if marker2_idx is None and line.startswith('# REPO_HYGIENE_FILTERS'):
+			marker2_idx = idx
+		if marker3_idx is None and 'OPTIONAL_HELPERS_MENU' in line:
+			marker3_idx = idx
+
+	# Build the three block strings according to which markers were found.
+	if marker2_idx is not None and marker3_idx is not None:
+		# Full three-way split.
+		collect_ignore_block = '\n'.join(source_lines[:marker2_idx]).rstrip()
+		filters_block = '\n'.join(source_lines[marker2_idx:marker3_idx]).rstrip()
+		menu_block = '\n'.join(source_lines[marker3_idx:]).rstrip()
+	elif marker2_idx is not None:
+		# Marker 3 absent: two-way split only; no menu block.
+		collect_ignore_block = '\n'.join(source_lines[:marker2_idx]).rstrip()
+		filters_block = '\n'.join(source_lines[marker2_idx:]).rstrip()
+		menu_block = ''
+	elif marker3_idx is not None:
+		# Marker 2 absent but marker 3 present: pre-menu text is block 1.
+		collect_ignore_block = '\n'.join(source_lines[:marker3_idx]).rstrip()
+		filters_block = ''
+		menu_block = '\n'.join(source_lines[marker3_idx:]).rstrip()
+	else:
+		# Neither marker present: entire source is the collect_ignore block.
 		collect_ignore_block = source_text.rstrip()
 		filters_block = ''
-	else:
-		collect_ignore_block = '\n'.join(source_lines[:marker_idx]).rstrip()
-		filters_block = '\n'.join(source_lines[marker_idx:]).rstrip()
+		menu_block = ''
 
 	dest_text = read_text(dest_file)
 	if dest_text.strip() == '':
 		return source_text
+
+	# Determine which blocks the destination is missing.
+	# Each "need" flag is only True when the source carries that block AND the
+	# destination does not yet have the detection token.  Checking block content
+	# here means a source that lacks a marker will never falsely trigger an
+	# append for that block, and the function returns None correctly.
 	need_collect = 'collect_ignore' not in dest_text
-	need_filters = 'REPO_HYGIENE_FILTERS' not in dest_text
-	if not need_collect and not need_filters:
+	need_filters = bool(filters_block) and ('REPO_HYGIENE_FILTERS' not in dest_text)
+	need_menu = bool(menu_block) and ('OPTIONAL_HELPERS_MENU' not in dest_text)
+
+	if not need_collect and not need_filters and not need_menu:
 		return None
 
-	# Preserve all existing consumer content; append only the missing block(s).
+	# Preserve all existing consumer content; append only the missing block(s)
+	# in canonical order: collect_ignore, REPO_HYGIENE_FILTERS, menu.
 	merged = dest_text.rstrip()
 	if need_collect:
 		merged += '\n\n' + collect_ignore_block
-	if need_filters and filters_block:
+	if need_filters:
 		merged += '\n\n' + filters_block
+	if need_menu:
+		merged += '\n\n' + menu_block
 	merged += '\n'
 	return merged
 

@@ -7,6 +7,12 @@ each test inserting paths itself.
 import os
 import sys
 
+# Exclude the template-meta E2E harness from the template's own pytest run.
+# This lives here (template-meta, never propagated) rather than in the root
+# tests/conftest.py, whose collect_ignore block ships to consumer repos that
+# have no tests/meta/ tree.
+collect_ignore = ["e2e"]
+
 # Bootstrap: add tests/ so the shared file_utils helper imports. Everything
 # else derives from file_utils.get_repo_root() (git rev-parse), not manual walks.
 TESTS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

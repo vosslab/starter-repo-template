@@ -137,6 +137,32 @@ deprecation-strip list); consumer keeps any local `@`-imports and non-`@` conten
 - Adding a python-only tool needed only when `pyproject.toml` exists -- place under `templates/python/_pypi/<consumer-path>` and add a `conditional_overlays.python._pypi` rule (already defined). Example: `devel/submit_to_pypi.py` lives at `templates/python/_pypi/devel/submit_to_pypi.py`.
 - Adding an `exclude_repos` exception -- add to `ROUTING_OVERRIDES` in `meta/propagation/manifests.yaml` with `exclude_repos: [<repo-basename>]`. Use only to prevent a mirror file from shipping back to its source repo.
 
+## conftest.py managed blocks
+
+`tests/conftest.py` is excluded from the standard `tests/` walker and handled by
+`repolib.files.merge_conftest` (called from `repolib.process`). The function ships
+three named blocks additively into the consumer file.
+
+| Block | Detection token | Content |
+| --- | --- | --- |
+| collect_ignore | `collect_ignore` | Excludes `e2e`, `playwright`, and `meta/e2e` subtrees from pytest collection. |
+| REPO_HYGIENE_FILTERS | `REPO_HYGIENE_FILTERS` | Repo-local hygiene-exclusion registry read by `file_utils.discover_files`. Template value is an empty dict; consumers extend it with project-specific glob patterns. |
+| OPTIONAL_HELPERS_MENU | `OPTIONAL_HELPERS_MENU` | Commented-out recipe menu appended once. Ships two recipes: sys.path repo-root insert and MPLCONFIGDIR redirect. |
+
+**Append-if-missing, never-overwrite contract:** for each block, `merge_conftest`
+checks whether the detection token is already present in the consumer file. A missing
+block is appended in canonical order (collect_ignore, then REPO_HYGIENE_FILTERS, then
+OPTIONAL_HELPERS_MENU). An existing or edited block is never touched. Consumer
+additions between blocks or after the menu are preserved verbatim.
+
+**Why hygiene fixtures are excluded from the template:** the canonical hygiene tests
+(`test_ascii_compliance.py`, `test_whitespace.py`) read
+`pytestconfig.getoption("no_ascii_fix", default=False)` directly via pytest's built-in
+config access. The older `skip_repo_hygiene`, `ascii_fix_enabled`, and
+`pytest_addoption("--no-ascii-fix")` fixtures are stale leftovers from a previous
+design. They are intentionally absent from the template conftest so that propagation
+does not reintroduce them into consumer repos.
+
 ## Routing override gates
 
 The `ROUTING_OVERRIDES` dict in `meta/propagation/manifests.yaml` now holds only `exclude_repos`

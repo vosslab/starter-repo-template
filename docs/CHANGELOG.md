@@ -13,7 +13,22 @@
   shadows the universal version for `REPO_TYPE=python` repos. Non-python types receive the
   universal starter.
 
+- `tests/conftest.py` (canonical template): added a third managed block,
+  `OPTIONAL_HELPERS_MENU` (token `OPTIONAL_HELPERS_MENU`, header `# === OPTIONAL_HELPERS_MENU ===`).
+  Ships two commented-out recipes: (1) sys.path repo-root insert via
+  `git rev-parse --show-toplevel`; (2) MPLCONFIGDIR redirect to a per-repo tmp location.
+  The block is all-comments by default so an untouched consumer behaves identically to
+  before propagation added it. `meta/docs/PROPAGATION_RULES.md` documents all three
+  managed blocks and the append-if-missing/never-overwrite contract.
+
 ### Behavior or Interface Changes
+
+- `repolib.files.merge_conftest`: extended from two managed blocks to three. Now splits the
+  canonical `tests/conftest.py` on up to three detection tokens (`collect_ignore`,
+  `REPO_HYGIENE_FILTERS`, `OPTIONAL_HELPERS_MENU`) and appends any missing block in
+  canonical order. Existing or edited blocks in the consumer are never overwritten.
+  Graceful degradation preserved: source files missing marker 3 behave identically to the
+  previous two-block implementation.
 
 - `repolib/model.py` `find_source_for_bucket`: the `noexist_files` source lookup now checks
   typed/overlay roots (`templates/<type>/noexist/<path>`) BEFORE the universal root, matching
@@ -27,6 +42,14 @@
 
 ### Fixes and Maintenance
 
+- `tests/conftest.py`: added cross-link comment `# See meta/docs/PROPAGATION_RULES.md for
+  the managed-block propagation contract.` immediately after the `# === OPTIONAL_HELPERS_MENU ===`
+  header line so readers know where the contract is documented.
+
+- `docs/E2E_TESTS.md`: updated all three stale `collect_ignore = ["e2e", "playwright"]`
+  literals (lines 12, 31, 40) to `collect_ignore = ["e2e", "playwright", "meta/e2e"]`
+  to match the shipped template and the `meta/docs/PROPAGATION_RULES.md` table.
+
 - `reset_repo.py`: now removes `pip_requirements-meta.txt` during the git rm cleanup phase.
   The file holds deps for the template's own meta tooling (propagate/reset/tests), is a
   `meta_files` entry (never ships), and previously lingered in consumer clones after reset.
@@ -34,6 +57,20 @@
 - `tests/meta/test_repolib_helpers.py`: added `TestFindSourceNoexistPrecedence` covering the
   typed-first noexist resolution (python -> overlay Brewfile, rust -> universal root Brewfile,
   root-only files unaffected).
+
+- `docs/PYTEST_STYLE.md`, `tests/TESTS_README.md`, `templates/typescript/docs/PLAYWRIGHT_USAGE.md`:
+  synced all stale `collect_ignore = ["e2e", "playwright"]` literals (four occurrences across three
+  files) to `collect_ignore = ["e2e", "playwright", "meta/e2e"]` to match the canonical
+  `tests/conftest.py` template and `docs/E2E_TESTS.md` (already fixed in a prior pass).
+
+### Decisions and Failures
+
+- Hygiene fixtures (`skip_repo_hygiene`, `ascii_fix_enabled`, `pytest_addoption("--no-ascii-fix")`)
+  intentionally excluded from the canonical `tests/conftest.py` template. The canonical hygiene
+  tests (`test_ascii_compliance.py`, `test_whitespace.py`) read
+  `pytestconfig.getoption("no_ascii_fix", default=False)` directly; the fixtures are stale
+  leftovers from an earlier design. Excluding them from the template prevents propagation from
+  reintroducing orphaned fixtures into consumer repos.
 
 ## 2026-06-16
 
