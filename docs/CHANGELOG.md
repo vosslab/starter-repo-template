@@ -1,3 +1,40 @@
+## 2026-06-17
+
+### Additions and New Features
+
+- `templates/gitignore.universal` and root `.gitignore`: ignore `OTHER_REPOS/`, the
+  sibling-repo checkout directory used for local cross-repo work. The universal entry
+  propagates to every consumer; the root entry lives in the template-only `LOCAL` section.
+
+- `Brewfile` now ships to consumers as a starter (moved from `meta_files` to
+  `root_propagate_allowlist` + `universal_noexist` in `meta/propagation/manifests.yaml`;
+  was previously template-only and never shipped). The universal root `Brewfile` is a
+  header-only starter; `templates/python/noexist/Brewfile` adds `brew "python@3.12"` and
+  shadows the universal version for `REPO_TYPE=python` repos. Non-python types receive the
+  universal starter.
+
+### Behavior or Interface Changes
+
+- `repolib/model.py` `find_source_for_bucket`: the `noexist_files` source lookup now checks
+  typed/overlay roots (`templates/<type>/noexist/<path>`) BEFORE the universal root, matching
+  the existing typed-first precedence of `overwrite_files` and `devel_files` (precedence rule
+  5: repo-specific wins over universal). Previously noexist resolved the universal root first,
+  so a typed overlay could never shadow a same-named universal file. Only `Brewfile` currently
+  exists at both locations, so this is the sole behavior change; overlay-only files
+  (`pip_requirements.txt`, `pyproject.toml`) and root-only files (`AGENTS.md`, `source_me.sh`,
+  `pip_requirements-dev.txt`) resolve unchanged. Reset applies the typed source because it runs
+  with `initial_setup=True`, which copies noexist files over the cloned destination.
+
+### Fixes and Maintenance
+
+- `reset_repo.py`: now removes `pip_requirements-meta.txt` during the git rm cleanup phase.
+  The file holds deps for the template's own meta tooling (propagate/reset/tests), is a
+  `meta_files` entry (never ships), and previously lingered in consumer clones after reset.
+
+- `tests/meta/test_repolib_helpers.py`: added `TestFindSourceNoexistPrecedence` covering the
+  typed-first noexist resolution (python -> overlay Brewfile, rust -> universal root Brewfile,
+  root-only files unaffected).
+
 ## 2026-06-16
 
 ### Additions and New Features

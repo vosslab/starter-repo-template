@@ -910,6 +910,10 @@ def main() -> None:
 	# entry script and the repolib package (renamed from propagate/ in the template).
 	action_count += git_rm("propagate_style_guides.py", repo_root, args.dry_run)
 	action_count += git_rm_recursive("repolib/", repo_root, args.dry_run)
+	# pip_requirements-meta.txt holds deps for the template's own meta tooling
+	# (propagate/reset/tests). It is a meta_files entry (never ships) and must not
+	# linger in a consumer clone; remove it like the propagation infrastructure.
+	action_count += git_rm("pip_requirements-meta.txt", repo_root, args.dry_run)
 	# Remove the template's own tracked root tools/ (e.g. tools/detect_repo_type.py).
 	# `git rm -r tools/` removes tracked entries only; freshly propagated untracked
 	# files (e.g. tools/sync_typescript_package_pins.py for typescript consumers)

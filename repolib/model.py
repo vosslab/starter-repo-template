@@ -255,15 +255,21 @@ def find_source_for_bucket(template_root: str, bucket: str, file_rel: str, repo_
 				return candidate
 
 	elif bucket == 'noexist_files':
-		# noexist files: could be at template root (universal) or under typed noexist dirs
-		candidate = os.path.join(template_root, file_rel)
-		if os.path.isfile(candidate):
-			return candidate
+		# noexist files: could be at template root (universal) or under typed noexist dirs.
+		# Typed/overlay roots shadow the universal root (rule 5: repo-specific wins),
+		# mirroring overwrite_files and devel_files. A file present BOTH at root (e.g.
+		# universal Brewfile) AND under templates/<type>/noexist/ (e.g. python's
+		# python@3.12 Brewfile) resolves to the typed source for that type, while other
+		# types fall through to the universal root version.
 		# Typed/overlay noexist: templates/<repo_type>[/_overlay]/noexist/<path>
 		for typed_root in typed_roots:
 			candidate = os.path.join(typed_root, 'noexist', file_rel)
 			if os.path.isfile(candidate):
 				return candidate
+		# Universal root: template_root/<path>
+		candidate = os.path.join(template_root, file_rel)
+		if os.path.isfile(candidate):
+			return candidate
 
 	else:
 		# overwrite_files (or default): typed under templates/<type>[/_overlay]/ shadows root

@@ -859,8 +859,12 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 	  3. UNIVERSAL_NOEXIST                   -> override universal overwrite -> noexist
 	  4. templates/<type>/noexist/<path>     -> override typed overlay overwrite -> noexist
 	  5. Type overlay wins over universal     -> when both target the same consumer destination,
-	                                            the typed overlay version ships; log the override
-	                                            so silent shadowing is visible.
+	                                            the typed overlay version ships (overwrite, devel,
+	                                            AND noexist buckets; source resolution in
+	                                            find_source_for_bucket checks typed roots first).
+	                                            Example: universal Brewfile ships to all types, but
+	                                            templates/python/noexist/Brewfile (brew python@3.12)
+	                                            shadows it for python repos.
 
 	Routing rules:
 	- Universal docs/ (not in META_FILES/META_DIRS) -> overwrite_files

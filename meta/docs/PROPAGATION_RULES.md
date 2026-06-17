@@ -22,7 +22,7 @@ The cleaner principle:
 1. **Directory convention when possible.** If every file under a directory shares the same routing,
    put the directory name in META_DIRS / SKIP_WALK_DIRS, not each file.
 2. **Explicit list when root-level meaning is ambiguous.** Root files (`README.md`, `VERSION`,
-   `Brewfile`, `.gitignore`, `REPO_TYPE`) need per-repo customization; list them in META_FILES.
+   `.gitignore`, `REPO_TYPE`) need per-repo customization; list them in META_FILES.
 3. **Override table only for true routing exceptions.** Currently the only exception encoded in
    `ROUTING_OVERRIDES` is `exclude_repos` (blocks a universal file from shipping back to its
    source repo). Language gates, `requires_repo_file` gates, and `bucket` fields have been removed.
@@ -152,7 +152,7 @@ typed overlay, or `_folder` conditional overlay).
 
 ## What never propagates
 
-Listed in `META_FILES` / `META_DIRS` / `META_TEST_PREFIXES`. Includes the propagator entry script `propagate_style_guides.py`, reset_repo.py, README.md, VERSION, Brewfile, .gitignore, REPO_TYPE, pip_extras.txt (root META_FILES); `repolib/` helper package, ROOT `tools/` (detect_repo_type.py and other root-level template infrastructure; note that `templates/<type>/tools/` is a separate path that DOES ship), `meta/` (this doc and other template-meta), `templates/` (every file under `templates/<type>/` ships at its relative path, including tools/ subpaths), `LICENSES/`, `docs/active_plans/`, `docs/archive/`, `experiment_reports/`, `__pycache__/`, `.git/` (META_DIRS). Tests are excluded via two mechanisms: `tests/meta/` is excluded as a whole via `SKIP_WALK_DIRS` containing `'meta'`, and tests starting with `test_repolib_`, `test_reset_repo_`, or `test_detect_repo_type` are also excluded via `META_TEST_PREFIXES`.
+Listed in `META_FILES` / `META_DIRS` / `META_TEST_PREFIXES`. Includes the propagator entry script `propagate_style_guides.py`, reset_repo.py, README.md, VERSION, .gitignore, REPO_TYPE, pip_extras.txt, pip_requirements-meta.txt (root META_FILES; the latter is also git-rm'd from consumer clones by reset_repo.py); `repolib/` helper package, ROOT `tools/` (detect_repo_type.py and other root-level template infrastructure; note that `templates/<type>/tools/` is a separate path that DOES ship), `meta/` (this doc and other template-meta), `templates/` (every file under `templates/<type>/` ships at its relative path, including tools/ subpaths), `LICENSES/`, `docs/active_plans/`, `docs/archive/`, `experiment_reports/`, `__pycache__/`, `.git/` (META_DIRS). Tests are excluded via two mechanisms: `tests/meta/` is excluded as a whole via `SKIP_WALK_DIRS` containing `'meta'`, and tests starting with `test_repolib_`, `test_reset_repo_`, or `test_detect_repo_type` are also excluded via `META_TEST_PREFIXES`.
 
 ## Link bucket isolation
 

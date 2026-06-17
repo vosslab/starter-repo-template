@@ -735,4 +735,35 @@ class TestApplyFileBucket:
 		assert counters['copied_count'] == 1
 
 
+#============================================
+class TestFindSourceNoexistPrecedence:
+	"""Typed overlay noexist source shadows the universal root (rule 5)."""
+
+	def _build_tree(self, tmp_path: pathlib.Path) -> str:
+		# Universal root Brewfile plus a python typed-overlay Brewfile.
+		root = tmp_path / "template"
+		root.mkdir()
+		(root / "Brewfile").write_text('# universal starter\n')
+		py_noexist = root / "templates" / "python" / "noexist"
+		py_noexist.mkdir(parents=True)
+		(py_noexist / "Brewfile").write_text('brew "python@3.12"\n')
+		return str(root)
+
+	def test_python_resolves_to_typed_overlay(self, tmp_path: pathlib.Path) -> None:
+		root = self._build_tree(tmp_path)
+		src = repolib.model.find_source_for_bucket(root, 'noexist_files', 'Brewfile', 'python')
+		assert src == os.path.join(root, 'templates', 'python', 'noexist', 'Brewfile')
+
+	def test_nonpython_resolves_to_universal_root(self, tmp_path: pathlib.Path) -> None:
+		root = self._build_tree(tmp_path)
+		src = repolib.model.find_source_for_bucket(root, 'noexist_files', 'Brewfile', 'rust')
+		assert src == os.path.join(root, 'Brewfile')
+
+	def test_root_only_file_unaffected(self, tmp_path: pathlib.Path) -> None:
+		root = self._build_tree(tmp_path)
+		(pathlib.Path(root) / "AGENTS.md").write_text('agents\n')
+		src = repolib.model.find_source_for_bucket(root, 'noexist_files', 'AGENTS.md', 'python')
+		assert src == os.path.join(root, 'AGENTS.md')
+
+
 
