@@ -10,3 +10,5 @@ run_ascii_compliance.py
 test_repo_hygiene.py
 test_pyflakes.py
 git_file_utils.py
+test_import_rules.py
+test_pyright_code_lint.py

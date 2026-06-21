@@ -1,3 +1,12 @@
+## 2026-06-21
+
+### Removals and Deprecations
+
+- `meta/propagation/deprecated_tests.txt`: added `test_import_rules.py` and
+  `test_pyright_code_lint.py`. Both are now git-rm'd from each consumer's `tests/`
+  on the next propagation run (via `remove_deprecated_tests` in `repolib/process.py`).
+  These two test scripts were dropped after a decision not to keep them.
+
 ## 2026-06-17
 
 ### Additions and New Features
