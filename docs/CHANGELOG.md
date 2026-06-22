@@ -1,5 +1,22 @@
 ## 2026-06-21
 
+### Behavior or Interface Changes
+
+- `tests/conftest.py`: now imports `file_utils` at module load and inserts the
+  repo root onto `sys.path` by default via `file_utils.get_repo_root()`
+  (`_repo_root = file_utils.get_repo_root()`; `sys.path.insert(0, _repo_root)`
+  when not already present). This activates the behavior that was previously only
+  the commented-out `OPTIONAL_HELPERS_MENU` Recipe 1, using the preferred
+  `file_utils` helper rather than an inline `subprocess` call. Verified with
+  `pytest tests/ --co` (1199 tests collected, no import error).
+
+- `tests/conftest.py` `OPTIONAL_HELPERS_MENU`: removed the sys.path repo-root
+  insert recipe (was Recipe 1) since that behavior is now active by default at
+  the top of the file. Replaced it with a one-line note pointing to the active
+  block, and renumbered the matplotlib `MPLCONFIGDIR` recipe to Recipe 1. This
+  removes the confusing dead recipe new managers saw alongside the now-active
+  code.
+
 ### Removals and Deprecations
 
 - `meta/propagation/deprecated_tests.txt`: added `test_import_rules.py` and

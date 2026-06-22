@@ -1,3 +1,15 @@
+import sys
+
+import file_utils
+
+# Insert the repo root onto sys.path so top-level modules import from any test
+# file without installing the package first. file_utils.get_repo_root() uses
+# git rev-parse --show-toplevel under the hood.
+_repo_root = file_utils.get_repo_root()
+if _repo_root not in sys.path:
+	sys.path.insert(0, _repo_root)
+
+
 # Exclude both end-to-end tiers from pytest collection. tests/playwright/
 # holds browser-driven tests (Playwright), and tests/e2e/ holds heavier
 # shell/Python whole-system runners. Both run outside pytest -- see
@@ -42,24 +54,10 @@ REPO_HYGIENE_FILTERS = {}
 # untouched consumer behaves exactly as it did before propagation added this
 # block.
 #
-# --- Recipe 1: insert repo root onto sys.path ---
-# Adds the repo root to sys.path so that top-level modules are importable
-# from any test file without installing the package first. Uses
-# git rev-parse --show-toplevel via subprocess for a reliable root path.
-# Note: tests/file_utils.get_repo_root() is the preferred in-repo alternative
-# when file_utils.py is already available; use this recipe only when you need
-# sys.path set before any import.
+# Note: inserting the repo root onto sys.path is now done unconditionally at the
+# top of this file via file_utils.get_repo_root(), so it is no longer a recipe.
 #
-#	import sys
-#	import subprocess
-#	_repo_root = subprocess.check_output(
-#		["git", "rev-parse", "--show-toplevel"],
-#		text=True,
-#	).strip()
-#	if _repo_root not in sys.path:
-#		sys.path.insert(0, _repo_root)
-#
-# --- Recipe 2: redirect matplotlib config dir to a per-repo tmp location ---
+# --- Recipe 1: redirect matplotlib config dir to a per-repo tmp location ---
 # Prevents matplotlib from writing to the home-directory config cache during
 # tests, which can cause cross-repo pollution or permission errors in CI.
 # Set MPLCONFIGDIR to a writable tmp path before matplotlib is imported.
