@@ -1,3 +1,14 @@
+## 2026-06-25
+
+### Behavior or Interface Changes
+
+- `templates/typescript/noexist/deploy-pages.yml`: bumped `actions/checkout@v6`
+  to `@v7`, added `cache: npm` to the `setup-node` step, and added an
+  `actions/configure-pages@v6` step before the artifact upload, matching the
+  newer workflow in `concept-map-maker`. Local build step (`npm install` +
+  `./build_github_pages.sh`) and `upload-pages-artifact@v5` / `deploy-pages@v5`
+  versions are unchanged.
+
 ## 2026-06-21
 
 ### Behavior or Interface Changes
