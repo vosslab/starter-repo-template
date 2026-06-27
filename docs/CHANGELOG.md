@@ -1,3 +1,63 @@
+## 2026-06-27
+
+### Additions and New Features
+
+- `docs/PYTEST_STYLE.md`: added a rule that pytests should use inline,
+  self-contained inputs rather than external on-disk data files. A test that
+  reads an external file is fragile by design: the file can move or be deleted,
+  and an import-time load takes the whole module down when it vanishes. Added a
+  checklist item and an "Inline inputs, not external data files" subsection that
+  distinguishes external data files (the hazard) from pytest fixtures and
+  `tmp_path` (fine), and routes genuinely large round trips to `tests/e2e/`.
+
+### Fixes and Maintenance
+
+- `templates/typescript/docs/TYPESCRIPT_STYLE.md`: reframed the build-system
+  docs so the four shell scripts (`./check_codebase.sh`,
+  `./build_github_pages.sh`, `./run_web_server.sh`, `./dist_clean.sh`) read as
+  the front door for all users, with `npm run` aliases documented as optional
+  1:1 mirrors. Added a shell-script-to-npm-alias mapping table (evidence-based
+  from `templates/typescript/noexist/package.json`), direct-command equivalents
+  for the npm-only aliases (`npx prettier --write`, `npx playwright test`, the
+  `./devel/setup_*.sh` scripts), and a future-facing "shell versus Python" rule
+  (shell for simple orchestration, named Python scripts for complex logic). The
+  runnable interface is unchanged; only the framing was clarified. Added a "two
+  audiences, one interface" principle and explicit alias rules: shell scripts are
+  the canonical interface, npm aliases are allowed only when they mirror a shell
+  script or shorten a verbose tool command (`format:write`), weak aliases are
+  removed, and the mirror set stays small rather than gutted (TypeScript repos
+  still expect some `package.json` scripts).
+
+- Front-door script headers (`templates/typescript/check_codebase.sh`,
+  `templates/typescript/noexist/build_github_pages.sh`,
+  `templates/typescript/run_web_server.sh`, `devel/dist_clean.sh`): added a
+  comment block stating each script is run directly as `./<script>.sh` with the
+  matching `npm run` alias as an optional mirror. `dist_clean.sh` notes the
+  `npm run clean` alias applies in TypeScript repos only. Comments only; no
+  logic, step order, or flags changed. Verified with
+  `bash templates/typescript/check_codebase.sh --help` (exits 0).
+
+- Relocated `templates/typescript/devel/html_to_pdf.mjs` back to
+  `templates/typescript/tools/html_to_pdf.mjs` via `git mv`. It is a
+  consumer-facing tool, not a maintainer-only `devel/` script (see
+  `devel/DEVEL_README.md`). The typed-overlay walk ships `templates/<type>/tools/`
+  to consumers verbatim (`repolib/files.py` un-skips `tools` from the typed
+  overlay at line 1039 and routes subdir files to the overwrite bucket), so the
+  file now ships to each TypeScript consumer at `tools/html_to_pdf.mjs` with no
+  manifest change. The earlier devel relocation is reverted. The file header and
+  `templates/typescript/docs/PLAYWRIGHT_USAGE.md` already use the `tools/` path,
+  so they are correct again.
+
+### Removals and Deprecations
+
+- Removed the `pdf` script from `templates/typescript/noexist/package.json`
+  (`"pdf": "node tools/html_to_pdf.mjs"`). The tool is run directly as
+  `node tools/html_to_pdf.mjs`; no npm alias is shipped. Updated
+  `templates/typescript/docs/PLAYWRIGHT_USAGE.md` to drop the `npm run pdf`
+  example and the `npm pkg set scripts.pdf=...` setup step, and removed the
+  `npm run pdf` row from the `TYPESCRIPT_STYLE.md` npm-only alias table (the tool
+  is now noted as run directly). No test referenced the `pdf` script.
+
 ## 2026-06-25
 
 ### Behavior or Interface Changes
