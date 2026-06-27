@@ -198,6 +198,9 @@ import { writeReport } from "./write_report";
 * ESLint rules should catch problems, not enforce cosmetic preferences that Prettier already handles.
 * Strict typing is preferred. Enable `noImplicitAny` and `strict` in `tsconfig.json`.
 * ESLint config lives at `eslint.config.js` at the repo root (canonical, propagated). Lint correctness is enforced by `check_codebase.sh` step 3 (`npx eslint --max-warnings 0 '**/*.{ts,tsx,mts,cts,js,mjs,cjs}'`).
+* Do not edit `eslint.config.js` directly; propagation overwrites it every run. Repo-specific ESLint overrides go in `eslint.config.local.js` at the repo root: a consumer-owned file shipped once (never overwritten). The canonical config imports and spreads it last, so local entries refine or override canonical rules.
+* Browser globals are supplied to `tests/playwright/**` and `tests/e2e/**` (page.evaluate callbacks reference `window`, `document`, etc.); node-only tools keep `no-undef` so real bugs still surface. Give a repo-specific browser-context tool file its globals via `eslint.config.local.js`, not by widening the canonical glob.
+* `OTHER_REPOS/**` is in the ESLint `ignores`, matching the repo-wide gitignore for the sibling-repo checkout dir.
 * Prettier scope in this repo is JS, TypeScript, MJS, CJS, TSX, MTS, CTS only. JSON, YAML, Markdown, and Python files are explicitly NOT prettier-managed.
 * Indent is two spaces for every prettier-managed extension (prettier default; documented in propagated `.prettierrc`). This differs from the Python tabs rule in `docs/PYTHON_STYLE.md`; agents editing `.py` use tabs, agents editing `.ts`/`.mjs`/etc use two spaces. Do not over-generalize one language's rule to the other.
 * Auto-fix path when `./check_codebase.sh` step 4 (`format:check`) fails: run `npx prettier --write '**/*.{ts,tsx,mts,cts,js,mjs,cjs}'` (the `npm run format:write` alias mirrors this).
@@ -208,7 +211,7 @@ import { writeReport } from "./write_report";
 Each enabled rule enforces a single class of error:
 
 - `@typescript-eslint/no-explicit-any: error` &mdash; `any` defeats type system.
-- `@typescript-eslint/no-unused-vars: error` &mdash; dead code rots.
+- `@typescript-eslint/no-unused-vars: error` &mdash; dead code rots. Underscore-prefixed identifiers (`_`, `_unused`) are ignored for args, vars, and caught errors: a deliberate, visible opt-out marker, not a silent default.
 - `@typescript-eslint/explicit-function-return-type: error` &mdash; exported function signatures are API. Severity matches `check_codebase.sh` step 3 `--max-warnings 0` (the prior `warn` setting was dead documentation since `--max-warnings 0` upgraded every warn to a gate failure anyway).
 - `@typescript-eslint/no-floating-promises: error` &mdash; silent async errors.
 - `no-var: error` &mdash; function-scoping breaks expectations.

@@ -10,6 +10,25 @@
   distinguishes external data files (the hazard) from pytest fixtures and
   `tmp_path` (fine), and routes genuinely large round trips to `tests/e2e/`.
 
+- `templates/typescript/eslint.config.js`: promoted three customizations into the
+  canonical TypeScript ESLint config (propagated to all TypeScript consumers).
+  (1) A browser-globals block scoped to `tests/playwright/**` and `tests/e2e/**`
+  so `page.evaluate` callbacks referencing `window`/`document` do not trip
+  `no-undef`, while node-only tools keep `no-undef` (no glob widening). (2) A
+  repo-wide `@typescript-eslint/no-unused-vars` ignore for underscore-prefixed
+  identifiers (`argsIgnorePattern`/`varsIgnorePattern`/`caughtErrorsIgnorePattern`
+  `^_`) as a deliberate, visible opt-out marker. (3) `OTHER_REPOS/**` added to
+  `ignores`, matching the repo-wide gitignore for the sibling-repo checkout dir.
+
+- `templates/typescript/noexist/eslint.config.local.js`: new consumer-owned ESLint
+  extension hook. Ships once via the noexist bucket (never overwritten by
+  propagation). The canonical `eslint.config.js` imports and spreads it last, so
+  repo-specific overrides (e.g. browser globals for named tool `.mjs` files)
+  survive propagation instead of being clobbered when `eslint.config.js` is
+  overwritten. Default export is an empty array. Documented the config ownership,
+  the browser-globals scope, the `^_` ignore, and the `OTHER_REPOS/**` ignore in
+  `templates/typescript/docs/TYPESCRIPT_STYLE.md`.
+
 ### Fixes and Maintenance
 
 - `templates/typescript/docs/TYPESCRIPT_STYLE.md`: reframed the build-system
