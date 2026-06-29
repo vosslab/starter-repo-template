@@ -46,6 +46,22 @@
   copy step. Verified `pytest tests/meta/` 282 passed and the reset-routing e2e
   passes all cases.
 
+- `tests/meta/e2e/e2e_reset_routing.py`: now that the gate removal is committed,
+  switched the `other` case from MIT to GPL-3.0 so the e2e exercises the license
+  copy on a GNU-style body (whose text never contains its SPDX id) -- real
+  regression coverage against any return of the old substring gate. Verified the
+  full suite: `pytest tests/` 1200 passed; `tests/meta/e2e/run_all.sh` 1 passed,
+  0 failed, with `LICENSE.GPL-3.0.md` installed in the `other` clone.
+
+- `tests/meta/test_reset_repo_all_licenses_equal.py`: new fast parametrized test
+  asserting all licenses are treated equally. For every selectable license
+  (`CODE_LICENSES` plus the non-`none` `DOCS_LICENSES`), it pins two invariants:
+  the menu choice ships a `LICENSES/LICENSE.<spdx>.md` source file, and
+  `copy_license` reproduces that body byte-for-byte. Covers all eight installable
+  licenses (MIT, Apache-2.0, LGPL-3.0, GPL-3.0, AGPL-3.0, MPL-2.0, CC-BY-4.0,
+  CC-BY-SA-4.0) so no license is privileged and none can ship without a backing
+  file. `pytest tests/` 1216 passed.
+
 ## 2026-06-27
 
 ### Additions and New Features

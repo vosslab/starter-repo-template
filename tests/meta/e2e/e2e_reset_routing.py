@@ -138,16 +138,14 @@ def case_matrix() -> list[dict]:
 			},
 		},
 		{
-			# other, staged but not committed. This e2e clones COMMITTED history, so
-			# it runs the committed reset_repo.py. The license-copy verifier gate was
-			# removed (reset now copies without verifying), but until that removal is
-			# committed the clone still runs the old gate that only accepts MIT. Keep
-			# MIT here; once the removal is committed, switch to a non-MIT license
-			# (e.g. "g") to exercise a GNU-style license body through the copy step.
+			# other, staged but not committed. Uses GPL-3.0 (a GNU-style license
+			# whose body never contains its SPDX id) so the cloned reset_repo.py
+			# exercises the copy step on a non-MIT license. This guards against any
+			# return of the old SPDX-substring gate that aborted on such bodies.
 			"name": "other",
 			"config": {
 				"project_type": "o",
-				"code_license": "m",
+				"code_license": "g",
 				"stage": True,
 				"commit": False,
 			},
