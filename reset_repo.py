@@ -107,20 +107,6 @@ def preflight_check(repo_root: str, code_license: str, docs_license: str) -> Non
 
 
 #============================================
-def verify_license_copy(repo_root: str, spdx_id: str) -> bool:
-	"""Check if license file was copied and contains recognizable license text."""
-	target = os.path.join(repo_root, f"LICENSE.{spdx_id}.md")
-	if not os.path.isfile(target):
-		return False
-	if os.path.getsize(target) == 0:
-		return False
-	with open(target, "r") as f:
-		first_bytes = f.read(100)
-	normalized_spdx = spdx_id.replace("-", " ")
-	return spdx_id in first_bytes or normalized_spdx in first_bytes
-
-
-#============================================
 def parse_args() -> argparse.Namespace:
 	"""Parse command-line arguments and return the populated namespace."""
 	parser = argparse.ArgumentParser(
@@ -168,32 +154,27 @@ def write_marker(repo_root: str, project_type: str, dry_run: bool) -> int:
 	return 1
 
 
-def copy_and_verify_license(
-	repo_root: str, source_path: str, target_filename: str,
-	spdx_id: str, dry_run: bool,
+def copy_license(
+	repo_root: str, source_path: str, target_filename: str, dry_run: bool,
 ) -> int:
-	"""Copy LICENSES/LICENSE.<spdx>.md to repo root and verify."""
+	"""Copy a license file to the repo root under the given target_filename.
+
+	The caller chooses target_filename (the reset uses LICENSE.<spdx>.md). The
+	source file is guaranteed to exist by preflight_check, and a failed read or
+	write raises loudly on its own, so no post-copy verification gate is needed.
+
+	Returns:
+		int: 1 (one action taken or announced), for the main() action counter.
+	"""
 	target_path = os.path.join(repo_root, target_filename)
 	if dry_run:
 		dry_run_print(f"copy {source_path} -> {target_path}", dry_run)
-		dry_run_print(
-			f"verify {target_filename}: file exists, non-zero, contains {spdx_id}", dry_run
-		)
-		return 2
 	else:
-		with open(source_path, "r") as src:
+		with open(source_path, "r", encoding="utf-8") as src:
 			content = src.read()
-		with open(target_path, "w") as dst:
+		with open(target_path, "w", encoding="utf-8") as dst:
 			dst.write(content)
-		if not verify_license_copy(repo_root, spdx_id):
-			rollback_msg = (
-				f"Rollback: discard the offending file with "
-				f"'git restore --staged {target_filename}' then 'git restore {target_filename}'."
-			)
-			sys.exit(
-				f"License copy verification failed: {target_filename}\n{rollback_msg}"
-			)
-		return 1
+	return 1
 
 
 def git_rm(path: str, repo_root: str, dry_run: bool) -> int:
@@ -833,11 +814,11 @@ def main() -> None:
 
 	# === phase: license install ===
 	code_source = os.path.join(repo_root, f"LICENSES/LICENSE.{code_license}.md")
-	action_count += copy_and_verify_license(repo_root, code_source, f"LICENSE.{code_license}.md", code_license, args.dry_run)
+	action_count += copy_license(repo_root, code_source, f"LICENSE.{code_license}.md", args.dry_run)
 
 	if docs_license != "none":
 		docs_source = os.path.join(repo_root, f"LICENSES/LICENSE.{docs_license}.md")
-		action_count += copy_and_verify_license(repo_root, docs_source, f"LICENSE.{docs_license}.md", docs_license, args.dry_run)
+		action_count += copy_license(repo_root, docs_source, f"LICENSE.{docs_license}.md", args.dry_run)
 
 	# === phase: cleanup LICENSES/ ===
 	action_count += git_rm_recursive("LICENSES/", repo_root, args.dry_run)

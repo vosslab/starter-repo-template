@@ -138,10 +138,12 @@ def case_matrix() -> list[dict]:
 			},
 		},
 		{
-			# other, staged but not committed. MIT is the code license whose SPDX
-			# id appears verbatim in its LICENSES/ header, which reset_repo.py's
-			# copy verifier requires; other license bodies (Apache, GPL) spell out
-			# the long name instead and would trip that verifier.
+			# other, staged but not committed. This e2e clones COMMITTED history, so
+			# it runs the committed reset_repo.py. The license-copy verifier gate was
+			# removed (reset now copies without verifying), but until that removal is
+			# committed the clone still runs the old gate that only accepts MIT. Keep
+			# MIT here; once the removal is committed, switch to a non-MIT license
+			# (e.g. "g") to exercise a GNU-style license body through the copy step.
 			"name": "other",
 			"config": {
 				"project_type": "o",

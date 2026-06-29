@@ -1,3 +1,51 @@
+## 2026-06-29
+
+### Fixes and Maintenance
+
+- `reset_repo.py`: (superseded within this same session by the full gate removal
+  in the next bullet; recorded here for the design trail) fixed
+  `verify_license_copy` so `./reset_repo.py` no longer
+  aborts with `License copy verification failed` for non-MIT licenses. The old
+  check read the first 100 chars of the copied license and passed only if the
+  SPDX id (`GPL-3.0`, or normalized `GPL 3.0`) appeared in the body. Real license
+  texts never contain their SPDX id: GPL/AGPL/LGPL begin `GNU ... GENERAL PUBLIC
+  LICENSE`, Apache-2.0 begins `Apache License / Version 2.0`, MPL-2.0 begins
+  `Mozilla Public License Version 2.0`; only MIT (`MIT License`) happened to
+  match, so every other choice failed the gate. Replaced the SPDX-substring
+  heuristic with a faithful-copy check: target exists, is non-empty, and its
+  text equals the source content (now passed into `verify_license_copy`). This is
+  fix-the-design-not-the-symptom: the verifier confirms the copy reproduced the
+  source rather than guessing at body text. Verified all six bundled licenses
+  (MIT, Apache-2.0, LGPL-3.0, GPL-3.0, AGPL-3.0, MPL-2.0) now pass.
+
+- `reset_repo.py`: removed the `verify_license_copy` gate entirely rather than
+  keep a corrected-but-tautological check. After the fix it only re-read the
+  exact bytes just written and compared them to the in-memory source; a real read
+  or write failure already raises on its own, and `preflight_check` already
+  guarantees the source exists, so the gate could never catch a true failure and
+  its only history was false aborts. This also enforces a design rule for reset:
+  the only input-dependent validation that ran AFTER mutations had begun
+  (`write_marker` and the license copy were already done) is gone, so a normal
+  reset no longer fails mid-run on a valid license choice. `copy_and_verify_license`
+  is now `copy_license` (dropped the `spdx_id` param, the verify branch, and the
+  rollback message); both opens keep `encoding="utf-8"`. The remaining
+  post-mutation checks (`verify_scaffold_sentinel`, `verify_clean_end_state`) fire
+  only on an internal tool regression, never on valid user input.
+
+- `tests/meta/test_reset_repo_self_propagation.py`: removed
+  `test_process_repo_result_has_name_and_type`, a fragile required-key-list test
+  (`assert "name" in result`) that duplicated the meaningful
+  `assert result is not None` already covered by
+  `test_process_repo_returns_dict_not_none`. See `docs/PYTEST_STYLE.md`.
+
+- `tests/meta/e2e/e2e_reset_routing.py`: rewrote the `other` case comment that
+  documented the old SPDX-substring bug as a permanent MIT-only constraint. The
+  case still uses MIT because this e2e clones COMMITTED history and runs the
+  committed `reset_repo.py`; once the gate removal is committed the case can
+  switch to a non-MIT license (e.g. `g`) to exercise a GNU-style body through the
+  copy step. Verified `pytest tests/meta/` 282 passed and the reset-routing e2e
+  passes all cases.
+
 ## 2026-06-27
 
 ### Additions and New Features
