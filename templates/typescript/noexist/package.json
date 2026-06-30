@@ -11,19 +11,24 @@
 		"check": "./check_codebase.sh",
 		"clean": "./dist_clean.sh",
 		"format:write": "npx prettier --write '**/*.{ts,tsx,mts,cts,js,mjs,cjs}'",
-		"test:playwright": "playwright test"
+		"test:playwright": "./run_playwright_tests.sh"
 	},
 	"devDependencies": {
-		"@types/node": ">=25.9.3",
+		"@types/node": ">=26.0.1",
 		"esbuild": ">=0.28.1",
 		"typescript": ">=6.0.3",
-		"eslint": ">=10.5.0",
+		"eslint": ">=10.6.0",
 		"@eslint/js": ">=10.0.1",
-		"typescript-eslint": ">=8.61.0",
-		"globals": ">=17.6.0",
-		"playwright": ">=1.60.0",
-		"prettier": ">=3.8.4",
+		"typescript-eslint": ">=8.62.1",
+		"globals": ">=17.7.0",
+		"playwright": ">=1.61.1",
+		"prettier": ">=3.9.4",
 		"tsx": ">=4.22.4",
-		"@playwright/test": ">=1.60.0"
+		"@playwright/test": ">=1.61.1"
+	},
+	"allowScripts": {
+		"esbuild@0.28.1": true,
+		"fsevents@2.3.2": true,
+		"fsevents@2.3.3": true
 	}
 }

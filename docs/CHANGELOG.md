@@ -1,3 +1,86 @@
+## 2026-06-30
+
+### Additions and New Features
+
+- `templates/typescript/docs/TYPESCRIPT_STYLE.md`: reconciled dependency-version guidance with
+  evidence from ten ~/nsh/TYPESCRIPT/ repos. Replaced stale frozen numbers ("Require 5.x",
+  ">=9") with an apps-not-libraries `>={latest}` policy: high floors, `>=` always, `<` only
+  for a confirmed incompatibility such as the typescript-eslint TS ceiling.
+  `tools/sync_typescript_package_pins.py` is the refresh helper; lockfile regenerated forward;
+  post-refresh validation runs through the normal gates.
+
+- `templates/typescript/docs/TYPESCRIPT_STYLE.md`: canonicalized the entry point. `src/main.ts`
+  or `src/main.tsx` is canonical; `src/init.ts` is legacy with a migrate direction
+  (`build_github_pages.sh` accepts it as a fallback and prints a rename warning).
+
+- `templates/typescript/docs/TYPESCRIPT_STYLE.md`: documented the esbuild policy: CLI default
+  for the standard build, JS API only when a plugin requires it; loaders, multi-entry, and
+  pre-build codegen variants covered. Elevated a command-architecture principle: named scripts
+  are the interface, npm aliases are thin 1:1 mirrors.
+
+- `templates/typescript/docs/TYPESCRIPT_STYLE.md`: added a node-test fixture policy: inline
+  durable inputs directly; use fixtures for initial scaffold or a loader under test.
+  Reconciled the stale pdf "removed" note.
+
+- `templates/typescript/docs/TYPESCRIPT_STYLE.md`: added "Live demo / GitHub Pages" section
+  documenting the Actions-from-dist deploy shape (`build_github_pages.sh` -> `dist/`,
+  `dist/.nojekyll`, `dist/` as site root, root-level `deploy-pages.yml` seed a human moves
+  into the workflows directory). Convention framed from the science-choose-adventure precedent.
+  Added a `### Pages deployment shape` subheading and the live-URL README convention
+  (link as `https://<owner>.github.io/<repo>/` just below the first paragraph).
+
+- `templates/typescript/noexist/run_playwright_tests.sh`: new consumer-owned seed giving
+  Playwright its own named front door. Runs preflight, optional `--build`, builds `dist/`
+  as needed, forwards args to `npx playwright test`, relies on `playwright.config.ts`
+  `webServer`. Not part of `check_codebase.sh`. Includes a bash 3.2-safe empty-array guard
+  on the run line.
+
+- `templates/typescript/tests/TESTS_TYPESCRIPT_README.md`: fully rewritten as a
+  consumer-facing onboarding quickstart aimed at a new repo manager. Covers front-door
+  scripts (`check_codebase.sh`, `run_playwright_tests.sh`), repo layout under `tests/`,
+  four test tiers and their run order (pyflakes -> node --test -> Playwright -> E2E),
+  ship-to-Pages workflow with the live-URL README convention, and common first-run
+  failures. Removes template-internal history and overlay framing (the 2026-05-24
+  removed-mirrors narrative, `propagate_style_guides.py`/overlay language, "vendored
+  Python tests in this overlay"). The corrected Playwright front-door instruction
+  pointing to `./run_playwright_tests.sh` is part of this rewrite.
+
+### Behavior or Interface Changes
+
+- `templates/typescript/noexist/package.json`: re-pointed `test:playwright` to
+  `./run_playwright_tests.sh` and documented it in the front-door tables.
+
+- `templates/typescript/noexist/package.json`: dependency-floor refresh; bumped 7 stale
+  pins: `eslint` >=10.5.0 -> >=10.6.0, `typescript-eslint` >=8.61.0 -> >=8.62.1,
+  `prettier` >=3.8.4 -> >=3.9.4, `playwright` >=1.60.0 -> >=1.61.1,
+  `@playwright/test` >=1.60.0 -> >=1.61.1, `@types/node` >=25.9.3 -> >=26.0.1,
+  `globals` >=17.6.0 -> >=17.7.0. Remaining 4 pins unchanged (already latest).
+
+- `templates/typescript/noexist/package.json`: added top-level `allowScripts` block
+  (`esbuild@0.28.1`, `fsevents@2.3.2`, `fsevents@2.3.3`) so esbuild's postinstall binary
+  installs on a fresh `npm install`. Keys are version-pinned and maintained manually:
+  after a sync that bumps esbuild or fsevents, re-apply the matching key by hand.
+
+### Fixes and Maintenance
+
+- `templates/typescript/docs/TYPESCRIPT_STYLE.md`: renamed `### Deployment shape` to
+  `### Pages deployment shape` (3-6 word sentence-case heading rule; no in-doc anchor
+  references to update).
+
+### Decisions and Failures
+
+- Doc-follows-experience stance: TYPESCRIPT_STYLE.md reconciliation was driven by evidence
+  from real repos, not theory. Rules are updated to match observed working patterns rather
+  than aspirational prescriptions. This stance is the standing policy for future doc updates.
+
+- `deploy-pages.yml` ships at repo root (not under `.github/`): agents edit only repo-root
+  files; a human completes the move into the workflows directory. Root placement is the
+  convention so the seed ships cleanly from the template.
+
+- `run_playwright_tests.sh` is untracked; the human stages it before committing.
+
+- Validation: `pytest tests/` 1332 passed; `pytest tests/test_markdown_links.py` 32 passed.
+
 ## 2026-06-29
 
 ### Additions and New Features
