@@ -1,5 +1,47 @@
 ## 2026-06-29
 
+### Additions and New Features
+
+- `templates/shared/` routing primitive (WP-ENG1): added `shared_overlays` manifest
+  section in `meta/propagation/manifests.yaml`. Each rule names `paths`, `repo_types`,
+  and an optional `lacks_file` presence condition that ships only when a marker file is
+  absent at the consumer. The shared walk raises on any `templates/shared/` file not
+  covered by a rule; universal and typed walks are unchanged.
+
+- `templates/shared/devel/make_release.py` (WP-A1/A2): new maintainer script that
+  prepares a GitHub source release. Checks CalVer freshness and a free version tag;
+  verifies a committed LICENSE is present; builds zip and tgz archives with
+  byte-level LICENSE spot-checks; generates an LLM prompt for the release
+  description using changelog range or initial-release fallback; and prints the
+  final `git tag` and `gh release create` commands. Under `--write`, calls
+  `prepend_release_history` and `prepend_news` to insert a `## v{version} - YYYY-MM-DD`
+  block at the top of `docs/RELEASE_HISTORY.md` and `docs/NEWS.md` respectively,
+  preserving all older content and raising on duplicate-version headings. Dry-run
+  prints the would-be headings and file paths without touching disk.
+  `pyflakes` clean; `pytest tests/` 1289 passed.
+
+- `docs/RELEASE_HISTORY.md` and `docs/NEWS.md` noexist seeds (WP-C1/RR): routed
+  scaffold stubs for both doc files through the `source_release` shared rule so
+  consumer repos without those files receive them on first propagation. Seeds carry
+  a placeholder heading; writers in `make_release.py` prepend above it on first use.
+
+### Behavior or Interface Changes
+
+- `source_release` rule registered in `meta/propagation/manifests.yaml` (WP-REG1/RR):
+  routes `devel/make_release.py` (overwrite bucket) plus noexist seeds
+  `docs/RELEASE_HISTORY.md` and `docs/NEWS.md` to rust, swift, other, and non-PyPI
+  python repos via a `lacks_file: pyproject.toml` condition. Excluded for PyPI python
+  (has `pyproject.toml`) and typescript. Release docs ship as noexist seeds so reset
+  and propagation never clobber accumulated history; `make_release.py` stays in the
+  overwrite bucket so consumers always receive the current helper.
+
+- `find_source_for_bucket` (WP-REG1): extended the propagation engine to resolve
+  `source_release` shared overlay paths at routing time so the rule is exercised by
+  the existing manifest/disk sync tests without special-casing.
+
+- `output_release/` added to `.gitignore` overlay so archive output directories
+  created by `make_release.py` are excluded from consumer repo history by default.
+
 ### Fixes and Maintenance
 
 - `reset_repo.py`: (superseded within this same session by the full gate removal
@@ -61,6 +103,78 @@
   licenses (MIT, Apache-2.0, LGPL-3.0, GPL-3.0, AGPL-3.0, MPL-2.0, CC-BY-4.0,
   CC-BY-SA-4.0) so no license is privileged and none can ship without a backing
   file. `pytest tests/` 1216 passed.
+
+- `reset_repo.py`: made `git_rm` and `git_rm_recursive` idempotent so a reset can
+  never abort mid-run on a path that is simply already gone. `git rm` on an
+  untracked pathspec exits 128, which raised `CalledProcessError` and aborted the
+  reset; five call sites (`LICENSES/`, `propagate_style_guides.py`, `repolib/`,
+  `pip_requirements-meta.txt`, `reset_repo.py`) were unguarded, so a re-run on a
+  partially reset repo could fail partway. Both helpers now consult a new
+  `path_has_tracked_entry` helper (a read-only `git ls-files -- <path>` check)
+  and skip with a message, returning 0 instead of removing, when nothing is
+  tracked. The pre-existing inline `templates/` and `tools/` guards are left in
+  place (they also report a directory left on disk). This extends the
+  "never fail mid reset" rule from input-dependent gates to the cleanup phase.
+  Verified idempotency against a real temp git repo (tracked path removes once;
+  re-remove and never-tracked paths skip cleanly with no exit-128); `pytest
+  tests/` 1216 passed and the reset-routing e2e passes all cases.
+
+### Developer Tests and Notes
+
+- `tests/meta/test_shared_overlays.py` (WP-ENG2/REG1): added regression tests for
+  the shared-overlay routing primitive. Covers `shared_rule_ships_to` (ship/skip by
+  repo_types, unconditional rules, `lacks_file` condition, unknown-verb raises, and
+  the "unlisted type never reaches verb check" residual risk), `shared_path_ships`
+  (any-matching-rule ships; monkeypatched for isolation), `all_shared_overlay_paths`
+  (union of all rule paths), two-way manifest/disk sync (manifest-to-disk parametrize
+  produces zero cases while `shared_overlays: {}` and auto-populates as rules are
+  added; disk-to-manifest direction uses a tmp_path tree to confirm the coverage
+  guard raises on an uncovered file). 14 passed, 1 skipped; suite green after
+  source_release rule registration (pre-existing failures resolved).
+
+- `tests/meta/test_make_release.py` (WP-D1a): 27 unit tests for
+  `templates/shared/devel/make_release.py`. Imports the canonical copy via
+  `importlib.util.spec_from_file_location`. Covers CalVer freshness raises and
+  pass, tag-free check (raises on existing tag), committed-LICENSE check (raises
+  when missing), archive byte-match for zip and tgz (pass and raise), LLM prompt
+  (version in output, initial-release fallback, prior-tag path), both doc writers
+  (round-trip preserving older entries; duplicate-version raises), command builders
+  (`build_tag_command`, `build_gh_release_command`, `build_archive_arg_lists`),
+  HEAD snapshot build in a temp git repo with a committed fixture LICENSE, and
+  observability (dry-run and --write leave `git tag --list` unchanged; tag and gh
+  commands surface in printed output). All 27 passed.
+
+- `tests/meta/e2e/e2e_make_release.py` (WP-D1b): end-to-end release flow test.
+  Clones the repo into a tmp git tree, runs `make_release.py` in dry-run and
+  `--write` modes, verifies archive contents and byte-check, confirms doc prepend
+  behavior, and checks that printed output contains the `git tag` and
+  `gh release create` commands. Exits non-zero on any failure.
+
+- `tests/meta/e2e/e2e_reset_routing.py` (WP-REG1): extended the routing e2e to
+  assert `source_release` shared overlay files propagate correctly to non-Python
+  consumer repo clones and are absent from Python consumer clones that have
+  `pyproject.toml`.
+
+### Fixes and Maintenance
+
+- `repolib/files.py`: fixed misleading comment on `file_rel` assignment in the
+  shared-overlay walk (block 2b). The old comment said "i.e. the consumer path"
+  which is wrong for noexist entries whose `noexist/` prefix is stripped below.
+  Comment now reads: "file_rel is the path relative to templates/shared/ (a
+  leading noexist/ prefix is stripped below to yield the consumer path)."
+
+- `templates/shared/devel/make_release.py`: added return code guard to
+  `ensure_tag_free` before inspecting stdout. After
+  `result = changelog_lib.run_git(["tag", "--list", tag_name])`, added a check
+  that raises `RuntimeError` naming the failure and including `result.stderr.strip()`
+  when `result.returncode != 0`. Matches the guard shape in `ensure_committed_license`.
+  Verified `pytest tests/meta/test_make_release.py` 23 passed and
+  `e2e_make_release.py` EXIT=0.
+
+- `docs/CHANGELOG.md`: corrected stale Developer Tests note in the
+  `test_shared_overlays.py` entry. Removed pre-registration wording
+  ("pre-existing 11 failures...pending WP-REG1") and updated to reflect the
+  final green state after source_release rule registration.
 
 ## 2026-06-27
 

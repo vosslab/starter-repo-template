@@ -71,6 +71,10 @@ def load_manifests(template_root: str) -> dict:
 	manifests['routing_overrides'] = build_routing_overrides(raw['routing_overrides'])
 	# conditional_overlays: nested dict kept as-is (repo_type -> overlay -> condition).
 	manifests['conditional_overlays'] = raw['conditional_overlays']
+	# shared_overlays: nested dict kept as-is (rule_name -> {paths, repo_types,
+	# optional when/path}). Like conditional_overlays, the structure is validated at
+	# walk time, not at load time. Direct key access fails loud on a missing section.
+	manifests['shared_overlays'] = raw['shared_overlays']
 	# meta_test_prefixes: ordered tuple to match the model.py type.
 	manifests['meta_test_prefixes'] = tuple(raw['meta_test_prefixes'])
 	# known_repo_types: ORDERED tuple of consumer marker tokens. Order is

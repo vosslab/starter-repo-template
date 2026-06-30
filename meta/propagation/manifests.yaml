@@ -38,6 +38,36 @@ conditional_overlays:
         PyPI packaging overlay: ships submit_to_pypi.py and a pyproject.toml
         seed only to python repos that are packaged for PyPI.
 
+# Shared overlays: canonical files under templates/shared/ routed to a chosen SET
+# of repo types via named rules. Unlike conditional_overlays (one repo_type via an
+# underscore folder), a shared overlay names an explicit repo_types list plus an
+# optional presence condition, so one canonical file reaches several types.
+# Shape: rule_name -> { paths: [...], repo_types: [...], optional when: <verb>, path: <file> }.
+#   paths      : template-relative paths under templates/shared/ this rule ships.
+#                A bare path (e.g. devel/make_release.py) lands in the overwrite bucket.
+#                A noexist/ prefix (e.g. noexist/docs/RELEASE_HISTORY.md) routes to the
+#                noexist-only bucket: written only if the consumer lacks that file.
+#   repo_types : consumer REPO_TYPE tokens that receive the paths.
+#   when       : optional condition verb. Supported: lacks_file (ship only when
+#                <path> is ABSENT at the consumer root). Omit 'when' to ship
+#                unconditionally to every listed repo_type.
+#   path       : marker file path (relative to the consumer root) the verb tests.
+# Every file under templates/shared/ must be named by at least one rule's paths;
+# the shared walk raises on an uncovered file.
+shared_overlays:
+  source_release:
+    paths:
+      - devel/make_release.py
+      - noexist/docs/RELEASE_HISTORY.md
+      - noexist/docs/NEWS.md
+    repo_types:
+      - rust
+      - swift
+      - python
+      - other
+    when: lacks_file
+    path: pyproject.toml
+
 # Root-level files repolib propagates (ships) to every consumer repo's root.
 # ROOT_PROPAGATE_ALLOWLIST says a root file MAY ship; universal_noexist refines
 # HOW it ships (overwrite vs noexist-only). Overlap with universal_noexist is

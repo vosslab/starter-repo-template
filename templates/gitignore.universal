@@ -4,6 +4,9 @@
 # pytest reports
 report_*.txt
 
+# Generated release/build outputs
+output*/
+
 # AI agent temp scripts
 _temp*.?*
 

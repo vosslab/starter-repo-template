@@ -922,6 +922,9 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 	- templates/<repo_type>/noexist/<path> -> noexist_files
 	- templates/gitignore.universal -> universal gitignore_block
 	- templates/<repo_type>/gitignore.<repo_type> -> typed gitignore_block
+	- templates/shared/<path> -> bucket per shared_overlays rule (ships when repo_type
+	  is listed and the optional lacks_file marker is absent); routed by subdirectory
+	  like a typed overlay. An uncovered templates/shared/ file raises.
 	"""
 	plan = {
 		'overwrite_files': [],
@@ -1114,6 +1117,86 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 					# Any non-special-prefix file under the overlay, at any depth
 					# (top-level files, and subdirs like tools/), routes to the overwrite
 					# bucket at its relative path. rule 5: typed overlay shadows universal.
+					if file_rel in plan['overwrite_files']:
+						plan['overwrite_files'].remove(file_rel)
+					typed_overlay_assert_not_meta(file_rel)
+					plan['overwrite_files'].append(file_rel)
+
+	# 2b. Walk templates/shared/: canonical files routed to a SET of repo types.
+	#
+	# Unlike the typed overlay (one repo_type per templates/<type>/ folder), a
+	# shared file lives once under templates/shared/ and a named shared_overlays
+	# rule decides which repo types receive it, plus an optional lacks_file
+	# condition. The walk mirrors the typed-overlay routing branches so a shared
+	# file lands in the same bucket it would from a typed overlay.
+	#
+	# Coverage guard: every file under templates/shared/ must be named by at least
+	# one rule's paths. An uncovered shared file routes nowhere, which is a config
+	# bug, so the walk raises loudly. An empty or absent templates/shared/ tree is a
+	# no-op (the isdir guard and the empty covered-paths union both fall through).
+	shared_root = os.path.join(template_root, 'templates', 'shared')
+	if os.path.isdir(shared_root):
+		# Union of every path any rule names, computed once for the coverage guard.
+		covered_shared_paths = repolib.model.all_shared_overlay_paths()
+		for root, dirs, files in os.walk(shared_root, topdown=True, followlinks=False):
+			# Same walk-efficiency skips as the typed overlay; no underscore-folder
+			# skip because templates/shared/ has no conditional sub-overlays.
+			dirs[:] = [
+				d for d in dirs
+				if d not in typed_overlay_skip_dirs and not d.startswith('.')
+			]
+
+			rel_root = os.path.relpath(root, shared_root)
+			if rel_root == '.':
+				rel_root = ''
+
+			for name in files:
+				# file_rel is the path relative to templates/shared/ (a leading
+				# noexist/ prefix is stripped below to yield the consumer path).
+				file_rel = os.path.join(rel_root, name) if rel_root else name
+
+				# META guard: a stray META name under templates/shared/ never ships.
+				if is_meta_file(file_rel):
+					continue
+
+				# Coverage guard: fail loud on a shared file no rule names.
+				if file_rel not in covered_shared_paths:
+					raise RuntimeError(
+						f"shared overlay leak: templates/shared/{file_rel} is not "
+						"named by any shared_overlays rule in manifests.yaml; add it "
+						"to a rule's paths or remove the file."
+					)
+
+				# Does any applicable rule ship this file to this consumer type?
+				if not repolib.model.shared_path_ships(file_rel, repo_type, repo_dir):
+					continue
+
+				# Route by subdirectory, identical to the typed-overlay walk so a
+				# shared file behaves like a typed-overlay file of the same shape.
+				if file_rel.startswith('noexist/'):
+					consumer_path = file_rel[8:]  # len('noexist/') = 8
+					if not consumer_path:
+						continue
+					if is_meta_file(consumer_path):
+						continue
+					if consumer_path not in plan['noexist_files']:
+						typed_overlay_assert_not_meta(consumer_path)
+						plan['noexist_files'].append(consumer_path)
+				elif file_rel.startswith('devel/'):
+					bare_name = os.path.basename(file_rel)
+					if bare_name not in plan['devel_files']:
+						typed_overlay_assert_not_meta(bare_name)
+						plan['devel_files'].append(bare_name)
+				elif file_rel.startswith('tests/'):
+					if file_rel not in plan['test_files']:
+						typed_overlay_assert_not_meta(file_rel)
+						plan['test_files'].append(file_rel)
+				elif name.startswith('gitignore.'):
+					# Skip; gitignore blocks load separately (no shared gitignore today).
+					pass
+				else:
+					# Any other file routes to overwrite at its relative path. Shared
+					# files shadow universal the same way typed overlays do.
 					if file_rel in plan['overwrite_files']:
 						plan['overwrite_files'].remove(file_rel)
 					typed_overlay_assert_not_meta(file_rel)

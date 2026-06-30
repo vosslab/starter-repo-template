@@ -177,8 +177,38 @@ def copy_license(
 	return 1
 
 
+def path_has_tracked_entry(path: str, repo_root: str) -> bool:
+	"""Return True when git tracks path (a file) or any file under it (a directory).
+
+	`git rm` on an untracked pathspec exits 128. Checking first lets git_rm and
+	git_rm_recursive skip an already-removed path instead of aborting the reset
+	mid-run -- the failure mode when reset is re-run on a partially reset repo.
+
+	Args:
+		path (str): Repo-relative file or directory pathspec.
+		repo_root (str): Repository root the pathspec is anchored to.
+
+	Returns:
+		bool: True if at least one tracked entry matches path.
+	"""
+	# git ls-files exits 0 with empty output when nothing matches; "--" keeps a
+	# path that looks like an option from being misread as one.
+	result = subprocess.run(
+		["git", "ls-files", "--", path],
+		check=True, capture_output=True, text=True, cwd=repo_root,
+	)
+	return bool(result.stdout.strip())
+
+
 def git_rm(path: str, repo_root: str, dry_run: bool) -> int:
-	"""Remove tracked file via git rm, anchored at repo_root."""
+	"""Remove a tracked file via git rm, anchored at repo_root.
+
+	Idempotent: an untracked or already-removed path is skipped, not an error, so
+	a reset never aborts mid-run on a path that is simply already gone.
+	"""
+	if not path_has_tracked_entry(path, repo_root):
+		print(f"{path} not tracked -- skipping git rm")
+		return 0
 	if dry_run:
 		dry_run_print(f"git rm {path}", dry_run)
 	else:
@@ -189,7 +219,14 @@ def git_rm(path: str, repo_root: str, dry_run: bool) -> int:
 
 
 def git_rm_recursive(path: str, repo_root: str, dry_run: bool) -> int:
-	"""Remove tracked directory recursively via git rm -r, anchored at repo_root."""
+	"""Remove a tracked directory recursively via git rm -r, anchored at repo_root.
+
+	Idempotent: an untracked or already-removed directory is skipped, not an
+	error, so a reset never aborts mid-run on a path that is simply already gone.
+	"""
+	if not path_has_tracked_entry(path, repo_root):
+		print(f"{path} not tracked -- skipping git rm -r")
+		return 0
 	if dry_run:
 		dry_run_print(f"git rm -r {path}", dry_run)
 	else:

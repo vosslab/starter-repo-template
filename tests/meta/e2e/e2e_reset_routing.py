@@ -87,6 +87,14 @@ TEMPLATE_META_PATHS = [
 	"reset_repo.py",
 ]
 
+# source_release files: routed to rust/swift/other and python-without-pyproject.
+# TypeScript and python+PyPI repos must receive none of these after reset.
+SOURCE_RELEASE_FILES = [
+	"devel/make_release.py",
+	"docs/RELEASE_HISTORY.md",
+	"docs/NEWS.md",
+]
+
 
 #============================================
 # Inline case matrix
@@ -378,6 +386,31 @@ def assert_submit_to_pypi(clone_dir: str, pypi: bool, label: str) -> None:
 	print(f"  PASS [{label}]: devel/submit_to_pypi.py {state} (pypi={pypi})")
 
 
+def assert_source_release_absent(clone_dir: str, label: str) -> None:
+	"""Assert none of the source_release files exist in the clone after reset.
+
+	Python+PyPI repos and typescript repos must not receive the source_release
+	files (devel/make_release.py, docs/RELEASE_HISTORY.md, docs/NEWS.md).
+	The source_release rule uses lacks_file: pyproject.toml, so PyPI python repos
+	are excluded; typescript is not in the rule's repo_types.
+
+	Args:
+		clone_dir (str): The clone root to inspect.
+		label (str): Case label for output messages.
+	"""
+	found: list[str] = []
+	for rel_path in SOURCE_RELEASE_FILES:
+		full_path = os.path.join(clone_dir, rel_path)
+		if os.path.isfile(full_path):
+			found.append(rel_path)
+	if found:
+		print(f"FAIL [{label}]: source_release files present (should be absent):")
+		for rel_path in found:
+			print(f"    {rel_path}")
+		sys.exit(1)
+	print(f"  PASS [{label}]: source_release files absent ({', '.join(SOURCE_RELEASE_FILES)})")
+
+
 def reset_commit_present(clone_dir: str) -> bool:
 	"""Return True when the clone's HEAD commit is the reset-generated commit.
 
@@ -514,6 +547,11 @@ def run_case(mode: str, case: dict) -> None:
 	assert_submit_to_pypi(clone_dir, pypi, label)
 	assert_stage_state(clone_dir, stage, commit, label)
 	assert_commit_state(clone_dir, commit, label)
+	# (e) source_release routing: PyPI python and typescript must receive none of the files.
+	# The lacks_file: pyproject.toml condition excludes PyPI python repos; typescript
+	# is not listed in the source_release rule's repo_types.
+	if pypi or repo_type == 'typescript':
+		assert_source_release_absent(clone_dir, label)
 
 
 #============================================

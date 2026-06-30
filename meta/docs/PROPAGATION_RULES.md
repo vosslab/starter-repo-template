@@ -40,6 +40,7 @@ Do not try to eliminate all hardcoding. Root has mixed semantics; explicit lists
 | TypeScript-only file (any subpath, including tools/) | templates/typescript/<consumer-path> | typescript repos only |
 | Rust-only file (any subpath, including tools/) | templates/rust/<consumer-path> | rust repos only |
 | Conditionally-shipped overlay (e.g. PyPI tools) | templates/<type>/_overlay/<consumer-path> + conditional_overlays rule | selected repos only (see below) |
+| One canonical file shared by a SET of types | templates/shared/<consumer-path> + shared_overlays rule | the rule's repo_types (see below) |
 | Root-level file like AGENTS.md | template root + add to ROOT_PROPAGATE_ALLOWLIST | every repo, overwrite |
 | Universal gitignore blocks | templates/gitignore.universal | every repo, merged into .gitignore under `# === UNIVERSAL ===` |
 | MERGE bucket (set-union @-import merge with strip list) | template root + add to `MERGE_FILES` | every repo; template @-imports union-added to consumer; strip list at `meta/propagation/deprecated_claude_md.txt` removes retired entries (see [MERGE_BUCKET_SPEC.md](MERGE_BUCKET_SPEC.md)) |
@@ -74,6 +75,54 @@ conditional_overlays:
 The only supported `when` verb is `has_file`. The overlay ships when the named
 `path` exists at the consumer repo root. Files inside the overlay are routed
 using the same noexist/overwrite rules as other typed overlay files.
+
+## Shared overlays (templates/shared/)
+
+A conditional overlay routes to ONE repo type; a shared overlay routes ONE
+canonical file to a chosen SET of repo types. Drop the file under
+`templates/shared/<consumer-path>` and name it in a `shared_overlays` rule in
+`meta/propagation/manifests.yaml`. Shared-overlay shape:
+
+```yaml
+shared_overlays:
+  source_release:
+    paths:
+      - devel/make_release.py
+      - noexist/docs/RELEASE_HISTORY.md
+      - noexist/docs/NEWS.md
+    repo_types:
+      - rust
+      - swift
+      - python
+      - other
+    when: lacks_file
+    path: pyproject.toml
+```
+
+- `paths` -- template-relative paths under `templates/shared/` the rule ships. A bare path
+  (e.g. `devel/make_release.py`) lands in the overwrite bucket and always overwrites the
+  consumer copy. A `noexist/` prefix (e.g. `noexist/docs/RELEASE_HISTORY.md`) strips the
+  prefix and routes the file to the noexist-only bucket, so it is written only if the
+  consumer does not already have that file. Use `noexist/` for seed files (stubs, empty
+  scaffolds, initial history files) that should never clobber accumulated consumer content.
+- `repo_types` -- consumer `REPO_TYPE` tokens that receive the paths.
+- `when` -- optional condition verb. The only supported verb is `lacks_file`
+  (the mirror of the conditional-overlay `has_file`): the rule ships only when
+  `path` is ABSENT at the consumer root. Omit `when` to ship unconditionally to
+  every listed repo type. An unknown verb raises with a clear message.
+- `path` -- marker file path (relative to the consumer root) the verb tests.
+
+Files inside `templates/shared/` route by subdirectory exactly like a typed
+overlay: `devel/<x>` -> devel, `tests/<x>` -> tests, `noexist/<x>` ->
+noexist-only, everything else -> overwrite at its relative path. Every file under
+`templates/shared/` must be named by at least one rule's `paths`; the shared walk
+raises on an uncovered file so a shared file never routes nowhere. An empty or
+absent `templates/shared/` tree is a no-op.
+
+The `lacks_file: pyproject.toml` example reuses this template's PyPI marker
+convention (`pyproject.toml` present means a PyPI python repo). It is a template
+convention here, not a Python-ecosystem rule; a non-PyPI python repo that keeps a
+`pyproject.toml` for tooling would be treated as PyPI by this rule.
 
 ## Precedence
 
@@ -124,6 +173,8 @@ deprecation-strip list); consumer keeps any local `@`-imports and non-`@` conten
   `bucket` fields have been removed; use location or `conditional_overlays` instead. `docs/PYTHON_STYLE.md`
   and `devel/submit_to_pypi.py` now route by location (universal doc and `_pypi` overlay respectively).
 - `conditional_overlays` -- per-type underscore-folder rules. See the `_folder` section above.
+- `shared_overlays` -- named rules routing `templates/shared/` files to a SET of repo types, with
+  an optional `lacks_file` condition. See the shared-overlays section above.
 - `META_FILES` / `META_DIRS` / `META_TEST_PREFIXES` -- block-lists for files that NEVER ship
   (propagator itself, reset_repo, LICENSES/, etc.).
 
@@ -178,7 +229,7 @@ typed overlay, or `_folder` conditional overlay).
 
 ## What never propagates
 
-Listed in `META_FILES` / `META_DIRS` / `META_TEST_PREFIXES`. Includes the propagator entry script `propagate_style_guides.py`, reset_repo.py, README.md, VERSION, .gitignore, REPO_TYPE, pip_extras.txt, pip_requirements-meta.txt (root META_FILES; the latter is also git-rm'd from consumer clones by reset_repo.py); `repolib/` helper package, ROOT `tools/` (detect_repo_type.py and other root-level template infrastructure; note that `templates/<type>/tools/` is a separate path that DOES ship), `meta/` (this doc and other template-meta), `templates/` (every file under `templates/<type>/` ships at its relative path, including tools/ subpaths), `LICENSES/`, `docs/active_plans/`, `docs/archive/`, `experiment_reports/`, `__pycache__/`, `.git/` (META_DIRS). Tests are excluded via two mechanisms: `tests/meta/` is excluded as a whole via `SKIP_WALK_DIRS` containing `'meta'`, and tests starting with `test_repolib_`, `test_reset_repo_`, or `test_detect_repo_type` are also excluded via `META_TEST_PREFIXES`.
+Listed in `META_FILES` / `META_DIRS` / `META_TEST_PREFIXES`. Includes the propagator entry script `propagate_style_guides.py`, reset_repo.py, README.md, VERSION, .gitignore, REPO_TYPE, pip_extras.txt, pip_requirements-meta.txt (root META_FILES; the latter is also git-rm'd from consumer clones by reset_repo.py); `repolib/` helper package, ROOT `tools/` (detect_repo_type.py and other root-level template infrastructure; note that `templates/<type>/tools/` is a separate path that DOES ship), `meta/` (this doc and other template-meta), `templates/` (every file under `templates/<type>/` ships at its relative path, including tools/ subpaths; `templates/shared/` files ship to the repo types named by their `shared_overlays` rule), `LICENSES/`, `docs/active_plans/`, `docs/archive/`, `experiment_reports/`, `__pycache__/`, `.git/` (META_DIRS). Tests are excluded via two mechanisms: `tests/meta/` is excluded as a whole via `SKIP_WALK_DIRS` containing `'meta'`, and tests starting with `test_repolib_`, `test_reset_repo_`, or `test_detect_repo_type` are also excluded via `META_TEST_PREFIXES`.
 
 ## Link bucket isolation
 

@@ -36,6 +36,15 @@ conditional_overlays:
       when: has_file
       path: pyproject.toml
       description: synthetic overlay
+shared_overlays:
+  synth_release:
+    paths:
+      - devel/synth_release.py
+    repo_types:
+      - rust
+      - other
+    when: lacks_file
+    path: pyproject.toml
 root_propagate_allowlist:
   - SYNTH_ROOT.md
 universal_noexist:

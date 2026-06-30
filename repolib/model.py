@@ -48,6 +48,8 @@ LANG_UNKNOWN = 'unknown'
 # Manifest meanings:
 #   ROUTING_OVERRIDES: per-file exceptions (only exclude_repos remains).
 #   CONDITIONAL_OVERLAYS: repo_type -> overlay_name -> {when, path, description}.
+#   SHARED_OVERLAYS: rule_name -> {paths, repo_types, optional when, optional path};
+#     routes templates/shared/ files to a chosen SET of repo types.
 #   ROOT_PROPAGATE_ALLOWLIST: root files that MAY ship; UNIVERSAL_NOEXIST refines how.
 #   UNIVERSAL_NOEXIST: files that ship only when absent at the consumer.
 #   MERGE_FILES: files routed to the set-union @-import merge bucket.
@@ -90,6 +92,7 @@ def _load_propagation_manifests() -> dict:
 _MANIFESTS = _load_propagation_manifests()
 ROUTING_OVERRIDES = _MANIFESTS['routing_overrides']
 CONDITIONAL_OVERLAYS = _MANIFESTS['conditional_overlays']
+SHARED_OVERLAYS = _MANIFESTS['shared_overlays']
 ROOT_PROPAGATE_ALLOWLIST = _MANIFESTS['root_propagate_allowlist']
 UNIVERSAL_NOEXIST = _MANIFESTS['universal_noexist']
 MERGE_FILES = _MANIFESTS['merge_files']
@@ -178,6 +181,95 @@ def overlay_roots_for_type(template_root: str, repo_type: str) -> list[str]:
 
 
 #============================================
+# Shared-overlay selection
+#============================================
+
+def all_shared_overlay_paths() -> set[str]:
+	"""
+	Collect every consumer-relative path named by any shared_overlays rule.
+
+	The shared walk uses this union as a coverage guard: a file under
+	templates/shared/ that no rule names routes nowhere, which is a config bug.
+
+	Returns:
+		set[str]: Consumer-relative paths (e.g. 'devel/make_release.py') that at
+			least one shared_overlays rule lists in its 'paths'.
+	"""
+	# Union the 'paths' list of every configured rule.
+	covered_paths = set()
+	for rule in SHARED_OVERLAYS.values():
+		for path in rule['paths']:
+			covered_paths.add(path)
+	return covered_paths
+
+
+def shared_rule_ships_to(rule: dict, rule_name: str, repo_type: str, repo_dir: str) -> bool:
+	"""
+	Decide whether one shared_overlays rule ships to a given consumer.
+
+	The repo_type must be listed in the rule. The optional 'when' verb then gates
+	on a marker file at the consumer: 'lacks_file' ships only when the marker is
+	ABSENT (the mirror of the conditional-overlay 'has_file' verb). A rule without
+	'when' ships unconditionally to every listed repo_type.
+
+	Args:
+		rule (dict): A shared_overlays rule ({paths, repo_types, optional when/path}).
+		rule_name (str): Rule name, used only for a clear error message.
+		repo_type (str): Consumer repository type (python, typescript, rust, swift, other).
+		repo_dir (str): Consumer repository directory to test the marker file against.
+
+	Returns:
+		bool: True when this rule ships its paths to this consumer.
+
+	Raises:
+		ValueError: The rule carries a 'when' verb other than 'lacks_file'.
+	"""
+	# repo_type gate: a rule only applies to the types it lists.
+	if repo_type not in rule['repo_types']:
+		return False
+	# 'when' is genuinely optional: a rule without it ships unconditionally.
+	when_verb = rule.get('when')
+	if when_verb is None:
+		return True
+	# Only the lacks_file verb is understood; anything else is a config error.
+	if when_verb != 'lacks_file':
+		raise ValueError(
+			f"unknown shared-overlay 'when' verb {when_verb!r} for rule "
+			f"{rule_name!r}; only 'lacks_file' is supported"
+		)
+	# Marker file path is relative to the consumer repo root.
+	marker_path = os.path.join(repo_dir, rule['path'])
+	# lacks_file: ship only when the marker file is ABSENT at the consumer.
+	return not os.path.isfile(marker_path)
+
+
+def shared_path_ships(file_rel: str, repo_type: str, repo_dir: str) -> bool:
+	"""
+	Decide whether a templates/shared/ file ships to a given consumer.
+
+	A shared file ships when at least one rule that NAMES it in its 'paths' applies
+	to this consumer (repo_type listed and the optional lacks_file condition holds).
+
+	Args:
+		file_rel (str): Consumer-relative path of the shared file (e.g.
+			'devel/make_release.py'), relative to templates/shared/.
+		repo_type (str): Consumer repository type (python, typescript, rust, swift, other).
+		repo_dir (str): Consumer repository directory to test marker files against.
+
+	Returns:
+		bool: True when some applicable rule ships this file to this consumer.
+	"""
+	# First applicable rule that names this file wins; the union semantics mean any
+	# matching rule is enough to ship the file.
+	for rule_name, rule in SHARED_OVERLAYS.items():
+		if file_rel not in rule['paths']:
+			continue
+		if shared_rule_ships_to(rule, rule_name, repo_type, repo_dir):
+			return True
+	return False
+
+
+#============================================
 # Source/target path resolution
 #============================================
 
@@ -224,6 +316,11 @@ def find_source_for_bucket(template_root: str, bucket: str, file_rel: str, repo_
 	typed_roots = overlay_roots_for_type(template_root, repo_type)
 
 	# Determine candidate paths based on bucket.
+	# Shared-overlay root: a templates/shared/ file's canonical source lives there.
+	# Checked last in each branch so typed and universal sources shadow it (shared
+	# files are the fallback canonical copy, not an override).
+	shared_root = os.path.join(template_root, 'templates', 'shared')
+
 	if bucket == 'devel_files':
 		# Typed/overlay roots shadow the universal root, mirroring overwrite_files.
 		# This ordering matters during single-repo reset: there template_root IS the
@@ -242,6 +339,10 @@ def find_source_for_bucket(template_root: str, bucket: str, file_rel: str, repo_
 		candidate = os.path.join(template_root, 'devel', file_rel)
 		if os.path.isfile(candidate):
 			return candidate
+		# Shared-overlay devel files: templates/shared/devel/<name>
+		candidate = os.path.join(shared_root, 'devel', file_rel)
+		if os.path.isfile(candidate):
+			return candidate
 
 	elif bucket == 'test_files':
 		# test files: file_rel already includes tests/ prefix, so just join directly
@@ -253,6 +354,10 @@ def find_source_for_bucket(template_root: str, bucket: str, file_rel: str, repo_
 			candidate = os.path.join(typed_root, file_rel)
 			if os.path.isfile(candidate):
 				return candidate
+		# Shared-overlay test files: templates/shared/<file_rel>
+		candidate = os.path.join(shared_root, file_rel)
+		if os.path.isfile(candidate):
+			return candidate
 
 	elif bucket == 'noexist_files':
 		# noexist files: could be at template root (universal) or under typed noexist dirs.
@@ -270,6 +375,10 @@ def find_source_for_bucket(template_root: str, bucket: str, file_rel: str, repo_
 		candidate = os.path.join(template_root, file_rel)
 		if os.path.isfile(candidate):
 			return candidate
+		# Shared-overlay noexist files: templates/shared/noexist/<file_rel>
+		candidate = os.path.join(shared_root, 'noexist', file_rel)
+		if os.path.isfile(candidate):
+			return candidate
 
 	else:
 		# overwrite_files (or default): typed under templates/<type>[/_overlay]/ shadows root
@@ -278,6 +387,10 @@ def find_source_for_bucket(template_root: str, bucket: str, file_rel: str, repo_
 			if os.path.isfile(candidate):
 				return candidate
 		candidate = os.path.join(template_root, file_rel)
+		if os.path.isfile(candidate):
+			return candidate
+		# Shared-overlay overwrite files: templates/shared/<file_rel>
+		candidate = os.path.join(shared_root, file_rel)
 		if os.path.isfile(candidate):
 			return candidate
 
