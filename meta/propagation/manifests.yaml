@@ -76,7 +76,6 @@ root_propagate_allowlist:
   - CLAUDE.md
   - AGENTS.md
   - source_me.sh
-  - dist_clean.sh
   - pip_requirements-dev.txt
   - Brewfile
 

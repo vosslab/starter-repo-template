@@ -1,3 +1,25 @@
+## 2026-07-02
+
+### Additions and New Features
+
+- `devel/clean_build.sh`: new light build cleaner. Wipes build output, tool caches, and test
+  artifacts (dist, _site, `*.tsbuildinfo`, .eslintcache, test-results, playwright-report,
+  coverage, Python bytecode) while KEEPING dependency installs (node_modules, Rust target/) so
+  the next build starts ab initio with no reinstall. In TypeScript repos this is the target of
+  `npm run clean`. Ships universally via `devel/`.
+
+### Behavior or Interface Changes
+
+- `devel/dist_clean.sh`: reframed as the deep "restore to shippable state" cleaner (fresh-clone
+  equivalent for a source release). It still removes node_modules and Rust target/, but no longer
+  deletes `package-lock.json` -- the lockfile is committed and drives reproducible `npm ci`, so it
+  belongs in a distribution. Header now points everyday build cleaning at `devel/clean_build.sh`.
+
+### Removals and Deprecations
+
+- `meta/propagation/manifests.yaml`: removed `dist_clean.sh` from `root_propagate_allowlist`. Both
+  cleaners now live in `devel/` (universal propagation); no cleaner ships to the repo root.
+
 ## 2026-07-01
 
 ### Additions and New Features
@@ -65,6 +87,10 @@
 - Verified with a full `pytest tests/` run: "1335 passed in 4.55s". A repo-wide categorized
   fixture-mention audit came back clean: every hit is policy text, a pointer, a durable-use
   mention, an actual path, a framework product term, or changelog history.
+- `templates/typescript/docs/TYPESCRIPT_STYLE.md`: documented the `tests/**/*.{ts,mts}` ESLint
+  relaxation (`@typescript-eslint/no-floating-promises` and `no-console` off for `node:test`
+  files, `src/` and `tools/` stay strict) and noted `tsx` as a required canonical
+  devDependency for `check_codebase.sh` step 5.
 
 ## 2026-06-30
 

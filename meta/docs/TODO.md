@@ -5,6 +5,8 @@ add skill for automated plan review back and forth
 add tests/ script to add links for files in the repo
 add mechanism for using .github like deploy_pages.yml
 
+have mechanism for updating package.json files missing global requirements and version changes
+
 
 2026-05-21: Rejected audit-suffixed date headings; use audit-labeled bullets instead. See docs/CHANGELOG.md under ## 2026-05-21 / ### Decisions and Failures.
 

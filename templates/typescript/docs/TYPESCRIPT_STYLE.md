@@ -227,6 +227,9 @@ import { writeReport } from "./write_report";
 * Node unit tests are `.mjs` and run via `node --test tests/test_*.mjs` (canonical). A `.ts`
   test with the tsx loader (`node --import tsx --test`) is an accepted variant when the test
   itself needs TypeScript (`sports-life-game`).
+* `tsx` is a required canonical devDependency: `check_codebase.sh` step 5 runs
+  `node --import tsx --test 'tests/test_*.mjs'`, and the `--import tsx` flag loads the `tsx`
+  npm package as a runtime loader so `.mjs` tests can import `.ts` source modules directly.
 
 ### Node test fixture policy
 
@@ -267,6 +270,19 @@ Each enabled rule enforces a single class of error:
 - `eqeqeq: error` &mdash; `==` coerces; use `===`.
 - `no-throw-literal: error` &mdash; stack traces require Error instances.
 - `no-console: warn` &mdash; production code should not log to console (user decision: warn only, do not fail builds).
+
+### Test-file rule relaxation
+
+`tests/**/*.{ts,mts}` gets a dedicated ESLint block that turns off two rules:
+
+- `@typescript-eslint/no-floating-promises: off` &mdash; `node:test`'s `test()`, `describe()`,
+  and `it()` return promises the runner awaits internally, so an unawaited call is intended
+  usage, not a floating-promise bug.
+- `no-console: off` &mdash; tests log progress freely.
+
+`src/` and `tools/` keep both rules at their strict setting above. The canonical `.mjs` test
+path already skips typed rules via `tseslint.configs.disableTypeChecked`; this block gives the
+`.ts` test variant the same treatment.
 
 ### tsconfig.json canonical fields
 
