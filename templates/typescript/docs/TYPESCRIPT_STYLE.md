@@ -230,13 +230,12 @@ import { writeReport } from "./write_report";
 
 ### Node test fixture policy
 
-- Keep durable tests on inline, self-contained inputs (a literal string, a short array). This
-  parallels the "inline inputs, not external data files" rule in PYTEST_STYLE.md.
-- Reach for a fixture only when (1) checking initial behavior, (2) scaffolding a new test, or
-  (3) the file shape or loader is itself the unit under test (e.g. verifying a CSV loader).
-- Transitional example: `sports-life-game` imports `tests/fixtures/csv_loader.mjs`. Migrate
-  such a fixture inline once behavior is pinned; keep it only while the loader is the unit
-  under test.
+Inline setup first. Keep durable tests on self-contained inputs such as a literal string or
+short array. Durable tests are usually smaller, clearer, and easier to maintain.
+
+Keep separate test data only when file shape, loader behavior, or shared test infrastructure
+is the behavior under test. See the Fixture policy section in PYTEST_STYLE.md for the
+canonical framing.
 
 ## FORMATTERS AND LINTERS
 
