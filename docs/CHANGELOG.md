@@ -1,3 +1,13 @@
+## 2026-07-03
+
+### Behavior or Interface Changes
+
+- `docs/COLOR_CONTRAST_ACCESSIBILITY.md`: reframed as the generic WCAG contrast method doc (the
+  canonical propagation source shipped to consumer repos) -- target ratio, contrast-ratio formula,
+  calculator usage, online checkers, and the applicable rules. App-specific audited palette tables
+  no longer live here; each consumer repo carries its own palette audit in a separate
+  `docs/PALETTE_CONTRAST_AUDIT.md`.
+
 ## 2026-07-02
 
 ### Additions and New Features
