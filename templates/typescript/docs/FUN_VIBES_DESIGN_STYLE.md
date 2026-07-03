@@ -302,9 +302,7 @@ right.
   sibling doc tuned for older learners (lab students, technical apprentices).
   Same engine, calmer tone. Use that doc when the target is competence
   building rather than kid-arcade replay.
-- [docs/REPO_STYLE.md](REPO_STYLE.md): repo-wide conventions, including
+- `docs/REPO_STYLE.md`: repo-wide conventions, including
   the five core philosophies that underpin the engineering side.
-- [docs/MARKDOWN_STYLE.md](MARKDOWN_STYLE.md): writing conventions for this
+- `docs/MARKDOWN_STYLE.md`: writing conventions for this
   doc.
-- [docs/GAME_USAGE.md](GAME_USAGE.md): the user-facing description of how
-  this specific game plays.

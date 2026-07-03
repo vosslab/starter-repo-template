@@ -1,5 +1,17 @@
 ## 2026-07-03
 
+### Fixes and Maintenance
+
+- `templates/typescript/docs/FUN_VIBES_DESIGN_STYLE.md`,
+  `templates/typescript/docs/PLAYFUL_TRAINING_GAME_STYLE.md`: fixed broken markdown links flagged by
+  `tests/test_markdown_links.py`. Removed the dead `docs/GAME_USAGE.md` link (non-universal file that
+  ships nowhere). Converted the `docs/REPO_STYLE.md` and `docs/MARKDOWN_STYLE.md` references from
+  markdown links to backticked plain paths: those universal docs land flat in a consumer `docs/`, so
+  a bare-sibling link is correct in consumers but unresolvable in the template tree where these files
+  sit under `templates/typescript/docs/`. Plain-path text reads correctly in both layouts. Co-located
+  sibling links (FUN_VIBES <-> PLAYFUL, PLAYWRIGHT_USAGE) stay as markdown links since they resolve in
+  both places. `tests/test_markdown_links.py` now passes (36 files).
+
 ### Behavior or Interface Changes
 
 - `docs/COLOR_CONTRAST_ACCESSIBILITY.md`: reframed as the generic WCAG contrast method doc (the

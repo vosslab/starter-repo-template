@@ -303,7 +303,7 @@ NICE-TO-HAVE, ship after the core feels right:
 - [docs/FUN_VIBES_DESIGN_STYLE.md](FUN_VIBES_DESIGN_STYLE.md): sibling
   doc for younger audiences. Same engine, louder tone, kid-arcade
   framing.
-- [docs/REPO_STYLE.md](REPO_STYLE.md): repo-wide conventions and the
+- `docs/REPO_STYLE.md`: repo-wide conventions and the
   five core engineering philosophies.
-- [docs/MARKDOWN_STYLE.md](MARKDOWN_STYLE.md): writing conventions for
+- `docs/MARKDOWN_STYLE.md`: writing conventions for
   this doc.
