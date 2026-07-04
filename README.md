@@ -26,7 +26,7 @@ Bootstrap a fresh clone (sets project type + licenses, installs canonical files)
 python3 reset_repo.py
 ```
 
-The script runs an interactive interview: it asks for repo type (`python`, `typescript`, `rust`, `swift`, `other`), code and docs licenses, whether the project targets PyPI (python only), whether to stage changes, and whether to commit. CLI flags: `--dry-run` prints planned actions without writing; `--config <file>` runs non-interactively from a JSON answer file.
+The script runs an interactive interview: it asks for repo type (`python`, `typescript`, `rust`, `swift`, `other`, `all`), code and docs licenses, whether the project targets PyPI (python only), whether to stage changes, and whether to commit. CLI flags: `--dry-run` prints planned actions without writing; `--config <file>` runs non-interactively from a JSON answer file.
 
 Run the fast test suite:
 

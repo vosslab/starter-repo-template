@@ -487,7 +487,7 @@ def normalize_project_type(raw: str, default: str) -> str:
 	"""Normalize a raw project-type answer to a canonical token.
 
 	Accepts the single-letter menu shortcuts (p/t/r/s/o), the full token names
-	(python/typescript/rust/swift/other), or an empty string (which selects the
+	(python/typescript/rust/swift/other/all), or an empty string (which selects the
 	supplied default). Shared by the interview and the config producers so the
 	accepted values cannot drift between the two paths.
 
@@ -496,7 +496,7 @@ def normalize_project_type(raw: str, default: str) -> str:
 		default (str): Token to use when raw is empty.
 
 	Returns:
-		str: One of "python", "typescript", "rust", "swift", "other".
+		str: One of "python", "typescript", "rust", "swift", "other", "all".
 	"""
 	token = raw.strip().lower()
 	if token == "":
@@ -513,6 +513,8 @@ def normalize_project_type(raw: str, default: str) -> str:
 		"swift": "swift",
 		"o": "other",
 		"other": "other",
+		"a": "all",
+		"all": "all",
 	}
 	if token not in mapping:
 		sys.exit(f"Invalid project type: {raw!r}")
@@ -556,7 +558,7 @@ def resolve_project_type(repo_root: str) -> str:
 
 	# Always prompt; an empty answer accepts the default.
 	user_input = input(
-		f"Project type? [p]ython / [t]ypescript / [r]ust / [s]wift / [o]ther [{default_type[0]}]: "
+		f"Project type? [p]ython / [t]ypescript / [r]ust / [s]wift / [o]ther / [a]ll [{default_type[0]}]: "
 	).strip()
 	return normalize_project_type(user_input, default_type)
 

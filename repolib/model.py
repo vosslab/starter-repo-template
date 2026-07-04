@@ -32,6 +32,7 @@ LANG_TYPESCRIPT = 'typescript'
 LANG_RUST = 'rust'
 LANG_SWIFT = 'swift'
 LANG_OTHER = 'other'
+LANG_ALL = 'all'
 LANG_UNKNOWN = 'unknown'
 
 #============================================
@@ -126,7 +127,7 @@ def select_overlay_dirs(repo_type: str, repo_dir: str) -> list[str]:
 	at the consumer (currently only the 'has_file' verb is supported).
 
 	Args:
-		repo_type (str): Consumer repository type (python, typescript, rust, swift, other).
+		repo_type (str): Consumer repository type (python, typescript, rust, swift, other, all).
 		repo_dir (str): Consumer repository directory to test marker files against.
 
 	Returns:
@@ -166,7 +167,7 @@ def overlay_roots_for_type(template_root: str, repo_type: str) -> list[str]:
 
 	Args:
 		template_root (str): Template root directory.
-		repo_type (str): Repository type (python, typescript, rust, swift, other).
+		repo_type (str): Repository type (python, typescript, rust, swift, other, all).
 
 	Returns:
 		list[str]: Absolute candidate overlay root directories under templates/.
@@ -215,7 +216,7 @@ def shared_rule_ships_to(rule: dict, rule_name: str, repo_type: str, repo_dir: s
 	Args:
 		rule (dict): A shared_overlays rule ({paths, repo_types, optional when/path}).
 		rule_name (str): Rule name, used only for a clear error message.
-		repo_type (str): Consumer repository type (python, typescript, rust, swift, other).
+		repo_type (str): Consumer repository type (python, typescript, rust, swift, other, all).
 		repo_dir (str): Consumer repository directory to test the marker file against.
 
 	Returns:
@@ -253,7 +254,7 @@ def shared_path_ships(file_rel: str, repo_type: str, repo_dir: str) -> bool:
 	Args:
 		file_rel (str): Consumer-relative path of the shared file (e.g.
 			'devel/make_release.py'), relative to templates/shared/.
-		repo_type (str): Consumer repository type (python, typescript, rust, swift, other).
+		repo_type (str): Consumer repository type (python, typescript, rust, swift, other, all).
 		repo_dir (str): Consumer repository directory to test marker files against.
 
 	Returns:
@@ -299,7 +300,7 @@ def find_source_for_bucket(template_root: str, bucket: str, file_rel: str, repo_
 		template_root (str): Template root directory.
 		bucket (str): Bucket name (overwrite_files, noexist_files, devel_files, test_files).
 		file_rel (str): Relative path of the file.
-		repo_type (str): Repository type (python, typescript, rust, swift, other). Defaults to 'universal'.
+		repo_type (str): Repository type (python, typescript, rust, swift, other, all). Defaults to 'universal'.
 
 	Returns:
 		str | None: Canonical source path if found, None otherwise.

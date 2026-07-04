@@ -25,7 +25,7 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 	LANG_UNKNOWN means no ROUTING_OVERRIDES exclude_repos rule applies;
 	universal walker-routed files still ship.
 
-	Returns token (python, typescript, rust, swift, other, unknown).
+	Returns token (python, typescript, rust, swift, other, all, unknown).
 	An unrecognized marker token logs a warning and falls back to other
 	instead of raising, so a single bad marker never aborts a batch run.
 
@@ -98,7 +98,7 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 						# User rejected; re-prompt for explicit type
 						while True:
 							user_type = input(
-								"Project type? [p]ython / [t]ypescript / [r]ust / [s]wift / [o]ther [p]: "
+								"Project type? [p]ython / [t]ypescript / [r]ust / [s]wift / [o]ther / [a]ll [p]: "
 							).strip()
 							chosen_type = parse_repo_type_choice(user_type, 'python')
 							write_repo_type_marker(marker_path, chosen_type, dry_run=False)
@@ -152,7 +152,7 @@ def write_repo_type_marker(path: str, token: str, dry_run: bool = False) -> bool
 
 	Args:
 		path (str): Path to REPO_TYPE marker file.
-		token (str): Canonical type token (python, typescript, rust, swift, other).
+		token (str): Canonical type token (python, typescript, rust, swift, other, all).
 		dry_run (bool): If True, do not write changes.
 
 	Returns:
@@ -180,7 +180,7 @@ def parse_repo_type_choice(text: str, default: str | None = None) -> str | None:
 		default (str): Default token if input is unrecognized.
 
 	Returns:
-		str: Canonical token (python, typescript, rust, swift, other) or default.
+		str: Canonical token (python, typescript, rust, swift, other, all) or default.
 	"""
 	if not text:
 		return default
@@ -195,6 +195,8 @@ def parse_repo_type_choice(text: str, default: str | None = None) -> str | None:
 		return 'swift'
 	if choice in ('o', 'other'):
 		return 'other'
+	if choice in ('a', 'all'):
+		return 'all'
 	return default
 
 
@@ -271,5 +273,4 @@ def resolve_source_dir(source_dir_arg: str | None) -> str:
 
 
 #============================================
-
 

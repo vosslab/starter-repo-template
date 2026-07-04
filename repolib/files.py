@@ -838,7 +838,7 @@ def auto_discover_test_files(template_root: str, repo_type: str) -> list[str]:
 	Scan template tests/ for files matching test_*.py or test_*.mjs not already
 	in the spec's test_files list. Return their relative paths under tests/.
 
-	For universal, python, other, and swift types: scan template_root/tests/ directly.
+	For universal, python, other, swift, and all types: scan template_root/tests/ directly.
 	For typed overlays (typescript, rust): scan templates/<repo_type>/tests/.
 	"""
 	spec = resolve_spec_for_type(repo_type, template_root)
@@ -846,7 +846,7 @@ def auto_discover_test_files(template_root: str, repo_type: str) -> list[str]:
 
 	discovered = []
 
-	if repo_type in ('universal', 'python', 'other', 'swift'):
+	if repo_type in ('universal', 'python', 'other', 'swift', 'all'):
 		# Scan template root tests/ for universal, python, other, and swift (no overlay).
 		test_dir = os.path.join(template_root, 'tests')
 	else:
@@ -890,7 +890,7 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 
 	Args:
 		template_root (str): Root directory of template files to scan.
-		repo_type (str): Repository type (python, typescript, rust, swift, other, unknown).
+		repo_type (str): Repository type (python, typescript, rust, swift, other, all, unknown).
 		counters (dict | None): Optional counter dict for progress tracking.
 		repo_dir (str | None): Optional repository directory for requirement checks.
 			Falls back to template_root for requirement predicate evaluation.
@@ -934,6 +934,25 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 		'test_files': [],
 		'gitignore_block': [],
 	}
+
+	if repo_type == 'all':
+		aggregate = {
+			'overwrite_files': [],
+			'noexist_files': [],
+			'merge_files': [],
+			'devel_files': [],
+			'test_files': [],
+			'gitignore_block': [],
+		}
+		for child_type in repolib.model.REPO_TYPE_ORDER:
+			if child_type == 'all':
+				continue
+			child_plan = compute_propagation_plan(template_root, child_type, counters=counters, repo_dir=repo_dir)
+			for bucket, values in child_plan.items():
+				for value in values:
+					if value not in aggregate[bucket]:
+						aggregate[bucket].append(value)
+		return aggregate
 
 	# Default repo_dir to template_root if not provided (for requirement checks)
 	if repo_dir is None:

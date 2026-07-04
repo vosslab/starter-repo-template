@@ -1,5 +1,14 @@
 ## 2026-07-03
 
+### Behavior or Interface Changes
+
+- Added `all` as a recognized `REPO_TYPE` token for repos that consume every template family. `all`
+  now appears in the repo-type manifest, the reset/bootstrap prompt, and the style docs. Routing for
+  `all` aggregates the propagation plan for the existing typed repos so it receives universal files
+  plus every typed overlay.
+
+## 2026-07-03
+
 ### Fixes and Maintenance
 
 - `templates/typescript/docs/FUN_VIBES_DESIGN_STYLE.md`,

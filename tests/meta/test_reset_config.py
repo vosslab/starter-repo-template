@@ -205,6 +205,13 @@ class TestNormalizeProjectTypeSwift:
 		answers = reset_repo.answers_from_config(path)
 		assert answers.project_type == "swift"
 
+	def test_all_config_path_normalizes(self, tmp_path: pathlib.Path) -> None:
+		"""Config with project_type 'all' resolves to 'all' via answers_from_config."""
+		cfg = {"project_type": "all", "code_license": "MIT"}
+		path = write_json(tmp_path, "cfg.json", cfg)
+		answers = reset_repo.answers_from_config(path)
+		assert answers.project_type == "all"
+
 
 #============================================
 # PyPI forced False for non-python types

@@ -168,3 +168,4 @@ known_repo_types:
   - rust
   - swift
   - other
+  - all
