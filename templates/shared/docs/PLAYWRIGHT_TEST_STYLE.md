@@ -35,8 +35,10 @@ model.
 - Put browser tests under `tests/playwright/` at the repo root.
 - Name the first, broadest test `smoke` (`smoke.spec.ts` or `*_smoke.mjs`).
 - Use `.spec.ts` for runner tests and `.mjs` for library scripts.
-- Prefix non-test helper files with an underscore (`_server.mjs`) so they read
-  as support, not tests.
+- Prefix non-test helper files with `helper_` (`helper_server.mjs`) so they
+  read as support, not tests. Reserve a bare leading underscore for deletable
+  scratch: `_name` files match the hook's rm-allowed patterns and are treated
+  as temporary.
 - Import the propagated `tests/playwright/repo_root.mjs` anchor to resolve paths
   from the git root.
 - Group multi-step user journeys in an optional `tests/playwright/e2e/`
