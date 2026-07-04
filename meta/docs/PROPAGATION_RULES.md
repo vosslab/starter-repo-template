@@ -38,6 +38,7 @@ Do not try to eliminate all hardcoding. Root has mixed semantics; explicit lists
 | Helper script in devel/ | devel/ | every repo, overwrite |
 | Starter file that must not clobber existing | templates/<type>/noexist/<consumer-path> | only when missing |
 | TypeScript-only file (any subpath, including tools/) | templates/typescript/<consumer-path> | typescript repos only |
+| Web-general file (playwright style, web docs) | templates/website/<consumer-path> | the website family: website repos plus inheriting types (typescript) |
 | Rust-only file (any subpath, including tools/) | templates/rust/<consumer-path> | rust repos only |
 | Conditionally-shipped overlay (e.g. PyPI tools) | templates/<type>/_overlay/<consumer-path> + conditional_overlays rule | selected repos only (see below) |
 | One canonical file shared by a SET of types | templates/shared/<consumer-path> + shared_overlays rule | the rule's repo_types (see below) |
@@ -76,6 +77,34 @@ The only supported `when` verb is `has_file`. The overlay ships when the named
 `path` exists at the consumer repo root. Files inside the overlay are routed
 using the same noexist/overwrite rules as other typed overlay files.
 
+## Repo type inheritance
+
+Repo types form a single-token inheritance DAG declared in the
+`repo_type_inherits` manifest (`meta/propagation/manifests.yaml`): `python ->
+scripted`, `rust -> compiled`, `swift -> compiled`, `typescript -> website`.
+`scripted`, `website`, `compiled`, and `other` are roots with no parent; every
+token (including the roots) is a directly usable `REPO_TYPE` marker.
+
+`repolib.model.effective_type_chain(repo_type)` returns `[repo_type,
+*ancestors]` nearest-first and is the one expansion every routing path
+consumes:
+
+- **Typed overlays**: a consumer receives its own `templates/<type>/` overlay
+  PLUS every ancestor's overlay, unioned. A `typescript` repo ships
+  `templates/typescript/` and `templates/website/` content; a `website` repo
+  ships only `templates/website/`. Ancestor conditional overlays
+  (`templates/<ancestor>/_<name>/`) are inherited the same way.
+- **Shared overlays**: a rule's `repo_types` list matches when it intersects
+  the consumer's chain, so naming a base type reaches every descendant.
+- **Disjointness invariant**: a type and its ancestors never ship the same
+  consumer path, so overlay order cannot affect results
+  (`tests/meta/test_repo_type_inheritance.py` guards this).
+
+The loader (`repolib.manifests.build_repo_type_inherits`) validates at import
+time that every parent is a known token and the graph is acyclic. A base with
+no `templates/<base>/` directory contributes universal files alone, so adding
+a future type under an existing base needs only a manifest entry.
+
 ## Shared overlays (templates/shared/)
 
 A conditional overlay routes to ONE repo type; a shared overlay routes ONE
@@ -89,17 +118,20 @@ shared_overlays:
     paths:
       - devel/make_release.py
     repo_types:
-      - rust
-      - swift
-      - python
+      - scripted
+      - compiled
       - other
 ```
 
-The live `source_release` rule ships `make_release.py` unconditionally to
-rust/swift/python/other and excludes typescript (GitHub Pages repos do not cut
-releases). The optional `noexist/`-prefixed paths and `when: lacks_file`
-features documented below are still supported by the mechanism; this rule simply
-does not use them.
+The live `source_release` rule ships `make_release.py` to the scripted and
+compiled families plus `other`. `repo_types` entries match against the
+consumer's full inheritance chain (see [Repo type inheritance](#repo-type-inheritance)),
+so naming a base type reaches every descendant: `python` receives the file by
+inheriting `scripted`, and `rust`/`swift` by inheriting `compiled`. The website
+family (`website`, `typescript`) stays outside the rule because a docs or game
+site publishes builds, not GitHub source releases. The optional
+`noexist/`-prefixed paths and `when: lacks_file` features documented below are
+still supported by the mechanism; this rule simply does not use them.
 
 - `paths` -- template-relative paths under `templates/shared/` the rule ships. A bare path
   (e.g. `devel/make_release.py`) lands in the overwrite bucket and always overwrites the

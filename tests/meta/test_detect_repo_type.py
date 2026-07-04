@@ -218,3 +218,48 @@ def test_detect_swift_ambiguous_with_cargo(tmp_path: pathlib.Path) -> None:
 	token, confidence, reasoning = detect_repo_type.detect_repo_type(str(tmp_path))
 	assert token == 'ambiguous'
 	assert confidence == 'low'
+
+
+#============================================
+def test_detect_website_via_mkdocs(tmp_path: pathlib.Path) -> None:
+	"""Write mkdocs.yml at root -> expect (website, high)."""
+	with open(tmp_path / 'mkdocs.yml', 'w') as f:
+		f.write('site_name: Docs\n')
+	token, confidence, reasoning = detect_repo_type.detect_repo_type(str(tmp_path))
+	assert token == 'website'
+	assert confidence == 'high'
+	assert len(reasoning) > 0
+
+
+#============================================
+def test_detect_website_ambiguous_with_cargo(tmp_path: pathlib.Path) -> None:
+	"""mkdocs.yml + Cargo.toml -> ambiguous (mixed strong signals)."""
+	with open(tmp_path / 'mkdocs.yml', 'w') as f:
+		f.write('site_name: Docs\n')
+	with open(tmp_path / 'Cargo.toml', 'w') as f:
+		f.write('[package]\n')
+	token, confidence, reasoning = detect_repo_type.detect_repo_type(str(tmp_path))
+	assert token == 'ambiguous'
+	assert confidence == 'low'
+
+
+#============================================
+def test_detect_website_via_mkdocs_with_stray_index_html(tmp_path: pathlib.Path) -> None:
+	"""mkdocs.yml + a stray index.html -> website (marker wins, index.html not a signal)."""
+	with open(tmp_path / 'mkdocs.yml', 'w') as f:
+		f.write('site_name: Docs\n')
+	with open(tmp_path / 'index.html', 'w') as f:
+		f.write('<html></html>\n')
+	token, confidence, reasoning = detect_repo_type.detect_repo_type(str(tmp_path))
+	assert token == 'website'
+	assert confidence == 'high'
+
+
+#============================================
+def test_detect_index_html_only_is_ambiguous(tmp_path: pathlib.Path) -> None:
+	"""index.html alone, no mkdocs.yml -> ambiguous (website stays a manual marker)."""
+	with open(tmp_path / 'index.html', 'w') as f:
+		f.write('<html></html>\n')
+	token, confidence, reasoning = detect_repo_type.detect_repo_type(str(tmp_path))
+	assert token == 'ambiguous'
+	assert confidence == 'low'

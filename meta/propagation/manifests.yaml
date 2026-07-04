@@ -74,18 +74,15 @@ conditional_overlays:
 # the shared walk raises on an uncovered file.
 shared_overlays:
   source_release:
+    # Base-targeted: the scripted and compiled families inherit release tooling,
+    # so any future scripted/compiled language receives it with no further manifest
+    # edit. The website family (website, typescript) stays out because a docs or
+    # game site publishes builds, not GitHub source releases.
     paths:
       - devel/make_release.py
     repo_types:
-      - rust
-      - swift
-      - python
-      - other
-  html_playwright_style:
-    paths:
-      - docs/PLAYWRIGHT_TEST_STYLE.md
-    repo_types:
-      - typescript
+      - scripted
+      - compiled
       - other
 
 # Root-level files repolib propagates (ships) to every consumer repo's root.
@@ -186,4 +183,20 @@ known_repo_types:
   - rust
   - swift
   - other
+  - scripted
+  - website
+  - compiled
   - all
+
+# REPO_TYPE inheritance: child token -> parent (base) token. A concrete type
+# inherits every ancestor overlay in addition to its own, so a routing rule that
+# targets a base reaches every descendant. Root types (scripted, website,
+# compiled, other) have NO entry here; REPO_TYPE_PARENTS.get(root) returns None,
+# which effective_type_chain() reads as "no further ancestors". The graph must
+# stay acyclic and every parent must be a known_repo_types token; the loader
+# validates both at import time.
+repo_type_inherits:
+  python: scripted
+  rust: compiled
+  swift: compiled
+  typescript: website

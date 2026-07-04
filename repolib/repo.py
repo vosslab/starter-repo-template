@@ -25,7 +25,8 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 	LANG_UNKNOWN means no ROUTING_OVERRIDES exclude_repos rule applies;
 	universal walker-routed files still ship.
 
-	Returns token (python, typescript, rust, swift, other, all, unknown).
+	Returns token (python, typescript, rust, swift, other, all, scripted,
+	website, compiled, unknown).
 	An unrecognized marker token logs a warning and falls back to other
 	instead of raising, so a single bad marker never aborts a batch run.
 
@@ -98,7 +99,8 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 						# User rejected; re-prompt for explicit type
 						while True:
 							user_type = input(
-								"Project type? [p]ython / [t]ypescript / [r]ust / [s]wift / [o]ther / [a]ll [p]: "
+								"Project type? [p]ython / [t]ypescript / [r]ust / [s]wift / [o]ther / "
+								"[a]ll / scripted / website / compiled [p]: "
 							).strip()
 							chosen_type = parse_repo_type_choice(user_type, 'python')
 							write_repo_type_marker(marker_path, chosen_type, dry_run=False)
@@ -116,7 +118,8 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 			# Interactive prompt for ambiguous
 			while True:
 				user_type = input(
-					"Project type? [p]ython / [t]ypescript / [r]ust / [s]wift / [o]ther: "
+					"Project type? [p]ython / [t]ypescript / [r]ust / [s]wift / [o]ther / "
+					"scripted / website / compiled: "
 				).strip()
 				chosen_type = parse_repo_type_choice(user_type, None)
 				if chosen_type is None:
@@ -172,15 +175,19 @@ def parse_repo_type_choice(text: str, default: str | None = None) -> str | None:
 	"""
 	Parse user input for repo type choice.
 
-	Maps single-letter aliases and full words to canonical tokens.
-	Unknown input returns default.
+	Maps single-letter aliases and full words to canonical tokens. The base
+	types added for repo-type inheritance (scripted, website, compiled) have
+	no single-letter alias, since the existing letters are already claimed by
+	their concrete descendants (p/python, t/typescript, r/rust, s/swift); they
+	are matched by full name only. Unknown input returns default.
 
 	Args:
 		text (str): User input or single-letter choice.
 		default (str): Default token if input is unrecognized.
 
 	Returns:
-		str: Canonical token (python, typescript, rust, swift, other, all) or default.
+		str: Canonical token (python, typescript, rust, swift, other, all,
+			scripted, website, compiled) or default.
 	"""
 	if not text:
 		return default
@@ -197,6 +204,12 @@ def parse_repo_type_choice(text: str, default: str | None = None) -> str | None:
 		return 'other'
 	if choice in ('a', 'all'):
 		return 'all'
+	if choice == 'scripted':
+		return 'scripted'
+	if choice == 'website':
+		return 'website'
+	if choice == 'compiled':
+		return 'compiled'
 	return default
 
 

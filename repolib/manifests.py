@@ -82,7 +82,57 @@ def load_manifests(template_root: str) -> dict:
 	# docs need stable display order; repolib.model derives KNOWN_REPO_TYPES
 	# (a frozenset) from it for membership. Direct key access fails loud here.
 	manifests['known_repo_types'] = tuple(raw['known_repo_types'])
+	# repo_type_inherits: child token -> parent token. Kept as a plain dict; the
+	# parents are validated against the known tokens and the graph checked acyclic.
+	manifests['repo_type_inherits'] = build_repo_type_inherits(
+		raw['repo_type_inherits'], manifests['known_repo_types']
+	)
 	return manifests
+
+
+#============================================
+def build_repo_type_inherits(raw_inherits: dict, known_repo_types: tuple) -> dict:
+	"""
+	Validate and return the child -> parent repo_type inheritance map.
+
+	Every child and parent token must be a known repo_type marker, and the graph
+	must be acyclic so effective_type_chain() terminates. Both checks fail loudly
+	so a malformed inheritance section never routes silently.
+
+	Args:
+		raw_inherits (dict): child token mapped to a parent token, from YAML.
+		known_repo_types (tuple): recognized marker tokens for membership checks.
+
+	Returns:
+		dict: A shallow copy of the child -> parent map.
+
+	Raises:
+		ValueError: A child or parent is not a known token, or the graph cycles.
+	"""
+	known = set(known_repo_types)
+	# Copy so the loaded YAML structure is not aliased into the returned manifest.
+	inherits = dict(raw_inherits)
+	# Membership: every child and its parent must be a recognized marker token.
+	for child, parent in inherits.items():
+		if child not in known:
+			raise ValueError(
+				f"repo_type_inherits child {child!r} is not a known_repo_types token"
+			)
+		if parent not in known:
+			raise ValueError(
+				f"repo_type_inherits parent {parent!r} (of child {child!r}) is not a "
+				"known_repo_types token"
+			)
+	# Acyclic: walk each child's ancestor chain and fail if it revisits a node.
+	for child in inherits:
+		seen = {child}
+		parent = inherits.get(child)
+		while parent is not None:
+			if parent in seen:
+				raise ValueError(f"cycle in repo_type_inherits at {parent!r}")
+			seen.add(parent)
+			parent = inherits.get(parent)
+	return inherits
 
 
 #============================================

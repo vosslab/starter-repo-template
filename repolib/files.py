@@ -838,39 +838,57 @@ def auto_discover_test_files(template_root: str, repo_type: str) -> list[str]:
 	Scan template tests/ for files matching test_*.py or test_*.mjs not already
 	in the spec's test_files list. Return their relative paths under tests/.
 
-	For universal, python, other, swift, and all types: scan template_root/tests/ directly.
-	For typed overlays (typescript, rust): scan templates/<repo_type>/tests/.
+	For universal and all: scan template_root/tests/ directly. For every known
+	repo_type (repolib.model.KNOWN_REPO_TYPES), walk
+	repolib.model.effective_type_chain(repo_type) (nearest-first) and scan
+	templates/<chain_type>/tests/ for each chain member that has one, so an
+	inheriting type (for example typescript, chained to website) also
+	discovers its ancestor's overlay tests. A chain with no overlay tests dir
+	anywhere (for example python, chained to scripted; or other, a root with no
+	overlay) falls back to scanning template_root/tests/ directly. Any other,
+	unrecognized repo_type (for example the LANG_UNKNOWN pseudo-type) scans only
+	its own templates/<repo_type>/tests/, matching pre-chain behavior.
 	"""
 	spec = resolve_spec_for_type(repo_type, template_root)
 	spec_test_files = set(spec['test_files'])
 
 	discovered = []
 
-	if repo_type in ('universal', 'python', 'other', 'swift', 'all'):
-		# Scan template root tests/ for universal, python, other, and swift (no overlay).
-		test_dir = os.path.join(template_root, 'tests')
+	if repo_type in ('universal', 'all'):
+		# Scan template root tests/ for the pseudo-types (no chain to walk).
+		test_dirs = [os.path.join(template_root, 'tests')]
+	elif repo_type in repolib.model.KNOWN_REPO_TYPES:
+		test_dirs = []
+		for chain_type in repolib.model.effective_type_chain(repo_type):
+			overlay_test_dir = os.path.join(template_root, 'templates', chain_type, 'tests')
+			if os.path.isdir(overlay_test_dir):
+				test_dirs.append(overlay_test_dir)
+		if not test_dirs:
+			# No chain member has its own overlay tests dir: fall back to the root.
+			test_dirs.append(os.path.join(template_root, 'tests'))
 	else:
-		# Scan templates/<repo_type>/tests/ for typed overlays (typescript, rust).
-		test_dir = os.path.join(template_root, 'templates', repo_type, 'tests')
+		# Unrecognized repo_type (for example LANG_UNKNOWN): no chain to walk,
+		# no root fallback, matching pre-chain behavior.
+		test_dirs = [os.path.join(template_root, 'templates', repo_type, 'tests')]
 
-	if not os.path.isdir(test_dir):
-		return discovered
+	for test_dir in test_dirs:
+		if not os.path.isdir(test_dir):
+			continue
+		for root, dirs, files in os.walk(test_dir, topdown=True, followlinks=False):
+			# Filter walk dirs in-place to skip unwanted directories
+			dirs[:] = [d for d in dirs if d not in repolib.model.SKIP_WALK_DIRS and not d.startswith('.')]
 
-	for root, dirs, files in os.walk(test_dir, topdown=True, followlinks=False):
-		# Filter walk dirs in-place to skip unwanted directories
-		dirs[:] = [d for d in dirs if d not in repolib.model.SKIP_WALK_DIRS and not d.startswith('.')]
-
-		for name in files:
-			if not (name.startswith('test_') and (name.endswith('.py') or name.endswith('.mjs'))):
-				continue
-			# Exclude template-meta tests (propagate/reset_repo/detect_repo_type self-tests)
-			if any(name.startswith(p) for p in repolib.model.META_TEST_PREFIXES):
-				continue
-			rel_path = os.path.relpath(os.path.join(root, name), test_dir)
-			# Prepend 'tests/' to make it an absolute path from template_root
-			full_rel_path = os.path.join('tests', rel_path)
-			if full_rel_path not in spec_test_files and full_rel_path not in discovered:
-				discovered.append(full_rel_path)
+			for name in files:
+				if not (name.startswith('test_') and (name.endswith('.py') or name.endswith('.mjs'))):
+					continue
+				# Exclude template-meta tests (propagate/reset_repo/detect_repo_type self-tests)
+				if any(name.startswith(p) for p in repolib.model.META_TEST_PREFIXES):
+					continue
+				rel_path = os.path.relpath(os.path.join(root, name), test_dir)
+				# Prepend 'tests/' to make it an absolute path from template_root
+				full_rel_path = os.path.join('tests', rel_path)
+				if full_rel_path not in spec_test_files and full_rel_path not in discovered:
+					discovered.append(full_rel_path)
 
 	return discovered
 

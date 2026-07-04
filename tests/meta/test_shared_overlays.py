@@ -26,8 +26,12 @@ import pathlib
 import pytest
 
 # local repo modules
+import file_utils
 import repolib.files
 import repolib.model
+
+
+TEMPLATE_ROOT = file_utils.get_repo_root()
 
 
 #============================================
@@ -293,6 +297,33 @@ def test_source_release_skips_typescript(
 	tmp_path: pathlib.Path,
 ) -> None:
 	"""source_release files do NOT ship to typescript repos (not in the rule's repo_types)."""
-	# typescript is not listed in the source_release rule's repo_types.
+	# typescript is not listed in the source_release rule's repo_types, and its
+	# inherited chain (typescript, website) does not intersect the rule's types.
 	result = repolib.model.shared_path_ships(shared_path, 'typescript', str(tmp_path))
 	assert result is False
+
+
+def test_source_release_targets_the_base_set() -> None:
+	"""source_release.repo_types is exactly the base set [scripted, compiled, other].
+
+	Base-targeted routing (decision 6 of the inheritance-DAG plan): any future
+	scripted or compiled language inherits release tooling with no further
+	manifest edit, while the website family (website, typescript) routes
+	releases elsewhere by staying outside this set.
+	"""
+	assert set(SOURCE_RELEASE_RECIPIENT_TYPES) == {'scripted', 'compiled', 'other'}
+
+
+#============================================
+# Ancestor inheritance: typescript receives templates/website/ content
+#============================================
+
+def test_typescript_receives_playwright_style_through_website_overlay() -> None:
+	"""typescript inherits docs/PLAYWRIGHT_TEST_STYLE.md from the website overlay.
+
+	The file lives under templates/website/docs/ (moved there from
+	templates/shared/); typescript ships it only because effective_type_chain
+	('typescript') includes 'website', not through any shared_overlays rule.
+	"""
+	plan = repolib.files.compute_propagation_plan(TEMPLATE_ROOT, 'typescript')
+	assert 'docs/PLAYWRIGHT_TEST_STYLE.md' in plan['overwrite_files']

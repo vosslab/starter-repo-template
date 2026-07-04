@@ -8,8 +8,8 @@ always Node + Playwright even when the app itself is Python or Markdown.
 Read this before writing a browser test. For install and run mechanics
 (installing Playwright, running scripts, screenshots, PDF export), see the
 `PLAYWRIGHT_USAGE.md` doc where it ships. For the fast unit lane and the e2e
-folder layout, see [PYTEST_STYLE.md](PYTEST_STYLE.md) and
-[E2E_TESTS.md](E2E_TESTS.md).
+folder layout, see the `PYTEST_STYLE.md` and `E2E_TESTS.md` docs, which land
+beside this one in a consumer repo's docs/ folder.
 
 Existing tests are evidence of what works, not a compliance checklist. Apply
 this guide to new and revised tests; leave working tests in place.

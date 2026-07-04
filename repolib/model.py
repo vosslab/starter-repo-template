@@ -112,28 +112,83 @@ DEFAULT_REPO_SKIP_NAMES = _MANIFESTS['default_repo_skip_names']
 # in repolib.files so they never leak into UI, docs, or marker validation.
 REPO_TYPE_ORDER = _MANIFESTS['known_repo_types']
 KNOWN_REPO_TYPES = frozenset(REPO_TYPE_ORDER)
+# Child -> parent single-token inheritance map (repo_type_inherits manifest).
+# REPO_TYPE_PARENTS.get(child) returns the parent token, or None for a root type
+# (scripted, website, compiled, other have no entry). effective_type_chain()
+# walks this map so a concrete type inherits its ancestors' overlays.
+REPO_TYPE_PARENTS = _MANIFESTS['repo_type_inherits']
+
+
+#============================================
+# REPO_TYPE inheritance chain
+#============================================
+
+def ancestors(repo_type: str) -> list[str]:
+	"""
+	Return the ancestor chain for a repo_type, nearest parent first.
+
+	Walks REPO_TYPE_PARENTS from repo_type upward. A root type (no parent entry)
+	returns an empty list. A cycle in the inheritance map raises loudly instead of
+	looping forever; the loader also validates acyclicity, so this is a second guard.
+
+	Args:
+		repo_type (str): Consumer repository type token.
+
+	Returns:
+		list[str]: Ancestor tokens from nearest parent to furthest root.
+
+	Raises:
+		ValueError: The inheritance map contains a cycle reachable from repo_type.
+	"""
+	# Track visited nodes so a malformed cyclic map raises instead of looping.
+	chain: list[str] = []
+	seen = {repo_type}
+	parent = REPO_TYPE_PARENTS.get(repo_type)
+	while parent is not None:
+		if parent in seen:
+			raise ValueError(f"cycle in repo_type_inherits at {parent!r}")
+		chain.append(parent)
+		seen.add(parent)
+		parent = REPO_TYPE_PARENTS.get(parent)
+	return chain
+
+
+def effective_type_chain(repo_type: str) -> list[str]:
+	"""
+	Return repo_type followed by its ancestors, nearest-first.
+
+	This is the one canonical expansion every routing path consumes, so overlay
+	selection, source resolution, and shared-overlay routing all agree on which
+	base types a concrete marker inherits.
+
+	Args:
+		repo_type (str): Consumer repository type token.
+
+	Returns:
+		list[str]: [repo_type, *ancestors(repo_type)].
+	"""
+	return [repo_type, *ancestors(repo_type)]
 
 
 #============================================
 # Conditional-overlay selection
 #============================================
 
-def select_overlay_dirs(repo_type: str, repo_dir: str) -> list[str]:
+def single_type_overlay_dirs(repo_type: str, repo_dir: str) -> list[str]:
 	"""
-	Select the ordered template overlay folders that apply to a consumer repo.
+	Overlay path segments for ONE repo_type (base folder plus conditional overlays).
 
-	The base repo_type folder always applies. Each conditional overlay configured
-	in CONDITIONAL_OVERLAYS for that repo_type is appended when its condition holds
-	at the consumer (currently only the 'has_file' verb is supported).
+	This is the pre-inheritance expansion: the base type folder first, then each
+	conditional overlay whose marker file exists at the consumer. select_overlay_dirs
+	runs this over the full effective_type_chain and unions the results.
 
 	Args:
-		repo_type (str): Consumer repository type (python, typescript, rust, swift, other, all).
+		repo_type (str): A single repository type token (no inheritance applied).
 		repo_dir (str): Consumer repository directory to test marker files against.
 
 	Returns:
-		list[str]: Ordered overlay path segments under templates/, e.g.
+		list[str]: Ordered overlay path segments for this one type, e.g.
 			['python', 'python/_pypi'] when pyproject.toml exists at repo_dir.
-			The base type is always first; conditional overlays follow in config order.
 	"""
 	# Base repo_type overlay always applies and comes first.
 	overlay_dirs = [repo_type]
@@ -156,21 +211,48 @@ def select_overlay_dirs(repo_type: str, repo_dir: str) -> list[str]:
 	return overlay_dirs
 
 
-def overlay_roots_for_type(template_root: str, repo_type: str) -> list[str]:
+def select_overlay_dirs(repo_type: str, repo_dir: str) -> list[str]:
 	"""
-	Yield the candidate overlay root directories for a repo_type.
+	Select the ordered template overlay folders that apply to a consumer repo.
+
+	Runs each member of effective_type_chain(repo_type) through the base-plus-
+	conditional expansion (single_type_overlay_dirs) and unions the segments
+	nearest-first: the concrete type's own overlays come first, then each ancestor
+	base's overlays. So a typescript repo picks up its own overlay AND the website
+	base overlay it inherits.
+
+	Args:
+		repo_type (str): Consumer repository type (python, typescript, rust, swift, other, all).
+		repo_dir (str): Consumer repository directory to test marker files against.
+
+	Returns:
+		list[str]: Ordered, deduplicated overlay path segments under templates/,
+			nearest-first across the inheritance chain.
+	"""
+	# Union the per-type segments across the inheritance chain, nearest-first.
+	overlay_dirs: list[str] = []
+	for chain_type in effective_type_chain(repo_type):
+		for segment in single_type_overlay_dirs(chain_type, repo_dir):
+			# Dedup while preserving nearest-first order.
+			if segment not in overlay_dirs:
+				overlay_dirs.append(segment)
+	return overlay_dirs
+
+
+def single_type_overlay_roots(template_root: str, repo_type: str) -> list[str]:
+	"""
+	Candidate overlay root directories for ONE repo_type (no inheritance applied).
 
 	Returns the base templates/<repo_type>/ root plus every configured conditional
-	overlay root (templates/<repo_type>/_<name>/). These are the typed roots that
-	source resolvers must search; the universal template root is handled separately
-	by each resolver. Roots are returned in config order with the base type first.
+	overlay root (templates/<repo_type>/_<name>/). overlay_roots_for_type runs this
+	over the full effective_type_chain and unions the results.
 
 	Args:
 		template_root (str): Template root directory.
-		repo_type (str): Repository type (python, typescript, rust, swift, other, all).
+		repo_type (str): A single repository type token.
 
 	Returns:
-		list[str]: Absolute candidate overlay root directories under templates/.
+		list[str]: Absolute candidate overlay root directories for this one type.
 	"""
 	# Base typed root always comes first.
 	roots = [os.path.join(template_root, 'templates', repo_type)]
@@ -178,6 +260,34 @@ def overlay_roots_for_type(template_root: str, repo_type: str) -> list[str]:
 	overlay_config = CONDITIONAL_OVERLAYS.get(repo_type, {})
 	for overlay_name in overlay_config:
 		roots.append(os.path.join(template_root, 'templates', repo_type, overlay_name))
+	return roots
+
+
+def overlay_roots_for_type(template_root: str, repo_type: str) -> list[str]:
+	"""
+	Yield the candidate overlay root directories for a repo_type and its ancestors.
+
+	Runs each member of effective_type_chain(repo_type) through the single-type
+	root expansion and unions the roots nearest-first, so a source resolver for a
+	concrete type also searches the roots of every base it inherits (e.g. a
+	typescript lookup searches templates/typescript/ and templates/website/). The
+	universal template root is handled separately by each resolver.
+
+	Args:
+		template_root (str): Template root directory.
+		repo_type (str): Repository type (python, typescript, rust, swift, other, all).
+
+	Returns:
+		list[str]: Ordered, deduplicated candidate overlay root directories under
+			templates/, nearest-first across the inheritance chain.
+	"""
+	# Union the per-type roots across the inheritance chain, nearest-first.
+	roots: list[str] = []
+	for chain_type in effective_type_chain(repo_type):
+		for root in single_type_overlay_roots(template_root, chain_type):
+			# Dedup while preserving nearest-first order.
+			if root not in roots:
+				roots.append(root)
 	return roots
 
 
@@ -225,8 +335,10 @@ def shared_rule_ships_to(rule: dict, rule_name: str, repo_type: str, repo_dir: s
 	Raises:
 		ValueError: The rule carries a 'when' verb other than 'lacks_file'.
 	"""
-	# repo_type gate: a rule only applies to the types it lists.
-	if repo_type not in rule['repo_types']:
+	# repo_type gate: a rule applies when the consumer's inheritance chain
+	# intersects the rule's listed types, so a rule targeting a base (e.g.
+	# scripted) reaches every descendant (python) that inherits it.
+	if not (set(effective_type_chain(repo_type)) & set(rule['repo_types'])):
 		return False
 	# 'when' is genuinely optional: a rule without it ships unconditionally.
 	when_verb = rule.get('when')

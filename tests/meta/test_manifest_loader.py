@@ -69,6 +69,8 @@ known_repo_types:
   - python
   - synthlang
   - other
+repo_type_inherits:
+  python: other
 """
 
 
@@ -176,6 +178,7 @@ def test_malformed_yaml_raises(tmp_path: pathlib.Path) -> None:
 # from it, so the same-type model attribute for this key is REPO_TYPE_ORDER.
 MODEL_ATTR_OVERRIDES = {
 	'known_repo_types': 'REPO_TYPE_ORDER',
+	'repo_type_inherits': 'REPO_TYPE_PARENTS',
 }
 
 

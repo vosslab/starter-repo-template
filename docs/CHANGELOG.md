@@ -2,37 +2,149 @@
 
 ### Additions and New Features
 
+- `meta/propagation/manifests.yaml`, `repolib/manifests.py`, `repolib/model.py`:
+  `REPO_TYPE` becomes a single-token inheritance DAG. Added three new base
+  types (`scripted`, `website`, `compiled`, all directly usable markers) to
+  `known_repo_types`, plus a `repo_type_inherits` section
+  (`python->scripted`, `rust->compiled`, `swift->compiled`,
+  `typescript->website`); `scripted`, `website`, `compiled`, and `other` are
+  roots. `repolib.manifests` validates every parent is a known token and the
+  graph is acyclic at load time. `repolib.model` adds `REPO_TYPE_PARENTS`,
+  `ancestors(repo_type)`, and `effective_type_chain(repo_type)` (returns
+  `[repo_type, *ancestors]` nearest-first) as the one canonical expansion
+  helper; `select_overlay_dirs`, `overlay_roots_for_type`, and
+  `shared_rule_ships_to` all consume it, so a repo receives its own overlay
+  plus every ancestor's overlay, unioned, and a rule ships whenever the
+  effective chain intersects `rule['repo_types']`.
+- `tests/meta/test_repo_type_inheritance.py` (new): pins
+  `ancestors`/`effective_type_chain` ordering, cycle and unknown-parent
+  raises, a disjointness guard (fails if two overlays in one chain name the
+  same `file_rel`), ancestor-conditional inheritance via a synthetic
+  manifest, and a routing matrix across all eight tokens asserting presence
+  or absence of `docs/PLAYWRIGHT_TEST_STYLE.md`, `tsconfig.json`, and
+  `devel/make_release.py`.
+- `tools/detect_repo_type.py`: detects `website` (high confidence) from a
+  root `mkdocs.yml`, counted in the `strong_signals` mixed-marker check so
+  `mkdocs.yml` alongside a language marker reports `ambiguous`. An
+  `index.html`-only tree stays `ambiguous`; `website` remains a manual
+  marker, avoiding misclassifying static exports or generated docs.
+- `repolib/repo.py`, `reset_repo.py`: `parse_repo_type_choice`, the interview
+  prompts, `normalize_project_type`, and `SCAFFOLD_SENTINELS` now recognize
+  the three base types by full name (sentinel for `website` is
+  `mkdocs.yml`).
 - `templates/shared/docs/PLAYWRIGHT_TEST_STYLE.md`: new browser test authoring
-  style guide, routed via a shared overlay to `repo_types: [typescript, other]`
-  so it reaches every repo that serves HTML (typescript games and MkDocs-Material
-  sites) without shipping to pure CLI repos. Prescriptive, positive-voice house
-  rules grounded in a survey of ~97 Playwright files across 12 repos: two
-  execution models (runner `@playwright/test` default for configured app tests,
-  bare-library `.mjs` first-class for config-less MkDocs/survey/screenshot
-  workflows), file layout under `tests/playwright/`, load-over-HTTP as the central
-  rule, accessible-first then `data-*` selector priority, web-first waits and real
+  style guide, originally routed via a shared overlay to
+  `repo_types: [typescript, other]` so it reached every repo that serves HTML
+  (typescript games and MkDocs-Material sites) without shipping to pure CLI
+  repos. Prescriptive, positive-voice house rules grounded in a survey of ~97
+  Playwright files across 12 repos: two execution models (runner
+  `@playwright/test` default for configured app tests, bare-library `.mjs`
+  first-class for config-less MkDocs/survey/screenshot workflows), file layout
+  under `tests/playwright/`, load-over-HTTP as the central rule,
+  accessible-first then `data-*` selector priority, web-first waits and real
   visible clicks, per-model pass/fail signaling, `addInitScript` setup idioms,
-  headless Chromium with `test-results/` screenshots, one compact pitfalls table,
-  and two small copyable runner and `.mjs` examples.
-- `meta/propagation/manifests.yaml`: added the `html_playwright_style`
-  shared-overlays rule (`paths: [docs/PLAYWRIGHT_TEST_STYLE.md]`, `repo_types:
-  [typescript, other]`, overwrite bucket) so the shared walk covers the new file
-  and `tests/meta/test_shared_overlays.py` stays green.
-- `docs/E2E_TESTS.md`, `docs/PYTEST_STYLE.md`, `docs/REPO_STYLE.md`: prose and
-  centrally-maintained-list references to `PLAYWRIGHT_TEST_STYLE.md`. These
-  universal docs mention it by name rather than link it, because they ship to
-  python/rust/swift consumers that do not receive the overlay doc (bucket
-  isolation).
+  headless Chromium with `test-results/` screenshots, one compact pitfalls
+  table, and two small copyable runner and `.mjs` examples. Superseded later
+  the same day by the `templates/website/` overlay move recorded below.
+
+### Behavior or Interface Changes
+
+- `meta/propagation/manifests.yaml`: `source_release` (the former
+  `html_playwright_style`-style hand list `[rust, swift, python, other]`)
+  now targets the base set `[scripted, compiled, other]`, so any future
+  scripted or compiled language inherits GitHub-source-release tooling
+  (`devel/make_release.py`) with no further manifest edit. `website` and
+  `typescript` stay out because a docs or game site publishes builds, not
+  source releases.
+- `repolib/files.py` `auto_discover_test_files`: now derives its
+  overlay/root decision from `effective_type_chain(repo_type)`, so an
+  inheriting type (for example `typescript`) also discovers its ancestor's
+  (`website`) template tests.
+- `docs/REPO_STYLE.md`, `docs/E2E_TESTS.md`, `docs/PYTEST_STYLE.md`: prose
+  updated to describe the base types, the inheritance DAG, base-targeted
+  routing (citing `source_release`), and `PLAYWRIGHT_TEST_STYLE.md` shipping
+  through the `templates/website/` overlay to the website family (`website`
+  plus its inheriting `typescript`), replacing the old `[typescript, other]`
+  hand-list phrasing.
+
+### Removals and Deprecations
+
+- Retired the `html_playwright_style` shared-overlays rule
+  (`meta/propagation/manifests.yaml`), which had targeted `repo_types:
+  [typescript, other]`. `git mv templates/shared/docs/PLAYWRIGHT_TEST_STYLE.md
+  templates/website/docs/PLAYWRIGHT_TEST_STYLE.md` plus three web-general
+  assets moved from `templates/typescript/` to `templates/website/`
+  (`docs/PLAYWRIGHT_USAGE.md`, `tests/playwright/repo_root.mjs`,
+  `devel/setup_playwright.sh`); `typescript` now receives all four through
+  ordinary folder-location overlay routing (inheriting `website`) instead of
+  a hand-maintained shared-overlay rule. The TS-only toolchain
+  (`tsconfig*`, `eslint*`, `.prettier*`, `docs/TYPESCRIPT_STYLE.md`, build
+  and test-naming scripts) stays in `templates/typescript/`.
+
+### Fixes and Maintenance
+
+- `README.md`: repointed both `PLAYWRIGHT_USAGE.md` links to their new
+  location, `templates/website/docs/PLAYWRIGHT_USAGE.md`, after the file
+  move above.
+- Cross-overlay doc references converted to backticked names:
+  `templates/typescript/docs/TYPESCRIPT_STYLE.md`,
+  `templates/typescript/tests/TESTS_TYPESCRIPT_README.md`, and
+  `templates/website/docs/PLAYWRIGHT_TEST_STYLE.md` referenced docs shipping
+  from a different overlay (or the universal `docs/` tree) via bare markdown
+  links (for example `[PLAYWRIGHT_USAGE.md](PLAYWRIGHT_USAGE.md)`) that
+  resolve only after propagation flattens the overlays into one consumer
+  `docs/` folder. No single relative link is valid both in the split
+  template tree and in the propagated consumer, so these now use the
+  repo's existing backticked-name convention for cross-overlay references
+  (matching the pre-existing `PLAYWRIGHT_USAGE.md` mention in the same
+  doc). A first attempt excluded the three files via a populated
+  `REPO_HYGIENE_FILTERS["markdown_links"]` registry in `tests/conftest.py`;
+  that was reverted because `merge_conftest` ships the template's registry
+  block to freshly bootstrapped consumers, which would have baked
+  template-only glob paths into every new repo. The registry stays `{}`.
+- `tests/file_utils.py`: `_load_repo_hygiene_filters()` now loads
+  `REPO_HYGIENE_FILTERS` from the explicit `tests/conftest.py` path anchored
+  at the repo root, replacing the module-name conftest import. The old
+  `importlib.import_module("conftest")` resolved to whichever `conftest.py`
+  pytest imported first; under full-suite collection order a same-basename
+  `tests/meta/conftest.py` (it sorts before `test_*`) could win
+  `sys.modules["conftest"]`, lack the attribute, and silently return an
+  empty Layer-2 registry. Latent until a registry entry exists, but a real
+  shadowing bug worth fixing while it was visible. Also dropped the now
+  redundant bare `import importlib` left behind by the rewrite.
+- `meta/docs/PROPAGATION_RULES.md`: refreshed the stale `source_release`
+  worked example (old `[rust, swift, python, other]` hand list) to the
+  base-targeted `[scripted, compiled, other]` shape, added a
+  "Repo type inheritance" section documenting the `repo_type_inherits`
+  DAG and chain-based routing, and added a `templates/website/` row to
+  the folder-convention table.
+- `tests/meta/conftest.py`: module docstring now carries a DUAL-CONFTEST MAP
+  documenting the two conftest roles -- `tests/conftest.py` is the shipping
+  merge seed (must hold no repo-specific data; `REPO_HYGIENE_FILTERS` stays
+  `{}`) while `tests/meta/conftest.py` is template-meta and never ships --
+  plus the shadowing history, so a future maintainer does not repeat the
+  populated-registry mistake.
 
 ### Decisions and Failures
 
-- Routing chose a shared overlay to `[typescript, other]` over a universal
-  `docs/` drop. The universal drop is simpler (no manifest edit, reaches a
-  markerless repo immediately) but ships a browser-testing doc to every pure CLI
-  repo as noise. There is no `web` repo_type token, so the web-serving repos are
-  targeted by enumerating the typescript and `other` families. Consequence: the
-  doc reaches all `other` repos, and the MkDocs consumers must carry a
-  `REPO_TYPE=other` marker for the overlay to land.
+- `pypi` stays a `has_file` conditional overlay under `python` rather than
+  becoming its own marker token; auto-gating by `pyproject.toml` already
+  works and promoting it adds no capability.
+- `templates/swift/` is left unopened in this change; folder-location
+  routing picks up a swift overlay automatically the moment one exists, so
+  no swift overlay was scaffolded.
+- No MkDocs consumer was checked out to validate the `website` family
+  against `source_release` exclusion in practice; the design rule (docs and
+  game sites publish builds, not source releases) is a one-line manifest
+  change to reverse if a real MkDocs consumer needs it.
+- Earlier the same day, routing had chosen a shared overlay to
+  `[typescript, other]` over a universal `docs/` drop, reasoning there was no
+  `web` repo_type token so web-serving repos had to be targeted by
+  enumerating the typescript and `other` families (consequence: the doc
+  reached every `other` repo, and MkDocs consumers needed a
+  `REPO_TYPE=other` marker). The base-type inheritance DAG recorded above
+  replaces that hand list: `website` is now the token, and `other` no
+  longer needs to carry it.
 - The confirmed MkDocs consumer (`biology-problems-website`) runs Playwright as
   bare-library `.mjs` scripts with no `playwright.config.ts`, so the doc keeps the
   bare-library model first-class rather than assuming the `@playwright/test`

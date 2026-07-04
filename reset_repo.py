@@ -384,10 +384,12 @@ TEMPLATE_OWNED_PREFIXES = [
 ]
 
 # Sentinel scaffold paths that must exist after successful propagation, by project type.
-# Each entry is (project_type, relative_path). Rust and other are skipped (no sentinel).
+# Each entry is (project_type, relative_path). Rust, swift, other, and the base
+# types with no dedicated overlay (scripted, compiled) are skipped (no sentinel).
 SCAFFOLD_SENTINELS: dict[str, str] = {
 	"typescript": "eslint.config.js",
 	"python": "docs/PYTHON_STYLE.md",
+	"website": "mkdocs.yml",
 }
 
 
@@ -487,16 +489,20 @@ def normalize_project_type(raw: str, default: str) -> str:
 	"""Normalize a raw project-type answer to a canonical token.
 
 	Accepts the single-letter menu shortcuts (p/t/r/s/o), the full token names
-	(python/typescript/rust/swift/other/all), or an empty string (which selects the
-	supplied default). Shared by the interview and the config producers so the
-	accepted values cannot drift between the two paths.
+	(python/typescript/rust/swift/other/all), the base types added for repo-type
+	inheritance (scripted/website/compiled, full name only, no single-letter
+	alias since their letters are already claimed by concrete descendants), or
+	an empty string (which selects the supplied default). Shared by the
+	interview and the config producers so the accepted values cannot drift
+	between the two paths.
 
 	Args:
 		raw (str): The raw user answer or config value.
 		default (str): Token to use when raw is empty.
 
 	Returns:
-		str: One of "python", "typescript", "rust", "swift", "other", "all".
+		str: One of "python", "typescript", "rust", "swift", "other", "all",
+			"scripted", "website", "compiled".
 	"""
 	token = raw.strip().lower()
 	if token == "":
@@ -515,6 +521,9 @@ def normalize_project_type(raw: str, default: str) -> str:
 		"other": "other",
 		"a": "all",
 		"all": "all",
+		"scripted": "scripted",
+		"website": "website",
+		"compiled": "compiled",
 	}
 	if token not in mapping:
 		sys.exit(f"Invalid project type: {raw!r}")
@@ -558,7 +567,8 @@ def resolve_project_type(repo_root: str) -> str:
 
 	# Always prompt; an empty answer accepts the default.
 	user_input = input(
-		f"Project type? [p]ython / [t]ypescript / [r]ust / [s]wift / [o]ther / [a]ll [{default_type[0]}]: "
+		"Project type? [p]ython / [t]ypescript / [r]ust / [s]wift / [o]ther / "
+		f"[a]ll / scripted / website / compiled [{default_type[0]}]: "
 	).strip()
 	return normalize_project_type(user_input, default_type)
 

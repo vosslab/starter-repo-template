@@ -37,10 +37,13 @@ def detect_repo_type(repo_dir: str) -> tuple[str, str, list[str]]:
 	has_pyproject = os.path.isfile(os.path.join(repo_dir, 'pyproject.toml'))
 	has_setup_py = os.path.isfile(os.path.join(repo_dir, 'setup.py'))
 	has_swift_pkg = os.path.isfile(os.path.join(repo_dir, 'Package.swift'))
+	has_mkdocs = os.path.isfile(os.path.join(repo_dir, 'mkdocs.yml'))
 
 	# Count multiple strong signals; a Swift+Rust or Swift+Python repo is ambiguous
 	# like any other mixed pair (e.g. Cargo.toml + tsconfig.json)
-	strong_signals = sum([has_cargo, has_tsconfig, has_pyproject or has_setup_py, has_swift_pkg])
+	strong_signals = sum([
+		has_cargo, has_tsconfig, has_pyproject or has_setup_py, has_swift_pkg, has_mkdocs,
+	])
 
 	if strong_signals >= 2:
 		signals_found = []
@@ -52,6 +55,8 @@ def detect_repo_type(repo_dir: str) -> tuple[str, str, list[str]]:
 			signals_found.append('pyproject.toml/setup.py')
 		if has_swift_pkg:
 			signals_found.append('Package.swift')
+		if has_mkdocs:
+			signals_found.append('mkdocs.yml')
 		reasoning.append(f"mixed strong signals: {', '.join(signals_found)}")
 		return ('ambiguous', 'low', reasoning)
 
@@ -73,6 +78,10 @@ def detect_repo_type(repo_dir: str) -> tuple[str, str, list[str]]:
 	if has_swift_pkg:
 		reasoning.append('Found Package.swift at root')
 		return ('swift', 'high', reasoning)
+
+	if has_mkdocs:
+		reasoning.append('Found mkdocs.yml at root')
+		return ('website', 'high', reasoning)
 
 	# Priority 2: package.json with TypeScript dependency
 	has_package_json = os.path.isfile(os.path.join(repo_dir, 'package.json'))

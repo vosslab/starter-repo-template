@@ -37,6 +37,10 @@ collect_ignore = ["e2e", "playwright"]
 #     does not cross "/". Use "temp_scripts/**" to exclude a whole subtree.
 #
 # This template has no repo-specific exclusions, so the registry is empty.
+# Cross-overlay doc references (a template doc naming a doc that ships from a
+# different overlay or the universal docs/ tree) use a backticked name, not a
+# markdown link: no single relative link is valid both in the split template
+# tree and in the flattened consumer repo.
 # Example entries (commented out; this repo needs none):
 #   REPO_HYGIENE_FILTERS = {
 #       "all": ["temp_scripts/**", "TEMPLATE.py"],

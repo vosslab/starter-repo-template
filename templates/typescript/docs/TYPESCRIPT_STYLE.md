@@ -224,7 +224,7 @@ import { writeReport } from "./write_report";
 * For real projects, use a normal test framework and keep tests in a `tests/` folder.
 * Keep tests small and deterministic.
 * Avoid network calls, random behavior, and time-based logic unless mocked.
-* Browser tests live under `tests/playwright/` (see [PLAYWRIGHT_USAGE.md](PLAYWRIGHT_USAGE.md)). Pure Node unit tests via `node --test tests/test_*.mjs`. TS hygiene tests under `tests/test_typescript_*.py` enforce tsc, package.json schema, tsconfig canonical fields, and ESLint flat-config presence. ESLint correctness is gated by `check_codebase.sh` step 3 directly; no separate pytest wrapper.
+* Browser tests live under `tests/playwright/` (see the `PLAYWRIGHT_USAGE.md` doc where it ships). Pure Node unit tests via `node --test tests/test_*.mjs`. TS hygiene tests under `tests/test_typescript_*.py` enforce tsc, package.json schema, tsconfig canonical fields, and ESLint flat-config presence. ESLint correctness is gated by `check_codebase.sh` step 3 directly; no separate pytest wrapper.
 * Node unit tests are `.mjs` and run via `node --test tests/test_*.mjs` (canonical). A `.ts`
   test with the tsx loader (`node --import tsx --test`) is an accepted variant when the test
   itself needs TypeScript (`sports-life-game`).
@@ -437,8 +437,8 @@ locally-installed form (`npx ...`) so the command works without a global install
 | `npm run setup:playwright` | `./devel/setup_playwright.sh` |
 
 The `tools/html_to_pdf.mjs` HTML-to-PDF tool is run directly
-(`node tools/html_to_pdf.mjs`), documented in
-[PLAYWRIGHT_USAGE.md](PLAYWRIGHT_USAGE.md); several repos also expose an optional `pdf` npm
+(`node tools/html_to_pdf.mjs`), documented in the `PLAYWRIGHT_USAGE.md` doc
+where it ships; several repos also expose an optional `pdf` npm
 alias that mirrors it 1:1.
 
 ### Shell scripts versus Python scripts
