@@ -81,6 +81,12 @@ shared_overlays:
       - swift
       - python
       - other
+  html_playwright_style:
+    paths:
+      - docs/PLAYWRIGHT_TEST_STYLE.md
+    repo_types:
+      - typescript
+      - other
 
 # Root-level files repolib propagates (ships) to every consumer repo's root.
 # ROOT_PROPAGATE_ALLOWLIST says a root file MAY ship; universal_noexist refines

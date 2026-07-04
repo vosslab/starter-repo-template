@@ -1,3 +1,45 @@
+## 2026-07-04
+
+### Additions and New Features
+
+- `templates/shared/docs/PLAYWRIGHT_TEST_STYLE.md`: new browser test authoring
+  style guide, routed via a shared overlay to `repo_types: [typescript, other]`
+  so it reaches every repo that serves HTML (typescript games and MkDocs-Material
+  sites) without shipping to pure CLI repos. Prescriptive, positive-voice house
+  rules grounded in a survey of ~97 Playwright files across 12 repos: two
+  execution models (runner `@playwright/test` default for configured app tests,
+  bare-library `.mjs` first-class for config-less MkDocs/survey/screenshot
+  workflows), file layout under `tests/playwright/`, load-over-HTTP as the central
+  rule, accessible-first then `data-*` selector priority, web-first waits and real
+  visible clicks, per-model pass/fail signaling, `addInitScript` setup idioms,
+  headless Chromium with `test-results/` screenshots, one compact pitfalls table,
+  and two small copyable runner and `.mjs` examples.
+- `meta/propagation/manifests.yaml`: added the `html_playwright_style`
+  shared-overlays rule (`paths: [docs/PLAYWRIGHT_TEST_STYLE.md]`, `repo_types:
+  [typescript, other]`, overwrite bucket) so the shared walk covers the new file
+  and `tests/meta/test_shared_overlays.py` stays green.
+- `docs/E2E_TESTS.md`, `docs/PYTEST_STYLE.md`, `docs/REPO_STYLE.md`: prose and
+  centrally-maintained-list references to `PLAYWRIGHT_TEST_STYLE.md`. These
+  universal docs mention it by name rather than link it, because they ship to
+  python/rust/swift consumers that do not receive the overlay doc (bucket
+  isolation).
+
+### Decisions and Failures
+
+- Routing chose a shared overlay to `[typescript, other]` over a universal
+  `docs/` drop. The universal drop is simpler (no manifest edit, reaches a
+  markerless repo immediately) but ships a browser-testing doc to every pure CLI
+  repo as noise. There is no `web` repo_type token, so the web-serving repos are
+  targeted by enumerating the typescript and `other` families. Consequence: the
+  doc reaches all `other` repos, and the MkDocs consumers must carry a
+  `REPO_TYPE=other` marker for the overlay to land.
+- The confirmed MkDocs consumer (`biology-problems-website`) runs Playwright as
+  bare-library `.mjs` scripts with no `playwright.config.ts`, so the doc keeps the
+  bare-library model first-class rather than assuming the `@playwright/test`
+  runner everywhere. Generalizing `run_playwright_tests.sh` to a shared runner was
+  left out of scope: its `dist/`+`build_github_pages.sh` build gate is
+  game-specific and the MkDocs consumer would first need to adopt a config runner.
+
 ## 2026-07-03
 
 ### Additions and New Features
