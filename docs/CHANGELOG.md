@@ -7,10 +7,15 @@
   `all` aggregates the propagation plan for the existing typed repos so it receives universal files
   plus every typed overlay.
 
-## 2026-07-03
-
 ### Fixes and Maintenance
 
+- Fixed `all` propagation so bucket source lookup resolves across every concrete repo type instead
+  of failing with missing-source errors when a file lives in a different family. `all` now expands
+  across every concrete repo type in `REPO_TYPE_ORDER`, so propagation fans out across the full
+  family set rather than treating `all` as a scalar token.
+- Clarified that `Brewfile`, `docs/NEWS.md`, and `docs/RELEASE_HISTORY.md` are propagated because
+  they are `noexist` targets, not because they are empty. Local deletion alone does not change the
+  propagation rule.
 - `templates/typescript/docs/FUN_VIBES_DESIGN_STYLE.md`,
   `templates/typescript/docs/PLAYFUL_TRAINING_GAME_STYLE.md`: fixed broken markdown links flagged by
   `tests/test_markdown_links.py`. Removed the dead `docs/GAME_USAGE.md` link (non-universal file that

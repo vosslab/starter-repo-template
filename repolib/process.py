@@ -107,6 +107,18 @@ def apply_file_bucket(bucket_name: str, spec: dict, repo_dir: str, repo_type: st
 	bucket_copies = 0
 	bucket_skips = 0
 
+	def _source_for_bucket(file_rel: str, bucket: str) -> str | None:
+		"""Resolve a source path, fanning out across all concrete types for repo_type=all."""
+		if repo_type != 'all':
+			return repolib.model.find_source_for_bucket(context.source_dir, bucket, file_rel, repo_type)
+		for candidate_type in repolib.model.REPO_TYPE_ORDER:
+			if candidate_type == 'all':
+				continue
+			source_file = repolib.model.find_source_for_bucket(context.source_dir, bucket, file_rel, candidate_type)
+			if source_file is not None:
+				return source_file
+		return None
+
 	# Defense in depth: assert no dispatcher entry is a META FILE even if the
 	# walker was bypassed (plan read from disk, user-supplied paths, etc.).
 	# Uses the META_FILES-only guard, not the strict directory-traversal guard:
@@ -120,7 +132,7 @@ def apply_file_bucket(bucket_name: str, spec: dict, repo_dir: str, repo_type: st
 		# ============ OVERWRITE BUCKET ============
 		# Overwrite: copy to repo at exact path.
 		for file_rel in spec['overwrite_files']:
-			source_file = repolib.model.find_source_for_bucket(context.source_dir, 'overwrite_files', file_rel, repo_type)
+			source_file = _source_for_bucket(file_rel, 'overwrite_files')
 			if source_file is None:
 				counters['errors'] += 1
 				repolib.console.log_action("error", f"source missing for {file_rel}")
@@ -152,7 +164,7 @@ def apply_file_bucket(bucket_name: str, spec: dict, repo_dir: str, repo_type: st
 		# ============ NOEXIST BUCKET ============
 		# Noexist: copy only if destination does not exist; initial_setup mode overrides.
 		for file_rel in spec['noexist_files']:
-			source_file = repolib.model.find_source_for_bucket(context.source_dir, 'noexist_files', file_rel, repo_type)
+			source_file = _source_for_bucket(file_rel, 'noexist_files')
 			if source_file is None:
 				counters['errors'] += 1
 				repolib.console.log_action("error", f"source missing for {file_rel}")
@@ -188,7 +200,7 @@ def apply_file_bucket(bucket_name: str, spec: dict, repo_dir: str, repo_type: st
 		# ============ DEVEL BUCKET ============
 		# Devel: copy to repo/devel/<basename>; flat namespace, not subdirectory-preserved.
 		for file_rel in spec['devel_files']:
-			source_file = repolib.model.find_source_for_bucket(context.source_dir, 'devel_files', file_rel, repo_type)
+			source_file = _source_for_bucket(file_rel, 'devel_files')
 			if source_file is None:
 				counters['errors'] += 1
 				repolib.console.log_action("error", f"source missing for devel_files:{file_rel}")
@@ -222,7 +234,7 @@ def apply_file_bucket(bucket_name: str, spec: dict, repo_dir: str, repo_type: st
 		# additions outside the fences. See meta/docs/MERGE_BUCKET_SPEC.md.
 		for file_rel in spec['merge_files']:
 			# Merge sources live at template_root paths (same lookup shape as overwrite_files).
-			source_file = repolib.model.find_source_for_bucket(context.source_dir, 'overwrite_files', file_rel, repo_type)
+			source_file = _source_for_bucket(file_rel, 'overwrite_files')
 			if source_file is None:
 				counters['errors'] += 1
 				repolib.console.log_action("error", f"source missing for merge_files:{file_rel}")
@@ -244,7 +256,7 @@ def apply_file_bucket(bucket_name: str, spec: dict, repo_dir: str, repo_type: st
 		# ============ TEST BUCKET ============
 		# Test: copy to tests/<file_rel> preserving tests/ prefix; auto-discovered files merge here.
 		for file_rel in spec['test_files']:
-			source_file = repolib.model.find_source_for_bucket(context.source_dir, 'test_files', file_rel, repo_type)
+			source_file = _source_for_bucket(file_rel, 'test_files')
 			if source_file is None:
 				counters['errors'] += 1
 				repolib.console.log_action("error", f"source missing for test_files:{file_rel}")
