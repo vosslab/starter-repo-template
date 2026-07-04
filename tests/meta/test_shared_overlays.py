@@ -9,21 +9,17 @@ Covers:
       the lacks_file condition, and unknown-verb error.
   (2) shared_path_ships: any-matching-rule ships the file.
   (3) all_shared_overlay_paths: union of every rule's paths list.
-  (4) Two-way manifest/disk sync:
-      (a) manifest -> disk: every rule 'paths' entry exists under templates/shared/.
-      (b) disk -> manifest: compute_propagation_plan raises on an uncovered
-          templates/shared/ file (coverage-guard regression).
+  (4) Coverage guard (disk -> manifest): compute_propagation_plan raises on an
+      uncovered templates/shared/ file.
 
 Behavioral tests use synthetic rule dicts so they pass independent of the live
 manifest. The source_release rule is registered, so SHARED_OVERLAYS is non-empty.
-Sync test (a) is parametrized over the live manifest; it now produces real test
-cases from the registered rules.
-Sync test (b) uses tmp_path to build a fake shared tree and confirms the
-RuntimeError fires for any uncovered file.
+The coverage guard uses tmp_path to build a fake shared tree and confirms the
+RuntimeError fires for any uncovered file. This is a folder-based propagation
+system: disk drives routing, so there is no manifest -> disk existence check.
 """
 
 # Standard Library
-import os
 import pathlib
 
 # PIP3 modules
@@ -32,32 +28,6 @@ import pytest
 # local repo modules
 import repolib.files
 import repolib.model
-import repolib.repo
-
-
-#============================================
-# Sync helpers and module-level constants
-#============================================
-
-def manifest_rule_paths() -> list[tuple[str, str]]:
-	"""
-	Flatten SHARED_OVERLAYS into (rule_name, consumer_path) pairs.
-
-	Returns:
-		list[tuple[str, str]]: All (rule_name, path) pairs sorted ascending.
-	"""
-	pairs = []
-	for rule_name, rule in repolib.model.SHARED_OVERLAYS.items():
-		for path in rule['paths']:
-			pairs.append((rule_name, path))
-	return sorted(pairs)
-
-
-TEMPLATE_ROOT = repolib.repo.resolve_source_dir(None)
-SHARED_DIR = os.path.join(TEMPLATE_ROOT, 'templates', 'shared')
-
-# Populated from the live manifest; non-empty now that source_release is registered.
-MANIFEST_RULE_PATHS = manifest_rule_paths()
 
 
 #============================================
@@ -252,24 +222,8 @@ def test_all_shared_overlay_paths_empty_when_no_rules(
 
 
 #============================================
-# Two-way sync: (a) manifest -> disk
-# Parametrized over live SHARED_OVERLAYS rule paths.
-# Produces real test cases from the registered source_release rule.
-#============================================
-
-@pytest.mark.parametrize('rule_name, path', MANIFEST_RULE_PATHS, ids=lambda p: str(p))
-def test_rule_path_exists_on_disk(rule_name: str, path: str) -> None:
-	"""Every path listed in a shared_overlays rule must exist under templates/shared/."""
-	on_disk = os.path.join(SHARED_DIR, path)
-	assert os.path.isfile(on_disk), (
-		f"shared_overlays rule {rule_name!r} lists path {path!r} "
-		f"but templates/shared/{path} does not exist on disk"
-	)
-
-
-#============================================
-# Two-way sync: (b) disk -> manifest
-# Coverage guard: an uncovered templates/shared/ file must raise RuntimeError.
+# Coverage guard (disk -> manifest)
+# An uncovered templates/shared/ file must raise RuntimeError.
 #============================================
 
 def test_coverage_guard_raises_on_uncovered_shared_file(tmp_path: pathlib.Path) -> None:
@@ -298,39 +252,39 @@ def test_coverage_guard_raises_on_uncovered_shared_file(tmp_path: pathlib.Path) 
 
 # Derive the routing constants from the live manifest so the tests stay in sync
 # with repolib.model.SHARED_OVERLAYS instead of hardcoding the registered values.
-# The two release docs ship as noexist seeds, so their path carries the noexist/
-# prefix; the consumer-side destination stays docs/RELEASE_HISTORY.md and
-# docs/NEWS.md after the prefix is stripped during routing.
+# source_release ships make_release.py UNCONDITIONALLY to its listed types
+# (python incl. PyPI, rust, swift, other); typescript is excluded because those
+# repos are GitHub Pages based and do not cut releases.
 _SOURCE_RELEASE_RULE = repolib.model.SHARED_OVERLAYS['source_release']
 SOURCE_RELEASE_PATHS = _SOURCE_RELEASE_RULE['paths']
 
-# Repo types that should receive the source_release files (no pyproject.toml).
+# Repo types that should receive the source_release files.
 SOURCE_RELEASE_RECIPIENT_TYPES = _SOURCE_RELEASE_RULE['repo_types']
 
 
 @pytest.mark.parametrize('repo_type', SOURCE_RELEASE_RECIPIENT_TYPES)
 @pytest.mark.parametrize('shared_path', SOURCE_RELEASE_PATHS)
-def test_source_release_ships_without_pyproject(
+def test_source_release_ships_to_recipient_types(
 	repo_type: str,
 	shared_path: str,
 	tmp_path: pathlib.Path,
 ) -> None:
-	"""source_release files ship to rust/swift/other/python when pyproject.toml is absent."""
-	# tmp_path has no pyproject.toml, so lacks_file evaluates True for all listed types.
+	"""source_release files ship to every listed type (unconditionally)."""
 	result = repolib.model.shared_path_ships(shared_path, repo_type, str(tmp_path))
 	assert result is True
 
 
 @pytest.mark.parametrize('shared_path', SOURCE_RELEASE_PATHS)
-def test_source_release_skips_python_with_pyproject(
+def test_source_release_ships_to_python_with_pyproject(
 	shared_path: str,
 	tmp_path: pathlib.Path,
 ) -> None:
-	"""source_release files do NOT ship to python repos that carry pyproject.toml (PyPI)."""
-	# Write pyproject.toml so the lacks_file condition evaluates False for python.
+	"""source_release ships to python repos even when they carry pyproject.toml (PyPI)."""
+	# A PyPI python repo gets make_release.py (source snapshot) alongside its
+	# _pypi submit_to_pypi.py; the rule no longer gates on pyproject.toml.
 	(tmp_path / 'pyproject.toml').write_text('[project]\nname = "dummy"\n')
 	result = repolib.model.shared_path_ships(shared_path, 'python', str(tmp_path))
-	assert result is False
+	assert result is True
 
 
 @pytest.mark.parametrize('shared_path', SOURCE_RELEASE_PATHS)

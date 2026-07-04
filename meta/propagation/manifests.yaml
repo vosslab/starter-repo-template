@@ -10,6 +10,24 @@
 # defined. This is data only; the loader applies the correct Python types
 # (frozenset for sets, tuple for meta_test_prefixes, dict for routing_overrides
 # and conditional_overlays).
+#
+# WHEN TO ADD A FILE HERE: only when file LOCATION cannot express the file's
+# routing fate. This is a folder-based propagation system -- prefer placing a
+# file so its folder routes it, and touch this manifest only for genuinely
+# special cases:
+#   - universal file (ships to every type) -> put it in devel/, docs/, or
+#     tests/ at the template root. NO manifest entry.
+#   - single-type file -> put it under templates/<type>/. NO manifest entry.
+#   - one-type-conditional file -> templates/<type>/_<name>/ (conditional_overlays).
+#   - SUBSET of types (more than one, fewer than all), one canonical copy ->
+#     templates/shared/<path> + a shared_overlays rule (this is the ONLY thing
+#     shared_overlays is for).
+#   - root-level file whose fate location cannot encode (repo root holds the
+#     template's own README/VERSION/REPO_TYPE alongside files meant to ship) ->
+#     root_propagate_allowlist / universal_noexist / merge_files / meta_files.
+# Do not add a filename to a list just to "register" it. If a folder already
+# routes it, adding it here is redundant and creates a stale entry when the file
+# is renamed or deleted.
 
 # Routing overrides: per-file exceptions layered on location-based routing.
 # Location (which template folder a file lives in) is the PRIMARY determinant;
@@ -58,15 +76,11 @@ shared_overlays:
   source_release:
     paths:
       - devel/make_release.py
-      - noexist/docs/RELEASE_HISTORY.md
-      - noexist/docs/NEWS.md
     repo_types:
       - rust
       - swift
       - python
       - other
-    when: lacks_file
-    path: pyproject.toml
 
 # Root-level files repolib propagates (ships) to every consumer repo's root.
 # ROOT_PROPAGATE_ALLOWLIST says a root file MAY ship; universal_noexist refines
@@ -77,7 +91,6 @@ root_propagate_allowlist:
   - AGENTS.md
   - source_me.sh
   - pip_requirements-dev.txt
-  - Brewfile
 
 # Files that ship only when absent at the consumer (universal noexist).
 # Overrides the docs/ universal-overwrite default; repo-root-relative paths.
@@ -87,7 +100,6 @@ universal_noexist:
   - docs/AUTHORS.md
   - tests/TESTS_README.md
   - pip_requirements-dev.txt
-  - Brewfile
 
 # Files routed to the MERGE bucket (set-union @-import merge).
 merge_files:

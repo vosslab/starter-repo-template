@@ -159,6 +159,34 @@ Preferred structure:
   ```
   This module uses `git rev-parse --show-toplevel` and is propagated across repos automatically.
 
+### source_me.sh contract
+
+- `source_me.sh` is a bash script sourced into your shell, not run directly. It
+  enforces bash, sources `~/.bashrc`, and exports the Python runtime flags
+  `PYTHONUNBUFFERED` and `PYTHONDONTWRITEBYTECODE`.
+- It ships as a NOEXIST starter seed: the consumer repo owns its copy after
+  bootstrap, so local edits do not propagate back and are never overwritten.
+- Ordering invariant: `source ~/.bashrc` runs FIRST, before any repo-specific
+  environment extension. `~/.bashrc` applies local shell setup and clears
+  `PYTHONPATH`, so any `PYTHONPATH` line must come after it or be wiped.
+- The seed sets no `PYTHONPATH`. One generic seed is shipped to every repo type;
+  a universal `PYTHONPATH` is intentionally omitted. Most repos need none, and a
+  broad path would mask missing-dependency bugs. `PYTHONPATH` need is per-repo
+  (does the repo ship a repo-root package), which varies within a repo type, so
+  there are no repo_type-specific seeds either.
+- When a repo needs its repo-root modules importable while commands run from a
+  subdirectory without installing the repo -- most commonly a repo-root package
+  imported package-qualified (for example `import repolib.console`), or scripts
+  under `tools/` or `tests/` that import repo-root modules -- uncomment the
+  canonical extension block in that repo's `source_me.sh`. Use exactly this
+  idiom (it assumes the repo is inside a Git work tree):
+  ```bash
+  # Must come after sourcing ~/.bashrc, which clears PYTHONPATH.
+  REPO_ROOT="$(git rev-parse --show-toplevel)"
+  export PYTHONPATH="$REPO_ROOT${PYTHONPATH:+:$PYTHONPATH}"
+  unset REPO_ROOT
+  ```
+
 ## Dependency manifests
 - Store Python standard dependencies in `pip_requirements.txt` at the repo root and developer dependencies, e.g., pytest in `pip_requirements-dev.txt`.
 - Use `pip_requirements.txt` not `requirements.txt` for clarity reasons

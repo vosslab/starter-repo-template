@@ -308,7 +308,23 @@ def find_source_for_bucket(template_root: str, bucket: str, file_rel: str, repo_
 	Typed lookups search the repo_type's base root (templates/<repo_type>/) AND each
 	of its conditional overlay roots (templates/<repo_type>/_<name>/) via
 	overlay_roots_for_type(), so overlay-only source files resolve correctly.
+
+	repo_type 'all' has no template root of its own: its plan aggregates every
+	concrete family (see compute_propagation_plan), so a source such as a
+	typescript-only file must be found under that family's root. Fan out across
+	each concrete type and return the first match, keeping this the single home
+	for the 'all' resolution semantic.
 	"""
+	# 'all' resolves by searching each concrete type in turn.
+	if repo_type == LANG_ALL:
+		for candidate_type in REPO_TYPE_ORDER:
+			if candidate_type == LANG_ALL:
+				continue
+			source = find_source_for_bucket(template_root, bucket, file_rel, candidate_type)
+			if source is not None:
+				return source
+		return None
+
 	# Normalize repo_type alias
 	if repo_type == 'universal':
 		repo_type = 'python'

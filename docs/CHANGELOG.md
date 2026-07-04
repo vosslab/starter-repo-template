@@ -1,7 +1,49 @@
 ## 2026-07-03
 
+### Additions and New Features
+
+- `docs/REPO_STYLE.md`: added a `### source_me.sh contract` subsection under
+  Scripts and executables. Documents that `source_me.sh` is bash-only and a
+  NOEXIST/consumer-owned seed (local edits do not propagate back), states the
+  bashrc-first ordering invariant (`~/.bashrc` clears `PYTHONPATH`, so any
+  `PYTHONPATH` line comes after it), records the decision to keep `PYTHONPATH`
+  out of the seed and ship one generic seed for all repo types (no
+  repo_type-specific seeds), and gives the one canonical guarded `PYTHONPATH`
+  extension idiom plus when to enable it. Backed by a `~/nsh`-wide survey of 44
+  `source_me.sh` files: ~34 need no `PYTHONPATH`, and the ~7 that do each need a
+  different target, so no universal line fits and the need does not track repo
+  type.
+- `tests/meta/test_source_me_seed.py`: new template-local test pinning the seed
+  invariant. Sources `source_me.sh` in a subprocess and asserts `PYTHONPATH` is
+  empty (the repo-root extension ships commented) while `PYTHONUNBUFFERED` and
+  `PYTHONDONTWRITEBYTECODE` are `1`. Lives under `tests/meta/`, which the
+  propagation walk skips (`skip_walk_dirs` includes `meta`), so it does not ship
+  to consumers. Guards against ever shipping an active `PYTHONPATH` line.
+
 ### Behavior or Interface Changes
 
+- `meta/propagation/manifests.yaml`: dropped the `when: lacks_file` /
+  `path: pyproject.toml` condition from the `source_release` shared-overlay rule.
+  `make_release.py` (source zip/tgz release) now ships unconditionally to
+  python (INCLUDING PyPI python repos), rust, swift, and other -- typescript
+  stays excluded because those repos are GitHub Pages based and do not cut
+  releases. A PyPI python repo now carries both `make_release.py` (source
+  snapshot, overwrite bucket -- vendored, overwritten each sync) and its `_pypi`
+  `submit_to_pypi.py`. Updated `tests/meta/test_shared_overlays.py` and
+  `meta/docs/PROPAGATION_RULES.md` to match. Kept `make_release.py` in
+  `shared_overlays` rather than universalizing it: routing to a SUBSET of types
+  (all but typescript) is exactly what shared overlays are for.
+- `meta/propagation/manifests.yaml`: added a header note stating when a file
+  belongs in this manifest -- only when folder LOCATION cannot express its
+  routing fate (subset-of-types, never-ship, root files, merge). Universal files
+  go in `devel/`/`docs/`/`tests/`, single-type files under `templates/<type>/`;
+  do not register a filename here that a folder already routes.
+- `source_me.sh`: rewrote the comments and added a commented, canonical
+  repo-root `PYTHONPATH` extension block (disabled by default). No active
+  runtime behavior change -- the bash guard, bashrc-first ordering, and both
+  `PYTHON*` exports are unchanged, and nothing new executes at source time. The
+  comments now state the bashrc-first ordering invariant and when to uncomment
+  the extension.
 - Added `all` as a recognized `REPO_TYPE` token for repos that consume every template family. `all`
   now appears in the repo-type manifest, the reset/bootstrap prompt, and the style docs. Routing for
   `all` aggregates the propagation plan for the existing typed repos so it receives universal files
@@ -9,6 +51,29 @@
 
 ### Fixes and Maintenance
 
+- `repolib/model.py`: taught the lower-level `find_source_for_bucket` resolver to
+  handle `repo_type='all'` by fanning out across every concrete type and
+  returning the first match. Previously only the propagation runner
+  (`process.py`) knew this, so real `all` propagation worked but the model-level
+  resolver returned None for a file living in a concrete family (for example
+  `templates/typescript/check_codebase.sh`). The `all` resolution semantic now
+  lives in one place, shared by the runner and any direct resolver caller. This
+  gap was masked until the stale `Brewfile` noexist entry (below) was removed and
+  `tests/meta/test_repolib_spec_resolves_to_source.py` could reach the `all` case.
+- Removed stale propagation entries for files deleted as empty stubs: `Brewfile`
+  from `root_propagate_allowlist` and `universal_noexist`, and
+  `noexist/docs/RELEASE_HISTORY.md` + `noexist/docs/NEWS.md` from the
+  `source_release` shared-overlay rule in `meta/propagation/manifests.yaml`.
+  Python repos still receive their real `templates/python/noexist/Brewfile`
+  (Homebrew python@3.12) via the typed route. Also removed the now-empty
+  `templates/shared/noexist/` directory. Folder-based routing ships what exists
+  on disk; the manifest must not list deleted sources.
+- `tests/meta/test_shared_overlays.py`: removed `test_rule_path_exists_on_disk`,
+  a test whose whole body was an `os.path.isfile` existence check over the
+  manifest's listed paths. A bare file-exists assertion contradicts the
+  folder-based propagation model and breaks whenever a seed is legitimately
+  deleted. The disk->manifest coverage guard (orphan shared files raise) and the
+  behavioral shipping-logic tests remain.
 - Fixed `all` propagation so bucket source lookup resolves across every concrete repo type instead
   of failing with missing-source errors when a file lives in a different family. `all` now expands
   across every concrete repo type in `REPO_TYPE_ORDER`, so propagation fans out across the full

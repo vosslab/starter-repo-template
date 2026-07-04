@@ -88,16 +88,18 @@ shared_overlays:
   source_release:
     paths:
       - devel/make_release.py
-      - noexist/docs/RELEASE_HISTORY.md
-      - noexist/docs/NEWS.md
     repo_types:
       - rust
       - swift
       - python
       - other
-    when: lacks_file
-    path: pyproject.toml
 ```
+
+The live `source_release` rule ships `make_release.py` unconditionally to
+rust/swift/python/other and excludes typescript (GitHub Pages repos do not cut
+releases). The optional `noexist/`-prefixed paths and `when: lacks_file`
+features documented below are still supported by the mechanism; this rule simply
+does not use them.
 
 - `paths` -- template-relative paths under `templates/shared/` the rule ships. A bare path
   (e.g. `devel/make_release.py`) lands in the overwrite bucket and always overwrites the
