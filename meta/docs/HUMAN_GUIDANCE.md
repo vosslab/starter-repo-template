@@ -99,10 +99,7 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 
 ## Test fixture policy
 
-- Fixture policy is intentional guidance for coding agents. Lead with inline setup first.
-- Durable tests usually keep setup and data close to the assertion. Use real repo files when the real file is the point.
-- Keep separate test data or shared setup long-term only when file shape, loader behavior, or shared infrastructure is under test.
-- Scope: applies to both on-disk test data and custom pytest setup helpers. See the Fixture policy section in [docs/PYTEST_STYLE.md](../../docs/PYTEST_STYLE.md).
+- Use inline setup first. For fixture cases, see the Fixture policy in [docs/PYTEST_STYLE.md](../../docs/PYTEST_STYLE.md).
 
 ## Prefer rule-based routing over per-file customization
 

@@ -234,12 +234,7 @@ import { writeReport } from "./write_report";
 
 ### Node test fixture policy
 
-Inline setup first. Keep durable tests on self-contained inputs such as a literal string or
-short array. Durable tests are usually smaller, clearer, and easier to maintain.
-
-Keep separate test data only when file shape, loader behavior, or shared test infrastructure
-is the behavior under test. See the Fixture policy section in PYTEST_STYLE.md for the
-canonical framing.
+Use inline setup first. For fixture cases, see the Fixture policy in PYTEST_STYLE.md.
 
 ## FORMATTERS AND LINTERS
 

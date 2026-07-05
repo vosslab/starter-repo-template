@@ -1,3 +1,36 @@
+## 2026-07-05
+
+### Behavior or Interface Changes
+
+- `docs/PYTEST_STYLE.md`: rewrote the `## Fixture policy` section into an inline-first policy
+  with a closed three-case durable allowlist (`tmp_path`; the vendored `collect_report`
+  autouse harness; using an existing committed repo file directly when that file is what the
+  test checks). Added a one-sentence definition of "inline" (test input written directly in
+  the test file, close to the assertion). Added a standing policy rule that a committed
+  `tests/fixtures/` directory is shared test infrastructure needing explicit human sign-off
+  before it is added. All instructions phrased positively per the Prompt positively
+  philosophy. Added one checklist item to the "Is this a good pytest?" list pointing at the
+  Fixture policy allowlist.
+- `templates/typescript/docs/TYPESCRIPT_STYLE.md`, `templates/website/docs/PLAYWRIGHT_USAGE.md`,
+  `meta/docs/HUMAN_GUIDANCE.md`: trimmed their fixture mentions to a bare pointer at the
+  canonical Fixture policy in `docs/PYTEST_STYLE.md`, keeping `docs/PYTEST_STYLE.md` the single
+  source of truth (omission over repetition).
+
+### Removals and Deprecations
+
+- `tests/TESTS_README.md`: removed the `tests/playwright/` tree line that advertised an
+  `optional` `fixtures/` directory, so the docs stop inviting fixture creation. This supersedes
+  and removes the "optional test data for loader/file-shape checks" wording added to this same
+  line in the `2026-07-01` entry below; that wording is now gone from the file entirely.
+
+### Decisions and Failures
+
+- Coding agents overproduce fixtures; friendly "when a fixture is OK" prose read as an
+  invitation, and on-disk `tests/fixtures/` directories accumulated stale files. Reshaping the
+  policy into an inline-default closed allowlist, plus trimming satellite mentions across
+  overlay docs, is meant to make the docs resist fixture creation by default. The design goal
+  is "inline first, with durable exceptions," not "fixtures are forbidden."
+
 ## 2026-07-04
 
 ### Additions and New Features
