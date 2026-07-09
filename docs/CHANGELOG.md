@@ -1,3 +1,22 @@
+## 2026-07-09
+
+### Fixes and Maintenance
+
+- `devel/clean_build.sh`: fixed the Swift section of the light clean, which previously deleted
+  `.build` wholesale, wiping SwiftPM's fetched dependency checkouts (`.build/checkouts`,
+  `.build/repositories`, `.build/registry`) and `.build/workspace-state.json` and forcing a
+  re-fetch on the next build. Replaced with targeted deletions of compiled output only
+  (`.build/debug`, `.build/release`, `.build/artifacts`, `.build/build.db`, `*-apple-macosx`
+  triple directories, top-level `.build/*.yaml` build plans), so the light clean now mirrors
+  `swift package clean` (recompile only) instead of `swift package reset` (full re-fetch).
+  Dropped the light clean's `delete_path .swiftpm` (per-user/IDE state, not build output);
+  `dist_clean.sh` still removes it for a full reset. First identified and verified in the
+  `SwiftlyCodeEdit` consumer repo, then ported upstream here so propagation does not
+  reintroduce the bug.
+- `devel/dist_clean.sh`: added the `swift: dependencies re-fetch automatically on next build`
+  line to the header's post-clean reinstall-note block, matching the existing per-language
+  notes for typescript, python, and rust.
+
 ## 2026-07-05
 
 ### Behavior or Interface Changes

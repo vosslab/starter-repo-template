@@ -18,6 +18,7 @@
 #   typescript: npm install
 #   python:     pip install -r pip_requirements.txt -r pip_requirements-dev.txt
 #   rust:       cargo build (recompiles dependencies on next invocation)
+#   swift:      dependencies re-fetch automatically on next build
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
