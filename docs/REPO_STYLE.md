@@ -12,7 +12,7 @@ Core principles guide work in this repo. Cite them by name when making judgment 
 - **Prompt positively.** Tell the model what to do, not what to avoid. Small LMs can confuse negative prompting with positive instructions, which can lead to poor code and seriously flawed results.     Prefer direct instructions like "use explicit key access" over negative ones, like "do not use dict.get()"
 - **Atomic task decomposition.** Break hard problems into the smallest independently completable tasks. Each task should have one owner, one clear outcome, and one verification step.
 - **Be efficient with time.** Subagents and tokens are cheap, but wall time is not. Optimize for implementation time by spreading atomic tasks in parallel.
-- **Fresh subagent per task.** Give each independent task to a new subagent with a self-contained prompt. Reusing a subagent across tasks carries stale context, encourages drift, and weakens independent judgment.
+- **Fresh subagent per task.** Give each independent task to a new subagent with a self-contained prompt. Reusing a subagent across tasks carries stale context, encourages drift, and weakens independent judgment. When a subagent is performing suboptimal, kill and replace it rather than negotiating.
 - **Finish the obvious.** Continue while the next safe step is defined by the plan, implied by the task, or required to verify the work. Obvious follow-on work is part of the task, not a bonus. Stop only at a real blocker, risky action, or change to the user's requested outcome.
 
 ## Repository structure
