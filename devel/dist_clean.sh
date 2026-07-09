@@ -9,8 +9,8 @@
 #
 # Keeps package-lock.json: it is committed and drives reproducible `npm ci`.
 #
-# Universal across repo types (python, typescript, rust). Patterns that do
-# not exist in a given repo are silently skipped via `nullglob` + an
+# Universal across repo types (python, perl, typescript, rust, c/c++, swift,
+# etc.). Patterns that do not exist in a given repo are silently skipped via an
 # existence check, so no false-positive output.
 #
 # After this runs you may need to reinstall language-specific dependencies
@@ -32,6 +32,8 @@ delete_path() {
 }
 
 delete_find_matches() {
+	local label="$1"
+	shift
 	local match
 	while IFS= read -r -d '' match; do
 		rm -rf "$match"
@@ -78,12 +80,38 @@ delete_path test-results
 delete_path playwright-report
 delete_path blob-report
 delete_path coverage
+delete_path cover_db
 
-# Python bytecode and tool caches (any depth).
+# Python bytecode, virtualenvs, and tool caches (any depth).
+delete_path .venv
+delete_path venv
+delete_path env
 delete_find_matches pycache -type d -name '__pycache__'
 delete_find_matches pytest_cache -type d -name '.pytest_cache'
 delete_find_matches mypy_cache -type d -name '.mypy_cache'
 delete_find_matches ruff_cache -type d -name '.ruff_cache'
+
+# Perl build/test artifacts. Do not remove Makefile because many repos commit
+# hand-written makefiles.
+delete_path blib
+delete_path _build
+delete_path Build
+delete_path Build.bat
+delete_path MYMETA.json
+delete_path MYMETA.yml
+delete_path Makefile.old
+delete_path pm_to_blib
+delete_path local/lib/perl5
+
+# C/C++ and CMake/autotools generated outputs.
+delete_path CMakeCache.txt
+delete_path CMakeFiles
+delete_path cmake_install.cmake
+delete_path compile_commands.json
+delete_path autom4te.cache
+delete_find_matches cmakeFiles -type d -name CMakeFiles
+delete_find_matches cmakeCache -type f -name CMakeCache.txt
+delete_find_matches objectFiles -type f \( -name '*.o' -o -name '*.obj' -o -name '*.a' -o -name '*.so' -o -name '*.dylib' \)
 
 # Rust build outputs.
 delete_path target
