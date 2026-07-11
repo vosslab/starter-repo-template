@@ -3,6 +3,7 @@ node_modules/
 
 # Build outputs
 dist/
+dist_*/
 _site/
 *.tsbuildinfo
 _bundle.js
@@ -20,4 +21,3 @@ coverage/
 # Bundler artifacts
 meta.json
 stats.html
-

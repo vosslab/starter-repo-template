@@ -48,9 +48,9 @@ Important: `collect_ignore` only affects pytest test collection. The repo's lint
 
 Enumerating hygiene tests (ascii, whitespace, pyflakes, shebangs, and similar) get their file
 list from one shared helper, `file_utils.discover_files`. It is the canonical discovery API
-and owns git scope selection, absolute-path join, dedupe, skip-dir filtering, extension
-filtering, the `isfile` check, and the sort. Use `file_utils.discover_files` as the single
-source of file discovery; the shared `SKIP_DIRS` and `path_has_skip_dir` live only in
+and owns git scope selection, absolute-path join, dedupe, built-in scratch/directory filtering,
+extension filtering, the `isfile` check, and the sort. Use `file_utils.discover_files` as the
+single source of file discovery; the shared `SKIP_DIRS` and `path_has_skip_dir` live only in
 `file_utils.py`.
 
 Signature:
@@ -76,7 +76,9 @@ only in `file_utils` regression tests that point discovery at a temporary direct
 
 Exclusions come from three layers, in order:
 
-- Layer 1, `SKIP_DIRS` (vendored, `file_utils.py`): universal directory exclusions.
+- Layer 1, universal exclusions (vendored, `file_utils.py`): built-in skipped directories,
+  `_temp*` scratch files/directories, and `dist_*/` scratch build directories, handled by
+  `path_has_skip_dir`.
 - Layer 2, `REPO_HYGIENE_FILTERS` (repo-local, `conftest.py`): per-test repo-local file/glob
   exclusions, keyed by `"all"` or a vendored test key, as lists of repo-relative POSIX glob
   patterns matched with `fnmatch.fnmatchcase`. This is the only home for repo-specific exclusions,
@@ -162,8 +164,8 @@ Two vendored hygiene tests keep the discovery scaffold clean:
   Use builtin generics (`list`, `dict`, `tuple`, `set`) and PEP 604 unions (`X | None`).
   Use `collections.abc` (for example `collections.abc.Callable`) for callable and iterable params.
 - `tests/test_pytest_hygiene.py` -- AST guard ensuring hygiene tests keep all file-discovery
-  logic in `file_utils` (the shared `SKIP_DIRS`, `path_has_skip_dir`, and `gather_*` discovery
-  live there). See the "discovery lives in file_utils" guidance above.
+  logic in `file_utils` (the shared scratch/directory filter, `SKIP_DIRS`, `path_has_skip_dir`,
+  and `gather_*` discovery live there). See the "discovery lives in file_utils" guidance above.
 
 ## See also
 

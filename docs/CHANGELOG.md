@@ -1,3 +1,23 @@
+## 2026-07-11
+
+### Additions and New Features
+
+- TypeScript overlay: added a consumer-owned `playwright.config.ts` seed with `testIgnore`
+  coverage for `_temp*` scratch names and `dist_*/` private lane-build directories.
+
+### Fixes and Maintenance
+
+- Scratch collector contract: preserved the canonical ESLint exclusions for `_temp*` and
+  `dist_*/`, extended `.prettierignore` and the TypeScript gitignore to cover the same names,
+  and made shared Python hygiene discovery explicitly skip those paths even if they are
+  force-tracked. Kept regression coverage behavior-based with one test covering root-level and
+  nested scratch paths through the public discovery helper.
+- The propagated TypeScript style guide now states that every repo-wide collector owns
+  exclusions for `_temp*` and `dist_*/`; gitignore alone does not keep untracked scratch
+  artifacts out of directory-globbing tools. The Playwright test style guide now gives the
+  required `testIgnore` setting directly. The mirrored `docs/CLAUDE_HOOK_USAGE_GUIDE.md`
+  remains unchanged; its source text is owned by the `claude-code-permissions-hook` repo.
+
 ## 2026-07-10
 
 ### Additions and New Features

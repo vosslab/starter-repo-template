@@ -65,6 +65,31 @@ def test_path_has_skip_dir_separator_normalization() -> None:
 
 
 #============================================
+def test_discover_files_excludes_conventional_scratch_paths(
+	tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""
+	Hygiene discovery excludes `_temp*` names and `dist_*/` build trees.
+	"""
+	root = str(tmp_path)
+	rel_paths = [
+		"keep.py",
+		"_temp_check.py",
+		"tests/_temp_viewport_check.spec.mjs",
+		"scratch/_temp_helpers/data.py",
+		"dist_wp5_scratch/main.js",
+		"src/dist_report.py",
+	]
+	write_files(root, rel_paths)
+	stub_git_listers(monkeypatch, tracked=rel_paths)
+
+	result = file_utils.discover_files(repo_root=root)
+
+	rel_result = [os.path.relpath(p, root).replace("\\", "/") for p in result]
+	assert rel_result == ["keep.py", "src/dist_report.py"]
+
+
+#============================================
 def test_discover_files_all_scope_extensions(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
 	"""
 	Discovery applies the case-insensitive extension filter over all tracked files.
