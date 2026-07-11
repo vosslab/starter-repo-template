@@ -1,3 +1,64 @@
+## 2026-07-10
+
+### Additions and New Features
+
+- `templates/swift/docs/LIQUID_GLASS.md`: added two sections on the subtle gotchas of getting
+  Liquid Glass demonstrably correct. `## 10. Verify the glass with visual evidence` documents
+  why screenshots can lie (offscreen/cached render paths such as `cacheDisplay(in:to:)`,
+  `bitmapImageRepForCachingDisplay(in:)`, and `ImageRenderer` may skip live backdrop
+  compositing, so glass captures come out flat gray even when the on-screen app is correct;
+  empty white backdrops give glass nothing to sample) and prescribes an evidence protocol:
+  colorful content under the glass edges, live on-screen capture, a Reduce Transparency
+  differential capture proving the effect responds to system state, a `.regularMaterial`
+  side-by-side control, scrolling-backdrop captures, and per-capture appearance-mode labeling.
+  Includes a flat-glass checklist (SDK/`#available` branch, `UIDesignRequiresCompatibility`,
+  Reduce Transparency setting, backdrop contrast, opaque `.background(...)` in the sampling
+  path, capture path). `## 11. Subtle gotchas: layers and colors` covers z-order (glass above
+  real content), no glass on glass, opaque backgrounds blocking sampling,
+  `GlassEffectContainer`/`glassEffectID` grouping, the capsule default shape, luminance-driven
+  light/dark switching (use semantic foreground styles), `.tint(...)` modulating rather than
+  painting, mid-tone multi-color test backdrops, and `.interactive()` on custom controls, plus
+  a minimal `GlassEvidenceView` gradient harness for evidence captures, and a note that glass
+  self-adjusts opacity with the backdrop (more opaque over busy content, more transparent over
+  plain backgrounds), so cross-backdrop variation is expected behavior, not a rendering bug.
+  Added `## 12. Guarantee contrast over glass`: glass guarantees no minimum text contrast (the
+  backdrop is user-controlled), so contrast must come from layered fixes -- honor
+  `accessibilityReduceTransparency` (opaque fill swap;
+  `NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency` on AppKit paths), honor
+  `colorSchemeContrast == .increased` (full-alpha semantic labels, no custom tints), a 40
+  percent black scrim under white text as a contrast floor, vibrancy for secondary labels only,
+  judging contrast over near-white/bright-photo/mid-tone-gradient backdrops, and auditing
+  captures with a contrast checker (below 4.5:1 normal text or 3:1 large text is a bug).
+  Renumbered the compact rule set to `## 13` and extended it with three verification and
+  contrast bullets; added the "Applying Liquid Glass to custom views" reference. Capture-path
+  and differential-proof hazards were first identified during `SwiftlyCodeEdit` WP-G2
+  hardening, then encoded upstream here. Added a purpose line (the doc helps a manager get
+  Liquid Glass right) and a task-grouped table of contents with anchor links: design sections
+  1-9 (read before dispatching UI work), verification sections 10-12 (read before accepting
+  screenshots as evidence, with one-line hooks per section), and the section 13 summary.
+
+- `templates/swift/docs/LIQUID_GLASS.md`: made layer and contrast correctness more obvious to
+  managers and coders. Section 10 gains a "What correct glass looks like" expected-appearance
+  matrix (backdrop x correct appearance: nearly invisible over plain white/black is expected,
+  mid-tone gradient is the best judging backdrop, busy content raises the material's own
+  opacity, Reduce Transparency yields the flat differential-proof fill) with the note that a
+  capture can only prove glass over the two contrast-bearing backdrops, plus a "Paste-able
+  evidence brief for dispatch" code block managers copy verbatim into subagent briefs (four
+  required captures and explicit SHIP/REWORK criteria). Section 11 gains an ASCII
+  sampling-path diagram (vibrant label over glass over a clear gap over content) showing where
+  an opaque `.background(...)` blocks sampling. TOC hook for section 10 updated.
+
+### Behavior or Interface Changes
+
+- `templates/swift/docs/LIQUID_GLASS.md`: reframed the doc SwiftUI-first with AppKit treated
+  as deprecated. Retitled section 8 from "Keep AppKit bridges visually owned" to "Treat AppKit
+  bridges as legacy escape hatches": SwiftUI is the implementation layer for all new UI
+  including every glass surface; an AppKit bridge is reached only when SwiftUI cannot yet
+  express the behavior, kept narrow, and planned for removal. Updated the intro, section 1
+  (build all new UI with standard SwiftUI components), the section 12
+  `NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency` note (now labeled a legacy
+  AppKit bridge check), the compact rule set bullets, and the TOC anchor to match.
+
 ## 2026-07-09
 
 ### Fixes and Maintenance
