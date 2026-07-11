@@ -1,9 +1,9 @@
 # Liquid Glass Guidance for macOS 26+ SwiftUI Apps
 
-Liquid Glass should be treated as the default macOS 26 visual language, not as an optional decorative layer. The best way to get strong Liquid Glass adoption is to use standard SwiftUI components first, then add custom glass only where the interface needs a deliberate control, navigation, or transient surface. SwiftUI is the implementation layer for all new UI in this repo family; treat AppKit as deprecated, reached only through narrow legacy bridges (see section 8).
+Liquid Glass should be treated as the default macOS 26 visual language, not as an optional decorative layer. The best way to get strong Liquid Glass adoption is to use standard SwiftUI components first, then add custom glass only where the interface needs a deliberate control, navigation, or transient surface. SwiftUI is the implementation layer for all new UI in this repo family; treat AppKit as deprecated, reached only through narrow legacy bridges (see section 9).
 
-This doc exists to help a manager get Liquid Glass right: sections 1-9 guide design decisions
-before work is dispatched, sections 10-12 verify and debug the result, and section 13 is the
+This doc exists to help a manager get Liquid Glass right: sections 1-10 guide design decisions
+before work is dispatched, sections 11-13 verify and debug the result, and section 14 is the
 short version.
 
 ## Table of contents
@@ -16,23 +16,25 @@ Design the interface (read before dispatching UI work):
 - [4. Separate content, control, and navigation layers](#4-separate-content-control-and-navigation-layers)
 - [5. Use custom Liquid Glass deliberately](#5-use-custom-liquid-glass-deliberately)
 - [6. Preserve native macOS behavior](#6-preserve-native-macos-behavior)
-- [7. Check accessibility early](#7-check-accessibility-early)
-- [8. Treat AppKit bridges as legacy escape hatches](#8-treat-appkit-bridges-as-legacy-escape-hatches)
-- [9. Review custom UI against a simple test](#9-review-custom-ui-against-a-simple-test)
+- [7. Design toolbars and menus for glass](#7-design-toolbars-and-menus-for-glass) -- macOS 27
+  uniform frosted toolbar, system-owned chrome, user transparency slider
+- [8. Check accessibility early](#8-check-accessibility-early)
+- [9. Treat AppKit bridges as legacy escape hatches](#9-treat-appkit-bridges-as-legacy-escape-hatches)
+- [10. Review custom UI against a simple test](#10-review-custom-ui-against-a-simple-test)
 
 Verify and debug the result (read before accepting screenshots as evidence):
 
-- [10. Verify the glass with visual evidence](#10-verify-the-glass-with-visual-evidence) --
+- [11. Verify the glass with visual evidence](#11-verify-the-glass-with-visual-evidence) --
   capture-path hazards, evidence protocol, flat-glass checklist, expected-appearance matrix,
   paste-able dispatch brief
-- [11. Subtle gotchas: layers and colors](#11-subtle-gotchas-layers-and-colors) -- z-order,
+- [12. Subtle gotchas: layers and colors](#12-subtle-gotchas-layers-and-colors) -- z-order,
   glass on glass, sampling path, shape defaults, adaptive opacity
-- [12. Guarantee contrast over glass](#12-guarantee-contrast-over-glass) -- accessibility
+- [13. Guarantee contrast over glass](#13-guarantee-contrast-over-glass) -- accessibility
   flags, scrims, vibrancy, multi-backdrop contrast audits
 
 Summary:
 
-- [13. Compact rule set](#13-compact-rule-set)
+- [14. Compact rule set](#14-compact-rule-set)
 
 ## 1. Use system components first
 
@@ -192,7 +194,62 @@ Good rule:
 
 > Liquid Glass should make the app feel more native, not more custom.
 
-## 7. Check accessibility early
+## 7. Design toolbars and menus for glass
+
+Liquid Glass chrome evolves year over year, and Apple retunes it at the OS
+level: macOS 26 (Tahoe) shipped floating, separated toolbar controls, and
+macOS 27 (Golden Gate) replaces them with a uniform frosted toolbar across the
+top of the app for better legibility and control visibility, standardizes
+window corner radius, returns sidebars from floating panels to edge-to-edge
+layouts, adds a system-wide transparency slider (ultra clear to fully tinted),
+and diffuses complex content behind glass more aggressively with darkened
+edges and brighter specular highlights.[^golden-gate-glass]
+
+The design consequence: system chrome belongs to the system.
+
+- Build toolbars with the standard SwiftUI `.toolbar { ToolbarItem(...) }`
+  API and let the system draw the toolbar material. Apps on standard
+  components inherit each year's retuning (floating in 26, uniform frosted in
+  27) with no code change.
+- Toolbar quality is best-practices work, not API work; adoption is
+  automatic and the craft is in grouping, symbols, and restraint:
+  - Grouping is meaning. Items sharing a glass group read as related
+    actions; split semantic clusters with a fixed `ToolbarSpacer` and push
+    groups apart with a flexible one. Navigation controls together, view
+    modes together, confirmatory actions ("Done", "Save") apart. Fewer,
+    well-grouped items beat many flat ones; overflow belongs in menus.
+  - Symbols first, consistently. Use SF Symbol items built as `Label`s (the
+    text serves accessibility and customization even when hidden); keep icon
+    versus text consistent within the bar, with text reserved for
+    confirmatory placements.
+  - Placement drives prominence. Rely on `ToolbarItemPlacement`
+    (`.confirmationAction` gets the prominent glass treatment
+    automatically); tint at most one action per bar, via
+    `.buttonStyle(.glassProminent)` so the tint covers the whole button; use
+    badges with the same restraint; otherwise trust the defaults.
+  - Tune where content meets the bar with `.scrollEdgeEffectStyle(_:for:)`:
+    `.hard` for a discrete edge over tables, editors, and dense data,
+    `.soft` for immersive content, `.automatic` otherwise.
+  - Apple's worked example is the "Landmarks: Refining the system provided
+    Liquid Glass effect in toolbars" sample in the SwiftUI documentation.
+- Keep custom `.glassEffect` surfaces out of the toolbar band and the menu
+  bar; hand-rolled glass chrome freezes one year's look and drifts from the
+  platform on every OS release.
+- Build menus with the standard `Menu` and `commands` APIs; the system owns
+  menu material and legibility treatment.
+- Treat translucency as a user-controlled range, not a fixed design value:
+  the macOS 27 Appearance slider lets users tune glass from ultra clear to
+  fully tinted. This is one more reason contrast must be guaranteed by your
+  layers (section 13), never tuned to one observed look.
+- Evidence captures of toolbar or menu chrome should record the OS version
+  alongside the appearance mode; the same standard code renders differently
+  on 26 and 27 by design.
+
+Good rule:
+
+> Own your glass surfaces; rent the system's chrome. Toolbars and menus are rented.
+
+## 8. Check accessibility early
 
 Liquid Glass depends on translucency, depth, reflection, refraction, and motion. These can reduce usability if applied too broadly.
 
@@ -215,7 +272,7 @@ Good rule:
 
 > Accessibility is part of the Liquid Glass design, not a cleanup pass.
 
-## 8. Treat AppKit bridges as legacy escape hatches
+## 9. Treat AppKit bridges as legacy escape hatches
 
 SwiftUI is the implementation layer for all new UI, including every glass surface. Treat AppKit as deprecated: reach for an AppKit bridge only when SwiftUI cannot yet express the behavior (advanced text editing internals, low-level window behavior, responder-chain work), keep the bridge narrow, and plan to remove it when SwiftUI catches up.
 
@@ -234,7 +291,7 @@ AppKit adapter (legacy escape hatch)
   owns only the behavior SwiftUI cannot yet express
 ```
 
-## 9. Review custom UI against a simple test
+## 10. Review custom UI against a simple test
 
 Before adding custom Liquid Glass, ask:
 
@@ -247,7 +304,7 @@ Before adding custom Liquid Glass, ask:
 
 If the answer to the last question is yes, use the standard component.
 
-## 10. Verify the glass with visual evidence
+## 11. Verify the glass with visual evidence
 
 Liquid Glass fails silently. The code compiles, the app runs, and a missing precondition (old
 SDK, opaque backing, reduced transparency, empty backdrop) degrades the effect to a flat fill
@@ -325,7 +382,8 @@ Return these captures with the result:
 3. The same layout with .regularMaterial in place of glass; it must look
    different from capture 1.
 4. Light and dark captures, each labeled with the effective appearance
-   queried at capture time.
+   queried at capture time and the OS version (glass chrome renders
+   differently on macOS 26 and 27 by design).
 SHIP when the glass region visibly blurs and refracts the backdrop and all
 text over glass measures at least 4.5:1 (3:1 for text 18pt and larger).
 REWORK when the glass region reads as a flat panel, or when any pair of
@@ -336,7 +394,7 @@ Good rule:
 
 > A screenshot proves glass only when the glass region visibly samples what is behind it.
 
-## 11. Subtle gotchas: layers and colors
+## 12. Subtle gotchas: layers and colors
 
 Glass samples the content layer behind it, so layer order and color choices decide whether the
 effect is visible at all.[^applying-liquid-glass]
@@ -405,7 +463,7 @@ struct GlassEvidenceView: View {
 }
 ```
 
-## 12. Guarantee contrast over glass
+## 13. Guarantee contrast over glass
 
 Glass is a real-time compositing layer: it samples the pixels behind it, blurs them, adjusts
 saturation, and overlays the control. Text contrast over glass therefore shifts with whatever
@@ -437,7 +495,7 @@ Good rule:
 > The backdrop is user-controlled, so contrast over glass must be guaranteed by your layers,
 > not observed on one lucky screenshot.
 
-## 13. Compact rule set
+## 14. Compact rule set
 
 Use this as the short version:
 
@@ -455,6 +513,8 @@ Use this as the short version:
   content.
 - Guarantee text contrast with reduce-transparency and increased-contrast checks plus scrims;
   never trust contrast measured over one backdrop.
+- Build toolbars and menus with standard APIs; the system retunes that chrome every OS release
+  (floating in macOS 26, uniform frosted in 27).
 
 ## References
 
@@ -464,3 +524,4 @@ Use this as the short version:
 [^custom-liquid-glass]: Apple Developer, WWDC25, "Explore custom Liquid Glass with SwiftUI." https://developer.apple.com/videos/play/wwdc2025/284/
 [^applying-liquid-glass]: Apple Developer Documentation, "Applying Liquid Glass to custom views." https://developer.apple.com/documentation/SwiftUI/Applying-Liquid-Glass-to-custom-views
 [^designing-for-macos]: Apple Developer Documentation, "Designing for macOS." https://developer.apple.com/design/human-interface-guidelines/designing-for-macos
+[^golden-gate-glass]: MacRumors, "All the Liquid Glass Changes in macOS Golden Gate." https://www.macrumors.com/2026/06/09/macos-golden-gate-liquid-glass/

@@ -2,6 +2,26 @@
 
 ### Additions and New Features
 
+- `templates/swift/docs/LIQUID_GLASS.md`: added `## 7. Design toolbars and menus for glass`
+  covering the macOS 27 (Golden Gate) Liquid Glass retuning: the uniform frosted toolbar
+  replacing macOS 26's floating separated controls, standardized window corner radius,
+  edge-to-edge sidebars, the system-wide transparency slider (ultra clear to fully tinted),
+  and stronger diffusion with darkened edges and brighter specular highlights (MacRumors
+  reference added). Core guidance: system chrome belongs to the system -- build toolbars with
+  standard `.toolbar`/`ToolbarItem` and menus with standard `Menu`/`commands` APIs so each
+  year's retuning applies automatically; keep custom `.glassEffect` out of the toolbar band
+  and menu bar; treat translucency as a user-controlled range; record OS version in evidence
+  captures. Renumbered sections 7-13 to 8-14, updated the TOC, intro references, the dispatch
+  brief (captures now labeled with OS version), and the compact rule set. Follow-up: reworked
+  the section 7 toolbar guidance from an API listing into best practices (toolbar quality is
+  best-practices work, not API work): grouping is meaning (`ToolbarSpacer` fixed splits
+  semantic clusters, flexible pushes groups apart; navigation together, confirmatory actions
+  apart; overflow to menus), symbols first built as `Label`s with icon-versus-text consistency,
+  placement drives prominence (`ToolbarItemPlacement`, at most one tinted action via
+  `.buttonStyle(.glassProminent)`, trust defaults), and `.scrollEdgeEffectStyle(_:for:)`
+  (`.hard` over dense data, `.soft` immersive) for where content meets the bar; pointed at
+  Apple's "Landmarks: Refining the system provided Liquid Glass effect in toolbars" sample.
+
 - `templates/swift/docs/LIQUID_GLASS.md`: added two sections on the subtle gotchas of getting
   Liquid Glass demonstrably correct. `## 10. Verify the glass with visual evidence` documents
   why screenshots can lie (offscreen/cached render paths such as `cacheDisplay(in:to:)`,
