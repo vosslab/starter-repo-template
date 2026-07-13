@@ -7,6 +7,10 @@
 
 ### Fixes and Maintenance
 
+- `devel/bump_version.py`: added Rust metadata support. The utility now discovers and updates
+  package versions in `Cargo.toml` and matching local-package entries in `Cargo.lock`, while
+  leaving dependency versions in the lockfile unchanged. `Cargo.toml` and `pyproject.toml`
+  version discovery now shares one TOML parser.
 - Scratch collector contract: preserved the canonical ESLint exclusions for `_temp*` and
   `dist_*/`, extended `.prettierignore` and the TypeScript gitignore to cover the same names,
   and made shared Python hygiene discovery explicitly skip those paths even if they are
