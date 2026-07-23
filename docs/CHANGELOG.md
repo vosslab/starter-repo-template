@@ -1,3 +1,19 @@
+## 2026-07-22
+
+### Additions and New Features
+
+- `docs/REPO_STYLE.md`: added three core principles: use the scientific method to refine plans
+  through evidence, recognize when further refinement will not materially improve a good
+  solution, and design systems that can adapt as requirements and understanding change.
+
+### Behavior or Interface Changes
+
+- `docs/REPO_STYLE.md`: refined the existing time-efficiency principle to make independent
+  parallel atomic tasks the preferred way to shorten implementation time.
+- `docs/REPO_STYLE.md`: reordered the core principles into a decision-to-execution sequence:
+  choose the problem, gather evidence, shape a durable design, bound refinement, decompose and
+  communicate the work, delegate independent tasks, parallelize them, and finish the obvious.
+
 ## 2026-07-11
 
 ### Additions and New Features
