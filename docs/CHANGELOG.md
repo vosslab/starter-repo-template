@@ -5,6 +5,8 @@
 - `docs/REPO_STYLE.md`: added three core principles: use the scientific method to refine plans
   through evidence, recognize when further refinement will not materially improve a good
   solution, and design systems that can adapt as requirements and understanding change.
+- `docs/REPO_STYLE.md`: added the **Dream big** core principle.
+  Pursue the strongest version of the work, then turn that ambition into practical next steps.
 
 ### Behavior or Interface Changes
 
