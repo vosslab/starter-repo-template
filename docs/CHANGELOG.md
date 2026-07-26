@@ -1,3 +1,18 @@
+## 2026-07-26
+
+### Fixes and Maintenance
+
+- `devel/bump_version.py`: explicit `--set-version` now synchronizes every discovered version
+  source even when their current versions differ. Rust `Cargo.toml` and local-package
+  `Cargo.lock` entries receive Cargo-compatible three-part SemVer without leading zeroes, so
+  repo CalVer `26.07` becomes Cargo version `26.7.0` while `VERSION` remains `26.07`.
+
+### Developer Tests and Notes
+
+- Added a Rust regression test covering the reported `-A --set-version 26.07` workflow with
+  mismatched `Cargo.toml`, `Cargo.lock`, and `VERSION` values. The test also proves dependency
+  entries in `Cargo.lock` remain unchanged.
+
 ## 2026-07-22
 
 ### Additions and New Features
