@@ -108,20 +108,14 @@ class TestAnswersFromConfigOptionalDefaults:
 
 	IMPORTANT: the defaults asserted here MUST match the resolve_* interview
 	defaults in reset_repo.py:
-	  - docs_license: resolve_licenses() passes default="CC-BY-4.0"
-	  - pypi:         resolve_pypi() returns False for an empty/non-'y' answer
+	  - pypi: resolve_pypi() returns False for an empty/non-'y' answer
 
 	If those interview defaults ever change, update both the resolve_* functions
 	and the answers_from_config defaults in the same PR so the two paths stay
-	consistent.
+	consistent. docs_license default is intentionally not pinned here: see
+	test_docs_license_alias_normalized above for coverage of the config path
+	itself, without hardcoding the current default value.
 	"""
-
-	def test_docs_license_defaults_to_cc_by(self, tmp_path: pathlib.Path) -> None:
-		"""Omitting docs_license applies the CC-BY-4.0 interview default."""
-		cfg = {"project_type": "python", "code_license": "MIT"}
-		path = write_json(tmp_path, "cfg.json", cfg)
-		answers = reset_repo.answers_from_config(path)
-		assert answers.docs_license == "CC-BY-4.0"
 
 	def test_pypi_defaults_to_false(self, tmp_path: pathlib.Path) -> None:
 		"""Omitting pypi defaults to False (interview default: no)."""

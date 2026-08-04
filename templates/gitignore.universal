@@ -11,4 +11,7 @@ output*/
 _temp*.?*
 
 # Sibling repos checked out for local cross-repo work
-OTHER_REPOS/
+/OTHER_REPOS/
+
+# Local-only scratch, never committed
+/LOCAL_ONLY/

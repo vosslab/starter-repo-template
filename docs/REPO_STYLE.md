@@ -26,73 +26,15 @@ Core principles guide work in this repo. Cite them by name when making judgment 
 - Keep `README.md` and `AGENTS.md` at the repo root.
 - Determine REPO_ROOT with `git rev-parse --show-toplevel`, not by deriving paths from the current working directory.
 
-## Project type marker
-
-Every repo carries `REPO_TYPE` at the repo root: one or more comma-separated lowercase tokens plus a newline, for example `python` or `python,rust`. Tokens: `python`, `typescript`, `rust`, `swift`, `other`, `scripted`, `website`, `compiled`, `all`. Every token is a directly usable marker, including the three base types. A repo that declares several types receives the additive union of every declared type's overlays; see [Multiple declared types](#multiple-declared-types). `all` is an alias for every other token, so it means the repo consumes every template family and receives every typed overlay in addition to universal files. Missing marker triggers detection via `tools/detect_repo_type.py`; if detection is unavailable or ambiguous, falls back to `LANG_UNKNOWN`; detection always proposes a single token, and a human writes any second type. `LANG_UNKNOWN` repos receive only universal walker-routed files (`docs/`, `tests/`, `devel/`); no `ROUTING_OVERRIDES` `exclude_repos` rule applies. The propagator (`propagate_style_guides.py` entry script + `repolib/` package: `repolib.repo.read_repo_type` reads the marker, `repolib.files.compute_propagation_plan` dispatches overlays) routes files by repo type; `reset_repo.py` writes the marker during bootstrap by calling `repolib` directly (no longer shells out to `propagate_style_guides.py`). `REPO_TYPE` is maintained after bootstrap; it controls future propagation behavior, not just initial scaffolding. File location is the primary routing determinant: every file under `templates/<type>/` ships to that type, files under `docs/`, `tests/`, and `devel/` ship universally. `docs/PYTHON_STYLE.md` ships to all repo types. The only routing exception encoded in `ROUTING_OVERRIDES` is `exclude_repos` (blocks a file from shipping back to its source repo). Conditional overlays (`_folder` convention, see `meta/docs/PROPAGATION_RULES.md`) are selected by a `conditional_overlays` manifest rule. A shared overlay routes one or more files under `templates/shared/<path>` to a chosen SET of repo types via a `shared_overlays` manifest rule (named `paths`, `repo_types`, and an optional `lacks_file` presence condition that ships only when a marker file is absent at the consumer); every `templates/shared/` file must be named by a rule or the shared walk raises. All propagation manifests live in `meta/propagation/manifests.yaml`. `swift` currently ships universal files only (no `templates/swift/` overlay); future swift-specific files are added by folder location (`templates/swift/<path>`) with no code change required.
-
-### Multiple declared types
-
-A repo that genuinely ships two families -- a Python CLI with a Rust extension,
-a Python tool with a TypeScript front end -- declares both:
-`python,rust`. Rules:
-
-- The repo receives the additive union of every declared type's overlays, plus
-  each declared type's inherited ancestors (see
-  [Repo type inheritance](#repo-type-inheritance)).
-- Declaration order sets precedence. When two declared overlays supply the same
-  path, the first declared type wins. `python,rust` and `rust,python` ship the
-  identical file set and differ only on such a collision.
-- `all` expands in place to every other known token, on the identical
-  multi-token code path. Mixed forms such as `python,all` are legal and defined
-  by that in-place expansion plus first-occurrence dedupe, so `python` keeps
-  precedence and the remaining types follow.
-- Unknown tokens are dropped with a warning and the valid half is preserved, so
-  `python,pyhton` routes as `python`. The whole marker degrades to `other` only
-  when no declared token is known. A bad marker warns; it never aborts
-  propagation.
-- Canonical written form, emitted by tooling: lowercase types, comma
-  separated, no spaces, declaration order preserved, and `all` written
-  literally rather than expanded. Readers tolerate surrounding whitespace and
-  spaces after commas.
-- At the interactive type prompts, a run of single-letter aliases is accepted
-  without commas, so `pr` means `python,rust` and `p,r` does the same. A full
-  name is always matched whole first, so `all` and `other` are never split even
-  though `a` and `o` are aliases too. This is prompt input only; the marker
-  file is still written in the canonical form above.
-- `.gitignore` handling is additive. Every declared type contributes its own
-  managed block (`# === PYTHON ===`, `# === RUST ===`) alongside
-  `# === UNIVERSAL ===`. Nothing is pruned when a type leaves a marker, so
-  narrowing `python,rust` to `python` leaves the `# === RUST ===` block in place
-  until someone deletes it. Blocks are delimited, so removal is one edit.
-
-### Repo type inheritance
-
-Concrete repo types inherit overlays from a base type, forming a single-token
-inheritance DAG (`repo_type_inherits` in `meta/propagation/manifests.yaml`):
-`python -> scripted`, `rust -> compiled`, `swift -> compiled`, `typescript ->
-website`. `scripted`, `website`, `compiled`, and `other` are roots with no
-parent. `repolib.model.effective_type_chain(marker)` accepts a whole marker
-string and returns each declared token followed by its ancestors, nearest-first
-and deduped across the marker, so `python,rust` yields `['python', 'scripted',
-'rust', 'compiled']`. Every overlay- and shared-routing path consumes this one
-helper, so a repo receives its own overlay plus every ancestor's overlay,
-unioned. `repolib.model.expand_marker_types` is the pure token expansion behind
-it, and `repolib.model.validate_marker` is the warning layer that applies the
-unknown-token policy at the sites that read a marker. A child and its ancestors
-never ship the same file, so overlay walk order does not matter for correctness.
-
-Routing rules target a base type so every descendant inherits automatically.
-The `source_release` shared overlay targets `[scripted, compiled, other]`:
-any future scripted or compiled language picks up `devel/make_release.py`
-with no manifest edit, while the website family (`website`, `typescript`)
-stays out, because a docs or game site publishes builds rather than GitHub
-source releases. `PLAYWRIGHT_TEST_STYLE.md` ships from
-`templates/website/docs/` as a normal type overlay (the old
-`html_playwright_style` shared-overlay rule and its `[typescript, other]`
-hand list are retired); `typescript` receives it by inheriting `website`, so
-any repo that serves HTML gets browser-test-authoring style by declaring
-`REPO_TYPE=website` (or a type that inherits it) rather than by a per-file
-manifest rule.
+Every repo carries a `REPO_TYPE` file at the repo root holding one or more
+comma-separated lowercase type names plus a newline, for example `python` or
+`python,rust`. The available names are `python`, `typescript`, `rust`, `swift`,
+`other`, `scripted`, `website`, `compiled`, and `all`. A repo declares several
+names when it genuinely ships several families, such as a Python CLI with a Rust
+extension. The marker declares which shared rule sets the repo follows. Write it
+in canonical form: lowercase, comma separated, no spaces, declaration order
+preserved. Keep `REPO_TYPE` maintained after bootstrap; it is a live declaration,
+not a one-time scaffolding artifact.
 
 ## AGENTS.md files
 
@@ -202,7 +144,7 @@ Preferred structure:
 - When PATCH == 0, use shorthand `25.02b1` instead of `25.02.0b1`
 - Prefer zero-padded 0Y.0M for readability and lexicographic sorting. Packaging tools may normalize 25.02.* to 25.2.*; this does not affect version ordering.
 - Reference: [PyPA version specifiers](https://packaging.python.org/en/latest/specifications/version-specifiers/).
-- When `devel/make_release.py` is present (propagated from `templates/shared/devel/`), use it to
+- When `devel/make_release.py` is present, use it to
   prepare GitHub source releases: it checks CalVer freshness, ensures the version tag is free,
   verifies the committed LICENSE, builds and spot-checks zip and tgz archives, generates an
   LLM-drafted release description, and optionally writes `docs/RELEASE_HISTORY.md` and
@@ -232,19 +174,18 @@ Preferred structure:
 - `source_me.sh` is a bash script sourced into your shell, not run directly. It
   enforces bash, sources `~/.bashrc`, and exports the Python runtime flags
   `PYTHONUNBUFFERED` and `PYTHONDONTWRITEBYTECODE`.
-- It ships as a NOEXIST starter seed: the consumer repo owns its copy after
-  bootstrap, so local edits do not propagate back and are never overwritten.
+- It arrives as a starter seed: each repo owns its copy after bootstrap, so
+  local edits stay put and are never overwritten.
 - Ordering invariant: `source ~/.bashrc` runs FIRST, before any repo-specific
   environment extension. `~/.bashrc` applies local shell setup and clears
   `PYTHONPATH`, so any `PYTHONPATH` line must come after it or be wiped.
-- The seed sets no `PYTHONPATH`. One generic seed is shipped to every repo type;
-  a universal `PYTHONPATH` is intentionally omitted. Most repos need none, and a
-  broad path would mask missing-dependency bugs. `PYTHONPATH` need is per-repo
-  (does the repo ship a repo-root package), which varies within a repo type, so
-  there are no repo_type-specific seeds either.
+- The seed sets no `PYTHONPATH`. That omission is deliberate: most repos need
+  none, and a broad path would mask missing-dependency bugs. Whether a repo
+  needs one depends on that repo alone (does it ship a repo-root package), so
+  each repo adds the line for itself.
 - When a repo needs its repo-root modules importable while commands run from a
   subdirectory without installing the repo -- most commonly a repo-root package
-  imported package-qualified (for example `import repolib.console`), or scripts
+  imported package-qualified (for example `import mypackage.module`), or scripts
   under `tools/` or `tests/` that import repo-root modules -- uncomment the
   canonical extension block in that repo's `source_me.sh`. Use exactly this
   idiom (it assumes the repo is inside a Git work tree):
@@ -302,7 +243,7 @@ Preferred structure:
 - `docs/AUTHORS.md`: primary maintainers and notable contributors
 - `docs/CLAUDE_HOOK_USAGE_GUIDE.md`: generated hook behavior reference, not a repo style source of truth. If repo style differs from hook examples, update repo style docs and recommend a hook rule update upstream.
 - `docs/MARKDOWN_STYLE.md`: Markdown writing rules and formatting conventions for this repo.
-- `docs/PLAYWRIGHT_TEST_STYLE.md`: browser test authoring style for the website family (`website` and its inheriting `typescript`); ships via the `templates/website/` overlay.
+- `docs/PLAYWRIGHT_TEST_STYLE.md`: browser test authoring style for repos that serve HTML.
 - `docs/PYTEST_STYLE.md`: pytest test-writing rules, commands, fixture policy, and failure triage.
 - `docs/PYTHON_STYLE.md`: Python formatting, linting, and project-specific conventions.
 - `docs/REPO_STYLE.md`: repo-level organization, conventions, and file placement rules.

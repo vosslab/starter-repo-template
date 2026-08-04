@@ -87,11 +87,15 @@ DAG declared in the `repo_type_inherits` manifest
 roots) is a directly usable `REPO_TYPE` marker.
 
 A marker may declare several tokens, comma separated (for example
-`python,rust`). `repolib.model.expand_marker_types(marker)` is the pure token
-expansion, splitting the marker and expanding `all` in place, and
+`python,rust`), when a repo genuinely ships several families -- a Python CLI
+with a Rust extension, a Python tool with a TypeScript front end.
+`repolib.model.expand_marker_types(marker)` is the pure token expansion,
+splitting the marker and expanding `all` in place, and
 `repolib.model.validate_marker(marker, repo_label)` is the warning layer that
-drops unrecognized tokens at the sites that read a marker. See
-[docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for the marker rules themselves.
+drops unrecognized tokens at the sites that read a marker.
+[docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) states the short consumer-facing
+contract (where the file lives, what it declares, canonical form); the parsing
+and routing rules below are template-side and live only here.
 
 `repolib.model.effective_type_chain(marker)` returns each declared token
 followed by its ancestors, nearest-first and deduped across the whole marker,
@@ -113,7 +117,43 @@ and is the one expansion every routing path consumes:
 The loader (`repolib.manifests.build_repo_type_inherits`) validates at import
 time that every parent is a known token and the graph is acyclic. A base with
 no `templates/<base>/` directory contributes universal files alone, so adding
-a future type under an existing base needs only a manifest entry.
+a future type under an existing base needs only a manifest entry. `swift`
+currently has no `templates/swift/` overlay of its own, so a swift repo receives
+universal files plus the `compiled` overlay; future swift-specific files are
+added by folder location (`templates/swift/<path>`) with no code change.
+
+### Marker parsing rules
+
+- **Canonical written form**, emitted by tooling: lowercase types, comma
+  separated, no spaces, declaration order preserved, and `all` written literally
+  rather than expanded. Readers tolerate surrounding whitespace and spaces after
+  commas.
+- **`all` expands in place** to every other known token on the identical
+  multi-token code path, then first-occurrence dedupe applies. Mixed forms such
+  as `python,all` are legal and defined by that expansion, so `python` keeps
+  precedence and the remaining types follow.
+- **Unknown tokens are dropped with a warning** and the valid half is preserved,
+  so `python,pyhton` routes as `python`. The whole marker degrades to `other`
+  only when no declared token is recognized. A bad marker warns; it never aborts
+  a batch run.
+- **A missing marker triggers detection** via `tools/detect_repo_type.py`. When
+  detection is unavailable or ambiguous the repo falls back to the
+  `LANG_UNKNOWN` pseudo-type (`repolib.model.LANG_UNKNOWN`), which receives only
+  the universal walker-routed files (`docs/`, `tests/`, `devel/`) and matches no
+  `ROUTING_OVERRIDES` `exclude_repos` rule. Detection always proposes a single
+  token; a human writes any second type.
+- **Prompt input accepts single-letter aliases.** At the interactive type
+  prompts a run of letters without commas is accepted, so `pr` means
+  `python,rust` and `p,r` does the same (`repolib.repo.expand_choice_piece`). A
+  full name is matched whole first, so `all` and `other` are never split even
+  though `a` and `o` are aliases too. This is prompt input only; the marker file
+  is still written in the canonical form above.
+- **`.gitignore` emission is additive per declared type.**
+  `repolib.files.merge_gitignore_blocks` writes `# === UNIVERSAL ===` always,
+  then one `# === <TYPE> ===` block per declared type with a non-empty gitignore
+  template, in declaration order. Nothing is pruned when a type leaves a marker,
+  so narrowing `python,rust` to `python` leaves the `# === RUST ===` block in
+  place until someone deletes it. Blocks are delimited, so removal is one edit.
 
 ## Shared overlays (templates/shared/)
 

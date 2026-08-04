@@ -642,13 +642,13 @@ def resolve_licenses() -> tuple:
 		except ValueError as e:
 			print(f"Error: {e}. Please try again.")
 
-	# Docs license: empty answer accepts the CC-BY-4.0 default.
+	# Docs license: empty answer accepts the none default.
 	user_input = input(
-		"Docs license?\n  [cb] CC-BY-4.0\n  [cs] CC-BY-SA-4.0\n  [n] none\nChoice [cb]: "
+		"Docs license?\n  [cb] CC-BY-4.0\n  [cs] CC-BY-SA-4.0\n  [n] none\nChoice [n]: "
 	).strip()
 	try:
 		docs_license = resolve_license(
-			user_input, DOCS_LICENSES, DOCS_ALIASES, default="CC-BY-4.0"
+			user_input, DOCS_LICENSES, DOCS_ALIASES, default="none"
 		)
 	except ValueError as e:
 		sys.exit(f"Invalid docs license: {e}")
@@ -756,7 +756,7 @@ def answers_from_config(path: str) -> ResetAnswers:
 
 	Required keys (project_type, code_license) are read so a missing one raises
 	a clear message naming the key. Optional keys use defaults that match the
-	interview defaults exactly: docs_license=CC-BY-4.0, pypi=False, stage=True,
+	interview defaults exactly: docs_license=none, pypi=False, stage=True,
 	commit=False. License values reuse resolve_license so accepted values cannot
 	drift from the interview path.
 
@@ -783,11 +783,11 @@ def answers_from_config(path: str) -> ResetAnswers:
 		)
 	except ValueError as exc:
 		sys.exit(f"Error: invalid code_license in config: {exc}")
-	# Optional docs_license defaults to CC-BY-4.0 (matches interview default).
-	docs_raw = config.get("docs_license", "CC-BY-4.0")
+	# Optional docs_license defaults to none (matches interview default).
+	docs_raw = config.get("docs_license", "none")
 	try:
 		docs_license = resolve_license(
-			str(docs_raw), DOCS_LICENSES, DOCS_ALIASES, default="CC-BY-4.0"
+			str(docs_raw), DOCS_LICENSES, DOCS_ALIASES, default="none"
 		)
 	except ValueError as exc:
 		sys.exit(f"Error: invalid docs_license in config: {exc}")

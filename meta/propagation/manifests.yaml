@@ -119,6 +119,10 @@ meta_files:
   - pip_extras.txt
   - pip_requirements-meta.txt
   - docs/CHANGELOG.md
+  # A repo's backlog is its own. This file previously landed in overwrite_files
+  # for every repo type, so each propagation replaced a consumer's TODO list
+  # with this template's. Never ship it; each repo writes its own.
+  - docs/TODO.md
 
 # Glob patterns (template-root-relative) that NEVER ship. Rotation archives like
 # docs/CHANGELOG-2026-06a.md must not propagate; the active docs/CHANGELOG.md stays

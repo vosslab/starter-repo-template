@@ -11,6 +11,23 @@
   fallback layer, kept out of the routing hot path so a bad token warns once).
 - `repolib.model.effective_type_chain` now accepts a whole marker string, not just one token,
   and returns each declared token followed by its ancestors, deduped nearest-first.
+- `tests/meta/test_no_meta_content_leaks.py`: new guard for a leak class nothing covered before.
+  The existing guards (`is_meta_file`, `assert_not_meta`, `tests/meta/test_no_meta_leaks.py`)
+  protect ROUTING -- which files ship. Nothing protected CONTENT -- what a shipped file's prose
+  points at. So a legitimately shipped doc could tell every consumer to run a path only this
+  repo has. Scope is plan-driven (the union of shipped `.md` across every repo type via
+  `compute_propagation_plan`, resolved back to the template source), so a newly shipped doc is
+  covered with no test edit. The forbidden vocabulary is derived from `repolib.model.META_DIRS`
+  rather than hand-listed, so a new meta directory extends the check automatically.
+- `templates/rust/docs/RUST_STYLE.md`: new Rust style guide, shipped by folder location to
+  repos declaring `rust` (no manifest edit needed). Covers the `cargo fmt --check` and
+  `cargo clippy -- -D warnings` gates, naming, module and crate layout, error handling, the
+  `unwrap`/`expect` boundary, ownership idioms, `unsafe` policy, doc comments, and the
+  `#[cfg(test)]` versus `tests/` split. It states where Rust convention DIFFERS from
+  `docs/PYTHON_STYLE.md` rather than contradicting it silently: the tabs rule is Python-specific
+  and `rustfmt` output is authoritative for `.rs`; `pub use` re-export in `lib.rs` is idiomatic
+  Rust and is the explicit exception to the `__init__.py` re-export ban; and "avoid try/except"
+  translates to "`?` propagates, handle at the boundary", not "avoid `Result`".
 
 ### Behavior or Interface Changes
 
@@ -38,6 +55,23 @@
   single-type output is not byte-identical to before. Only blocks the propagator manages are
   touched: a hand-written block still butts against a following managed block, because its
   content is not rewritten.
+- `reset_repo.py`: the interactive interview's docs-license default changed from `CC-BY-4.0`
+  to `none`, so a fresh bootstrap no longer silently applies a Creative Commons license to a
+  repo's documentation. The prompt suffix is now `Choice [n]: `. The config-file path
+  (`answers_from_config`) moved to the same default, because the docstring there states the
+  two paths match exactly; both call sites and that docstring were changed together. No new
+  control flow was needed -- `none` was already in `DOCS_LICENSES`, and both `preflight_check`
+  and the license-install phase already branched on `docs_license != "none"`.
+- `templates/gitignore.universal`: `OTHER_REPOS/` is now root-anchored as `/OTHER_REPOS/`, and
+  `/LOCAL_ONLY/` was added. Anchoring matters because the unanchored form also ignored a
+  nested `src/OTHER_REPOS/`, which was never the intent. Both entries already existed in this
+  repo's own hand-written `.gitignore` block; they now ship to every consumer.
+- `devel/dist_clean.sh` cleans considerably more. Python packaging artifacts (`*.egg-info/`
+  and `*.egg` at any depth, `.eggs`, `sdist`, `wheelhouse`, `pip-wheel-metadata`,
+  `.installed.cfg`), virtualenvs at any depth (`.venv` and `venv` moved from root-only
+  `delete_path` to `delete_find_matches` sweeps), more Python tool caches (`.tox`, `.nox`,
+  `.hypothesis`, `.coverage` and `.coverage.*`, `htmlcov`, `.dmypy.json`, `.pytype`), and Node
+  framework caches (`.turbo`, `.next`, `.svelte-kit`, `.vite`, `.parcel-cache`).
 
 ### Fixes and Maintenance
 
@@ -81,12 +115,43 @@
   `overlay_roots_for_type`, `shared_rule_ships_to`, and `shared_path_ships`, which still
   described a single type token although all four accept a marker through
   `effective_type_chain`.
+- `docs/REPO_STYLE.md` no longer documents this template repo's own propagator internals to
+  every consumer repo. The file went 345 -> 285 lines: the `Project type marker`,
+  `Multiple declared types`, and `Repo type inheritance` sections were deleted, and the
+  consumer-facing `REPO_TYPE` contract (root location, canonical comma-separated form, the nine
+  valid type names, maintained after bootstrap) now lives as one paragraph inside
+  `Repository structure`. Also cleaned: the `templates/shared/devel/` provenance note in
+  Versioning, `import repolib.console` as the `source_me.sh` example (now
+  `import mypackage.module`), the `PLAYWRIGHT_TEST_STYLE.md` overlay mechanism, and two
+  `source_me.sh` bullets leaking `NOEXIST` bucket naming. The gate is that
+  `grep -nE 'repolib|manifests\.yaml|templates/|propagate_style_guides|meta/|reset_repo|detect_repo_type'`
+  over the file returns nothing.
+- `meta/docs/PROPAGATION_RULES.md` 288 -> 328 lines, gaining a `Marker parsing rules` section.
+  Only genuinely uncovered detail was moved there; material the file already documented (the
+  inheritance DAG, `expand_marker_types`, `validate_marker`, `effective_type_chain`) was deleted
+  outright rather than duplicated, since two drifting copies of one rule is the failure mode
+  this cleanup exists to fix. Its dangling "see REPO_STYLE.md for the marker rules themselves"
+  pointer was corrected.
+- `LANG_UNKNOWN` and the `tools/detect_repo_type.py` detection fallback were documented in no
+  markdown file anywhere in the repo -- they existed only in `repolib/` source. Found while
+  auditing what could safely be cut; now recorded in meta.
 
 ### Removals and Deprecations
 
 - Removed the three ad-hoc `all` fan-out branches -- the plan recursion in `repolib/files.py`,
   the source fan-out in `repolib/model.py`, and the source fan-out in `repolib/process.py` --
   and replaced them with the one multi-token mechanism.
+- `docs/TODO.md` removed. All five of its items shipped in this milestone and are recorded
+  above; the file also never should have existed alongside `meta/docs/TODO.md`. Completed items
+  were pruned from `meta/docs/TODO.md` at the same time (GitHub release scripts, the
+  release/version-history skill, the repo link script, the `.github` deploy-pages mechanism, the
+  package.json pin-sync mechanism, and the `commit_changelog.py` day-scoping complaint, which
+  the consecutive-heading-run filter now handles).
+- `tests/meta/test_reset_config.py`: deleted `test_docs_license_defaults_to_cc_by`. It pinned a
+  hardcoded default, which `docs/PYTEST_STYLE.md` names as brittle: it asserted a tunable
+  constant rather than user-visible behavior, so it broke on an intended change while proving
+  nothing. Deleted rather than re-pinned to `none`, per "a missing pytest is cheaper than a
+  fragile one". The class docstring's stale docs-license contract line was trimmed with it.
 
 ### Decisions and Failures
 
@@ -103,6 +168,35 @@
   overlay tests `all` could not see. Measurement showed it returns 0 entries both before and
   after, because the static spec already contains every template test by location. The branch
   fix is hygiene, not an observable fix.
+- Design decision: the nested-`target` sweep added to `devel/dist_clean.sh` is gated rather
+  than a bare `find . -name target`. A nested `target` is deleted only when its parent holds a
+  `Cargo.toml` or the directory itself carries cargo's `CACHEDIR.TAG` or `.rustc_info.json`.
+  An unguarded sweep would delete asset directories, which are commonly named `target`. The
+  gate was verified against a probe tree containing both a real crate output dir and a decoy.
+- Design decision: the superseded unanchored `OTHER_REPOS/` line was NOT added to
+  `meta/propagation/deprecated_gitignore.txt`. Every line in that file is stripped from every
+  consumer `.gitignore` without an origin check, and a consumer may have added that pattern
+  independently. A duplicate ignore line is harmless; a bad strip silently un-ignores someone's
+  directory. The duplication is left in place deliberately.
+- `devel/dist_clean.sh` deliberately does not sweep `bin/`, `lib/`, or `tmp/`. Those names are
+  too generic to delete safely at any depth. Bare `env` stays root-only for the same reason,
+  while `.venv` and `venv` are swept at any depth.
+- `templates/rust/docs/RUST_STYLE.md` was drafted against a locally held PDF of the Rust book,
+  then every citation was converted to the free online edition at `doc.rust-lang.org/book`,
+  because the PDF does not ship and a consumer cannot follow a citation to a file they do not
+  have. The guidance is unchanged; only the provenance moved. Roughly 45 inline
+  chapter-and-section references became working links, and each URL was checked to resolve
+  rather than constructed from a guessed slug -- the online edition's numbering does not always
+  match print, and a dead link in a shipped style guide is worse than no citation.
+- `docs/TODO.md` was found to ship in `overwrite_files` for every repo type, so each propagation
+  replaced a consumer repo's own backlog with this template's. Found by the new content-leak
+  check. Fixed as a ROUTING change (added to `meta_files`) rather than by rewriting the file or
+  exempting it from the check, because the defect was where the file went, not what it said.
+  The file itself was then removed: its items are implemented and recorded here, and
+  template-development work belongs in `meta/docs/TODO.md`, which never ships. Keeping two TODO
+  files is what caused the wishlist to land in the shipping one.
+- The new content check carries an empty exemption set on purpose. The one candidate for an
+  exemption turned out to be a routing bug; an exemption would have hidden it.
 
 ## 2026-07-26
 
