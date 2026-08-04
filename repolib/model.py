@@ -153,21 +153,162 @@ def ancestors(repo_type: str) -> list[str]:
 	return chain
 
 
-def effective_type_chain(repo_type: str) -> list[str]:
+def expand_marker_types(marker: str) -> list[str]:
 	"""
-	Return repo_type followed by its ancestors, nearest-first.
+	Expand a REPO_TYPE marker string into its ordered list of declared types.
+
+	A marker may declare several types, comma separated (e.g. 'python,rust'), and the
+	repo receives the additive union of every declared type's overlays. The alias 'all'
+	expands in place to every type in REPO_TYPE_ORDER except 'all' itself, so 'all'
+	rides the same multi-type path as any other marker rather than a special case.
+
+	Pure function: no warnings, no filesystem access, no fallback. It is safe to call
+	repeatedly from routing hot paths. Unrecognized types pass through untouched;
+	warning and degrade belong to validate_marker, not here.
+
+	Args:
+		marker (str): Raw REPO_TYPE marker text, one or more comma-separated types.
+
+	Returns:
+		list[str]: Declared types in declaration order, deduplicated by first
+			occurrence. An empty or all-empty marker returns [].
+	"""
+	# Collect declared types in declaration order, deduping by first occurrence.
+	declared_types: list[str] = []
+	for piece in marker.split(','):
+		# Tolerate surrounding whitespace and stray spaces after commas.
+		declared_type = piece.strip()
+		if not declared_type:
+			continue
+		# 'all' expands in place to every concrete type, preserving marker order.
+		if declared_type == LANG_ALL:
+			for known_type in REPO_TYPE_ORDER:
+				if known_type == LANG_ALL:
+					continue
+				if known_type not in declared_types:
+					declared_types.append(known_type)
+			continue
+		if declared_type not in declared_types:
+			declared_types.append(declared_type)
+	return declared_types
+
+
+def partition_known_types(marker: str) -> tuple[list[str], list[str]]:
+	"""
+	Split a marker's declared types into the recognized and unrecognized halves.
+
+	Membership in KNOWN_REPO_TYPES is the single validity test for a declared type,
+	and this is the one place that applies it. Callers that need only one half take
+	only that half, so the rule lives here rather than being restated at each site
+	where a marker is validated or gated.
+
+	The internal pseudo-types ('universal', LANG_UNKNOWN) are deliberately absent
+	from KNOWN_REPO_TYPES so they never surface in prompts, docs, or marker
+	validation. They are therefore reported as unrecognized here, and the callers
+	that accept them screen for them before calling.
+
+	Args:
+		marker (str): Raw REPO_TYPE marker text, one or more comma-separated types.
+
+	Returns:
+		tuple[list[str], list[str]]: (known_types, unknown_types), each in
+			declaration order.
+	"""
+	# One pass over the expansion; membership is the only validity test.
+	known_types: list[str] = []
+	unknown_types: list[str] = []
+	for declared_type in expand_marker_types(marker):
+		if declared_type in KNOWN_REPO_TYPES:
+			known_types.append(declared_type)
+		else:
+			unknown_types.append(declared_type)
+	return known_types, unknown_types
+
+
+def effective_type_chain(marker: str) -> list[str]:
+	"""
+	Return every declared type followed by its ancestors, nearest-first.
 
 	This is the one canonical expansion every routing path consumes, so overlay
 	selection, source resolution, and shared-overlay routing all agree on which
-	base types a concrete marker inherits.
+	base types a marker inherits. Each type from expand_marker_types contributes
+	itself and then its ancestors, deduped nearest-first across the whole marker:
+	'python,rust' yields ['python', 'scripted', 'rust', 'compiled'].
+
+	A single-type marker returns exactly [repo_type, *ancestors(repo_type)],
+	unchanged from the single-type behavior every existing caller relies on. An
+	unrecognized type contributes only itself; since no templates/<unknown>/ root
+	exists, it routes to nothing rather than misrouting.
 
 	Args:
-		repo_type (str): Consumer repository type token.
+		marker (str): Consumer REPO_TYPE marker (one or more comma-separated types).
 
 	Returns:
-		list[str]: [repo_type, *ancestors(repo_type)].
+		list[str]: Declared types and their ancestors, nearest-first, deduplicated.
 	"""
-	return [repo_type, *ancestors(repo_type)]
+	# Union each declared type's own chain, keeping declaration order across types.
+	chain: list[str] = []
+	for declared_type in expand_marker_types(marker):
+		for chain_type in [declared_type, *ancestors(declared_type)]:
+			# Dedup while preserving nearest-first order.
+			if chain_type not in chain:
+				chain.append(chain_type)
+	return chain
+
+
+def validate_marker(marker: str, repo_label: str) -> str:
+	"""
+	Validate a REPO_TYPE marker and return the marker to route with.
+
+	This is the validation layer, kept separate from the pure parsing in
+	expand_marker_types so warnings fire once at the marker readers instead of once
+	per resolver call. Unrecognized types are dropped with a single warning naming
+	each, so 'python,pyhton' still routes as 'python': the valid half is preserved
+	and the typo stays visible. Only when NO declared type is recognized does the
+	marker degrade to 'other', so a bad marker still never aborts a batch run.
+
+	Args:
+		marker (str): Raw REPO_TYPE marker text as read from the consumer repo.
+		repo_label (str): Repository name used in warning messages.
+
+	Returns:
+		str: Canonical comma-joined marker of the recognized types, or 'other' when
+			the marker names no recognized type.
+	"""
+	# repolib.console is imported here, inside the function body, not at module
+	# level. repolib.model loads its manifests at import time through
+	# repolib.repo.resolve_source_dir, and repolib.repo imports repolib.model, so
+	# this module keeps every repolib import function-scoped to stay clear of that
+	# cycle. This import also binds the name `repolib` as a function-local, so it
+	# must precede every repolib.* reference in this function.
+	import repolib.console
+	known_types, unknown_types = partition_known_types(marker)
+	unknown_text = ', '.join(repr(declared_type) for declared_type in unknown_types)
+	# No recognized type at all: degrade to other rather than routing nothing.
+	if not known_types:
+		# An empty, whitespace-only, or comma-only marker declares nothing at all,
+		# so unknown_text would render blank; warn about the empty marker itself
+		# instead of an empty list of types.
+		if not unknown_types:
+			repolib.console.log_action(
+				"warn",
+				f"repo={repo_label} REPO_TYPE marker is empty; treating as other"
+			)
+		else:
+			repolib.console.log_action(
+				"warn",
+				f"repo={repo_label} REPO_TYPE type(s) {unknown_text} not recognized; treating as other"
+			)
+		return LANG_OTHER
+	canonical_marker = ','.join(known_types)
+	# Some declared types were bad: drop them, keep the valid half, name typos once.
+	if unknown_types:
+		repolib.console.log_action(
+			"warn",
+			f"repo={repo_label} REPO_TYPE type(s) {unknown_text} not recognized; "
+			f"routing as {canonical_marker!r}"
+		)
+	return canonical_marker
 
 
 #============================================
@@ -222,7 +363,8 @@ def select_overlay_dirs(repo_type: str, repo_dir: str) -> list[str]:
 	base overlay it inherits.
 
 	Args:
-		repo_type (str): Consumer repository type (python, typescript, rust, swift, other, all).
+		repo_type (str): Consumer repository marker: one type token or a comma-separated
+			list (python, typescript, rust, swift, other, all, ...).
 		repo_dir (str): Consumer repository directory to test marker files against.
 
 	Returns:
@@ -275,7 +417,8 @@ def overlay_roots_for_type(template_root: str, repo_type: str) -> list[str]:
 
 	Args:
 		template_root (str): Template root directory.
-		repo_type (str): Repository type (python, typescript, rust, swift, other, all).
+		repo_type (str): Repository marker: one type token or a comma-separated
+			list (python, typescript, rust, swift, other, all, ...).
 
 	Returns:
 		list[str]: Ordered, deduplicated candidate overlay root directories under
@@ -326,7 +469,8 @@ def shared_rule_ships_to(rule: dict, rule_name: str, repo_type: str, repo_dir: s
 	Args:
 		rule (dict): A shared_overlays rule ({paths, repo_types, optional when/path}).
 		rule_name (str): Rule name, used only for a clear error message.
-		repo_type (str): Consumer repository type (python, typescript, rust, swift, other, all).
+		repo_type (str): Consumer repository marker: one type token or a comma-separated
+			list (python, typescript, rust, swift, other, all, ...).
 		repo_dir (str): Consumer repository directory to test the marker file against.
 
 	Returns:
@@ -366,7 +510,8 @@ def shared_path_ships(file_rel: str, repo_type: str, repo_dir: str) -> bool:
 	Args:
 		file_rel (str): Consumer-relative path of the shared file (e.g.
 			'devel/make_release.py'), relative to templates/shared/.
-		repo_type (str): Consumer repository type (python, typescript, rust, swift, other, all).
+		repo_type (str): Consumer repository marker: one type token or a comma-separated
+			list (python, typescript, rust, swift, other, all, ...).
 		repo_dir (str): Consumer repository directory to test marker files against.
 
 	Returns:
@@ -412,31 +557,22 @@ def find_source_for_bucket(template_root: str, bucket: str, file_rel: str, repo_
 		template_root (str): Template root directory.
 		bucket (str): Bucket name (overwrite_files, noexist_files, devel_files, test_files).
 		file_rel (str): Relative path of the file.
-		repo_type (str): Repository type (python, typescript, rust, swift, other, all). Defaults to 'universal'.
+		repo_type (str): Repository marker: one type token or a comma-separated list
+			(python, typescript, rust, swift, other, all, ...). Defaults to 'universal'.
 
 	Returns:
 		str | None: Canonical source path if found, None otherwise.
 
-	Typed lookups search the repo_type's base root (templates/<repo_type>/) AND each
-	of its conditional overlay roots (templates/<repo_type>/_<name>/) via
+	Typed lookups search every declared type's base root (templates/<type>/) AND each
+	of its conditional overlay roots (templates/<type>/_<name>/) via
 	overlay_roots_for_type(), so overlay-only source files resolve correctly.
 
-	repo_type 'all' has no template root of its own: its plan aggregates every
-	concrete family (see compute_propagation_plan), so a source such as a
-	typescript-only file must be found under that family's root. Fan out across
-	each concrete type and return the first match, keeping this the single home
-	for the 'all' resolution semantic.
+	A multi-type marker needs no special case here: overlay_roots_for_type() returns
+	the roots of every declared type and its ancestors, nearest-first, so the first
+	declared type wins a same-path collision. 'all' is just the marker that declares
+	every concrete type, so a typescript-only source still resolves under its own
+	family root.
 	"""
-	# 'all' resolves by searching each concrete type in turn.
-	if repo_type == LANG_ALL:
-		for candidate_type in REPO_TYPE_ORDER:
-			if candidate_type == LANG_ALL:
-				continue
-			source = find_source_for_bucket(template_root, bucket, file_rel, candidate_type)
-			if source is not None:
-				return source
-		return None
-
 	# Normalize repo_type alias
 	if repo_type == 'universal':
 		repo_type = 'python'

@@ -108,16 +108,8 @@ def apply_file_bucket(bucket_name: str, spec: dict, repo_dir: str, repo_type: st
 	bucket_skips = 0
 
 	def _source_for_bucket(file_rel: str, bucket: str) -> str | None:
-		"""Resolve a source path, fanning out across all concrete types for repo_type=all."""
-		if repo_type != 'all':
-			return repolib.model.find_source_for_bucket(context.source_dir, bucket, file_rel, repo_type)
-		for candidate_type in repolib.model.REPO_TYPE_ORDER:
-			if candidate_type == 'all':
-				continue
-			source_file = repolib.model.find_source_for_bucket(context.source_dir, bucket, file_rel, candidate_type)
-			if source_file is not None:
-				return source_file
-		return None
+		"""Resolve a source path for the (possibly multi-type) repo_type marker."""
+		return repolib.model.find_source_for_bucket(context.source_dir, bucket, file_rel, repo_type)
 
 	# Defense in depth: assert no dispatcher entry is a META FILE even if the
 	# walker was bypassed (plan read from disk, user-supplied paths, etc.).

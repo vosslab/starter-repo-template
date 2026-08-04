@@ -1,3 +1,109 @@
+## 2026-08-03
+
+### Additions and New Features
+
+- `REPO_TYPE` markers may now declare several types as a comma-separated list, for example
+  `python,rust`. The repo receives the additive union of every declared type's overlays plus
+  each declared type's inherited ancestors, and declaration order decides which overlay wins
+  when two declared types supply the same path.
+- `repolib/model.py`: added `expand_marker_types` (pure marker-to-token expansion, with `all`
+  expanded in place and first-occurrence dedupe) and `validate_marker` (the warning and
+  fallback layer, kept out of the routing hot path so a bad token warns once).
+- `repolib.model.effective_type_chain` now accepts a whole marker string, not just one token,
+  and returns each declared token followed by its ancestors, deduped nearest-first.
+
+### Behavior or Interface Changes
+
+- Unknown tokens in a marker are now dropped with a warning and the valid half is preserved,
+  so `python,pyhton` routes as `python`. The marker degrades to `other` only when no declared
+  token is known. Previously any unrecognized token degraded the whole marker to `other`.
+- The interactive repo-type prompts in `repolib/repo.py` and `reset_repo.py` accept a comma
+  list and write a canonical marker: lowercase, comma separated, no spaces, declaration order
+  preserved, and `all` written literally rather than expanded.
+- Both repo-type prompts also accept a run of single-letter aliases, so `pr` means
+  `python,rust` without needing a comma. A piece is matched whole first, so a full name is
+  never taken apart -- `all` and `other` still resolve as themselves even though `a` and `o`
+  are aliases. `repolib.repo.expand_choice_piece` is the shared parser behind both prompts,
+  and the form is documented in [REPO_STYLE.md](REPO_STYLE.md), the `README.md` interview
+  description, and the prompt text itself.
+- `reset_repo.py`: accepting the offered default with an empty answer now normalizes that
+  default through the same path as typed input. Previously the stored marker was returned
+  verbatim, so a marker carrying duplicates or stray spacing survived a bare Enter.
+- `.gitignore` managed blocks are now separated by a blank line, which makes a file carrying
+  several typed blocks easier to scan. The separator is carried as the last line of each
+  block's own content so repeated runs rewrite it rather than accumulating one blank per run,
+  and a file written by an earlier version converges on the first run. This applies to the
+  `UNIVERSAL` block too, so a SINGLE-type repo's `.gitignore` also gains one blank line on its
+  next propagation; that is a deliberate formatting change, and it is the one place where
+  single-type output is not byte-identical to before. Only blocks the propagator manages are
+  touched: a hand-written block still butts against a following managed block, because its
+  content is not rewritten.
+
+### Fixes and Maintenance
+
+- An `all` repo's on-disk `.gitignore` now receives the typed blocks. The fix is in
+  `merge_gitignore_blocks`, which `repolib/process.py` calls directly with the raw marker; it
+  now emits one managed block per declared type (`# === PYTHON ===`, `# === RUST ===`) instead
+  of a single block for the literal marker text. The propagation plan's `gitignore_block`
+  bucket was already correct and is not the site of this fix.
+- Fixed a latent cross-type bucket-collision bug in the deleted `all` recursion. The old code
+  applied the `UNIVERSAL_NOEXIST` / typed-noexist / `MERGE_FILES` bucket overrides per child
+  plan, then aggregated the results, so each child's override step saw only its own buckets
+  and could not detect a collision that existed only across two declared types. A synthetic
+  template tree reproduced this: the same consumer path shipped as a normal overlay file under
+  one type and under `noexist/` for another type landed in both `overwrite_files` and
+  `noexist_files` under the old code. The new single walk applies the overrides once over the
+  unioned buckets, so the file routes to `noexist_files` alone. This never showed up in the
+  shipped template tree, which contains no such collision, which is why the parity gate stays
+  byte-identical; it is a latent bug fixed, not a user-visible change.
+- `meta/docs/PROPAGATION_RULES.md`: updated the "Repo type inheritance" section, which still
+  described a single-token marker and the pre-change `effective_type_chain(repo_type)`
+  signature. It now describes multi-token markers, names `expand_marker_types` and
+  `validate_marker`, and cross-references [REPO_STYLE.md](REPO_STYLE.md) for the marker rules
+  instead of restating them.
+- `reset_repo.py`: `normalize_project_type` now shares the prompt alias table with the
+  propagator (`repolib.repo.REPO_TYPE_CHOICE_ALIASES`) rather than keeping a second identical
+  copy, so adding or renaming a repo type is one edit. Only the table is shared; reset still
+  exits on an invalid piece while the propagator's reader keeps the valid half.
+- `README.md`: the reset interview description now mentions that a comma-separated repo type
+  list such as `python,rust` is accepted.
+- Renamed the multi-type wording from "token" to "type" across `repolib/model.py`,
+  `repolib/files.py`, `repolib/repo.py`, and `reset_repo.py`, since the repo already says
+  "type" everywhere else (`REPO_TYPE`, `KNOWN_REPO_TYPES`, `expand_marker_types`). This covers
+  local variables, docstrings, and the marker warning text, which now reads
+  `REPO_TYPE type(s) 'pyhton' not recognized`. `reset_repo.py`'s license-token code is a
+  different concept and keeps its own wording.
+- `repolib/model.py`: added `partition_known_types`, the one place that applies
+  `KNOWN_REPO_TYPES` membership. The same partition was previously written out at four call
+  sites, so the rule (including the deliberate exclusion of the `universal` and `unknown`
+  pseudo-types) could drift between them.
+- `repolib/model.py`: aligned the `Args:` docstrings of `select_overlay_dirs`,
+  `overlay_roots_for_type`, `shared_rule_ships_to`, and `shared_path_ships`, which still
+  described a single type token although all four accept a marker through
+  `effective_type_chain`.
+
+### Removals and Deprecations
+
+- Removed the three ad-hoc `all` fan-out branches -- the plan recursion in `repolib/files.py`,
+  the source fan-out in `repolib/model.py`, and the source fan-out in `repolib/process.py` --
+  and replaced them with the one multi-token mechanism.
+
+### Decisions and Failures
+
+- Design decision: `all` was reimplemented as an alias over the general multi-token path
+  rather than kept as a special case, so one mechanism covers both and the two paths cannot
+  drift apart.
+- Two gaps asserted in an earlier draft of the plan were refuted by measuring the baseline,
+  recorded here so the log stays an accurate learning record.
+- Refuted claim one: `compute_propagation_plan('all')['gitignore_block']` was claimed to be
+  empty beyond the universal lines. Measurement showed it was already a full union, produced
+  as a side effect of the old recursion computing each child plan. The real defect sat one
+  level down in `merge_gitignore_blocks`, so the fix is narrower than first believed.
+- Refuted claim two: fixing the `auto_discover_test_files` branch was claimed to recover
+  overlay tests `all` could not see. Measurement showed it returns 0 entries both before and
+  after, because the static spec already contains every template test by location. The branch
+  fix is hygiene, not an observable fix.
+
 ## 2026-07-26
 
 ### Fixes and Maintenance

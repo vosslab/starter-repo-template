@@ -28,7 +28,42 @@ Core principles guide work in this repo. Cite them by name when making judgment 
 
 ## Project type marker
 
-Every repo carries `REPO_TYPE` at the repo root: one lowercase token plus newline. Tokens: `python`, `typescript`, `rust`, `swift`, `other`, `scripted`, `website`, `compiled`, `all`. Every token is a directly usable marker, including the three base types. `all` means the repo consumes every template family and should receive every typed overlay in addition to universal files. Missing marker triggers detection via `tools/detect_repo_type.py`; if detection is unavailable or ambiguous, falls back to `LANG_UNKNOWN`. An unrecognized token in an existing marker (a typo or a not-yet-added type) logs a warning and falls back to `other`, rather than aborting propagation. `LANG_UNKNOWN` repos receive only universal walker-routed files (`docs/`, `tests/`, `devel/`); no `ROUTING_OVERRIDES` `exclude_repos` rule applies. The propagator (`propagate_style_guides.py` entry script + `repolib/` package: `repolib.repo.read_repo_type` reads the marker, `repolib.files.compute_propagation_plan` dispatches overlays) routes files by repo type; `reset_repo.py` writes the marker during bootstrap by calling `repolib` directly (no longer shells out to `propagate_style_guides.py`). `REPO_TYPE` is maintained after bootstrap; it controls future propagation behavior, not just initial scaffolding. File location is the primary routing determinant: every file under `templates/<type>/` ships to that type, files under `docs/`, `tests/`, and `devel/` ship universally. `docs/PYTHON_STYLE.md` ships to all repo types. The only routing exception encoded in `ROUTING_OVERRIDES` is `exclude_repos` (blocks a file from shipping back to its source repo). Conditional overlays (`_folder` convention, see `meta/docs/PROPAGATION_RULES.md`) are selected by a `conditional_overlays` manifest rule. A shared overlay routes one or more files under `templates/shared/<path>` to a chosen SET of repo types via a `shared_overlays` manifest rule (named `paths`, `repo_types`, and an optional `lacks_file` presence condition that ships only when a marker file is absent at the consumer); every `templates/shared/` file must be named by a rule or the shared walk raises. All propagation manifests live in `meta/propagation/manifests.yaml`. `swift` currently ships universal files only (no `templates/swift/` overlay); future swift-specific files are added by folder location (`templates/swift/<path>`) with no code change required.
+Every repo carries `REPO_TYPE` at the repo root: one or more comma-separated lowercase tokens plus a newline, for example `python` or `python,rust`. Tokens: `python`, `typescript`, `rust`, `swift`, `other`, `scripted`, `website`, `compiled`, `all`. Every token is a directly usable marker, including the three base types. A repo that declares several types receives the additive union of every declared type's overlays; see [Multiple declared types](#multiple-declared-types). `all` is an alias for every other token, so it means the repo consumes every template family and receives every typed overlay in addition to universal files. Missing marker triggers detection via `tools/detect_repo_type.py`; if detection is unavailable or ambiguous, falls back to `LANG_UNKNOWN`; detection always proposes a single token, and a human writes any second type. `LANG_UNKNOWN` repos receive only universal walker-routed files (`docs/`, `tests/`, `devel/`); no `ROUTING_OVERRIDES` `exclude_repos` rule applies. The propagator (`propagate_style_guides.py` entry script + `repolib/` package: `repolib.repo.read_repo_type` reads the marker, `repolib.files.compute_propagation_plan` dispatches overlays) routes files by repo type; `reset_repo.py` writes the marker during bootstrap by calling `repolib` directly (no longer shells out to `propagate_style_guides.py`). `REPO_TYPE` is maintained after bootstrap; it controls future propagation behavior, not just initial scaffolding. File location is the primary routing determinant: every file under `templates/<type>/` ships to that type, files under `docs/`, `tests/`, and `devel/` ship universally. `docs/PYTHON_STYLE.md` ships to all repo types. The only routing exception encoded in `ROUTING_OVERRIDES` is `exclude_repos` (blocks a file from shipping back to its source repo). Conditional overlays (`_folder` convention, see `meta/docs/PROPAGATION_RULES.md`) are selected by a `conditional_overlays` manifest rule. A shared overlay routes one or more files under `templates/shared/<path>` to a chosen SET of repo types via a `shared_overlays` manifest rule (named `paths`, `repo_types`, and an optional `lacks_file` presence condition that ships only when a marker file is absent at the consumer); every `templates/shared/` file must be named by a rule or the shared walk raises. All propagation manifests live in `meta/propagation/manifests.yaml`. `swift` currently ships universal files only (no `templates/swift/` overlay); future swift-specific files are added by folder location (`templates/swift/<path>`) with no code change required.
+
+### Multiple declared types
+
+A repo that genuinely ships two families -- a Python CLI with a Rust extension,
+a Python tool with a TypeScript front end -- declares both:
+`python,rust`. Rules:
+
+- The repo receives the additive union of every declared type's overlays, plus
+  each declared type's inherited ancestors (see
+  [Repo type inheritance](#repo-type-inheritance)).
+- Declaration order sets precedence. When two declared overlays supply the same
+  path, the first declared type wins. `python,rust` and `rust,python` ship the
+  identical file set and differ only on such a collision.
+- `all` expands in place to every other known token, on the identical
+  multi-token code path. Mixed forms such as `python,all` are legal and defined
+  by that in-place expansion plus first-occurrence dedupe, so `python` keeps
+  precedence and the remaining types follow.
+- Unknown tokens are dropped with a warning and the valid half is preserved, so
+  `python,pyhton` routes as `python`. The whole marker degrades to `other` only
+  when no declared token is known. A bad marker warns; it never aborts
+  propagation.
+- Canonical written form, emitted by tooling: lowercase types, comma
+  separated, no spaces, declaration order preserved, and `all` written
+  literally rather than expanded. Readers tolerate surrounding whitespace and
+  spaces after commas.
+- At the interactive type prompts, a run of single-letter aliases is accepted
+  without commas, so `pr` means `python,rust` and `p,r` does the same. A full
+  name is always matched whole first, so `all` and `other` are never split even
+  though `a` and `o` are aliases too. This is prompt input only; the marker
+  file is still written in the canonical form above.
+- `.gitignore` handling is additive. Every declared type contributes its own
+  managed block (`# === PYTHON ===`, `# === RUST ===`) alongside
+  `# === UNIVERSAL ===`. Nothing is pruned when a type leaves a marker, so
+  narrowing `python,rust` to `python` leaves the `# === RUST ===` block in place
+  until someone deletes it. Blocks are delimited, so removal is one edit.
 
 ### Repo type inheritance
 
@@ -36,11 +71,15 @@ Concrete repo types inherit overlays from a base type, forming a single-token
 inheritance DAG (`repo_type_inherits` in `meta/propagation/manifests.yaml`):
 `python -> scripted`, `rust -> compiled`, `swift -> compiled`, `typescript ->
 website`. `scripted`, `website`, `compiled`, and `other` are roots with no
-parent. `repolib.model.effective_type_chain(repo_type)` returns
-`[repo_type, *ancestors]` nearest-first; every overlay- and shared-routing path
-consumes this one helper, so a repo receives its own overlay plus every
-ancestor's overlay, unioned. A child and its ancestors never ship the same
-file, so overlay walk order does not matter for correctness.
+parent. `repolib.model.effective_type_chain(marker)` accepts a whole marker
+string and returns each declared token followed by its ancestors, nearest-first
+and deduped across the marker, so `python,rust` yields `['python', 'scripted',
+'rust', 'compiled']`. Every overlay- and shared-routing path consumes this one
+helper, so a repo receives its own overlay plus every ancestor's overlay,
+unioned. `repolib.model.expand_marker_types` is the pure token expansion behind
+it, and `repolib.model.validate_marker` is the warning layer that applies the
+unknown-token policy at the sites that read a marker. A child and its ancestors
+never ship the same file, so overlay walk order does not matter for correctness.
 
 Routing rules target a base type so every descendant inherits automatically.
 The `source_release` shared overlay targets `[scripted, compiled, other]`:

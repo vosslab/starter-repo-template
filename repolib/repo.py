@@ -9,6 +9,27 @@ import repolib.console
 # and resolves the template root via repolib.repo.resolve_source_dir. A top-level
 # import here would leave resolve_source_dir undefined when model imports repo first.
 
+# Accepted answers at the interactive project-type prompt, mapped to canonical
+# types. The base types (scripted, website, compiled) are full-name only: their
+# single letters are already claimed by concrete descendants (p, t, r, s).
+REPO_TYPE_CHOICE_ALIASES = {
+	'p': 'python',
+	'python': 'python',
+	't': 'typescript',
+	'typescript': 'typescript',
+	'r': 'rust',
+	'rust': 'rust',
+	's': 'swift',
+	'swift': 'swift',
+	'o': 'other',
+	'other': 'other',
+	'a': 'all',
+	'all': 'all',
+	'scripted': 'scripted',
+	'website': 'website',
+	'compiled': 'compiled',
+}
+
 
 #============================================
 def is_repo_dir(repo_dir: str) -> bool:
@@ -18,17 +39,19 @@ def is_repo_dir(repo_dir: str) -> bool:
 
 #============================================
 def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker: bool = False, skip_confirm: bool = False, non_interactive: bool = False, counters: dict | None = None) -> str:
-	"""Read REPO_TYPE marker file and return repository language type token.
+	"""Read REPO_TYPE marker file and return the repository's type marker.
 
 	In single-repo mode with write_marker, predicts type and writes marker.
 	In batch mode with missing marker, attempts detection; falls back to LANG_UNKNOWN.
 	LANG_UNKNOWN means no ROUTING_OVERRIDES exclude_repos rule applies;
 	universal walker-routed files still ship.
 
-	Returns token (python, typescript, rust, swift, other, all, scripted,
-	website, compiled, unknown).
-	An unrecognized marker token logs a warning and falls back to other
-	instead of raising, so a single bad marker never aborts a batch run.
+	Returns a marker string: one type, or several comma-separated types when the
+	repo declares more than one family (python, typescript, rust, swift, other,
+	all, scripted, website, compiled, unknown).
+	Marker validation is delegated to repolib.model.validate_marker, which drops
+	unrecognized types with a warning and keeps the valid half, and falls back to
+	other only when no type is recognized, so a bad marker never aborts a batch run.
 
 	Fallback to legacy STARTER_REPO_TYPE for backward compatibility.
 	"""
@@ -57,50 +80,50 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 	if not os.path.isfile(marker_path) and os.path.isfile(legacy_marker_path):
 		repolib.console.log_action("warn", f"{repo_path}: legacy STARTER_REPO_TYPE marker found; rename to REPO_TYPE")
 		with open(legacy_marker_path, 'r', encoding='utf-8') as f:
-			token = f.read().strip()
-		# Unknown legacy token: warn (naming token + STARTER_REPO_TYPE marker) and
-		# fall back to other instead of raising, so a bad marker does not abort a batch.
-		if token not in repolib.model.KNOWN_REPO_TYPES:
-			repolib.console.log_action("warn", f"repo={os.path.basename(repo_path)} STARTER_REPO_TYPE token {token!r} not recognized; treating as other")
-			return repolib.model.LANG_OTHER
-		return token
+			marker = f.read().strip()
+		# validate_marker owns per-type validation and the single warning: unknown
+		# types are dropped and the valid half is kept, and only a wholly unknown
+		# marker degrades to other, so a bad marker does not abort a batch. The
+		# STARTER_REPO_TYPE filename is already named by the legacy warning above.
+		return repolib.model.validate_marker(marker, os.path.basename(repo_path))
 
 	if not os.path.isfile(marker_path):
 		# Missing marker: predict if conditions met, else default to python
 		if single_repo_mode and write_marker and detect_repo_type:
-			token, confidence, reasoning = detect_repo_type.detect_repo_type(repo_path)
+			detected_type, confidence, reasoning = detect_repo_type.detect_repo_type(repo_path)
 
-			if confidence == 'high' and token in repolib.model.KNOWN_REPO_TYPES:
+			if confidence == 'high' and detected_type in repolib.model.KNOWN_REPO_TYPES:
 				# High confidence: write silently
-				write_repo_type_marker(marker_path, token, dry_run=False)
-				repolib.console.log_action("skip", f"repo={os.path.basename(repo_path)} type={token} confidence=high (auto-wrote marker, predicted)", counters)
-				return token
+				write_repo_type_marker(marker_path, detected_type, dry_run=False)
+				repolib.console.log_action("skip", f"repo={os.path.basename(repo_path)} type={detected_type} confidence=high (auto-wrote marker, predicted)", counters)
+				return detected_type
 
 			if confidence == 'medium':
 				# Medium confidence: print and ask
-				repolib.console.log_action("warn", f"repo={os.path.basename(repo_path)} type={token} (predicted, medium confidence)")
+				repolib.console.log_action("warn", f"repo={os.path.basename(repo_path)} type={detected_type} (predicted, medium confidence)")
 				repolib.console.CONSOLE.print("  reasoning:")
 				for bullet in reasoning:
 					repolib.console.CONSOLE.print(f"    - {bullet}")
 
 				if skip_confirm or non_interactive:
 					# Accept silently
-					write_repo_type_marker(marker_path, token, dry_run=False)
+					write_repo_type_marker(marker_path, detected_type, dry_run=False)
 					repolib.console.log_action("skip", "wrote marker (medium confidence accepted)", counters)
-					return token
+					return detected_type
 
 				if not non_interactive:
 					# Prompt user
-					user_input = input(f"Accept predicted type '{token}'? [Y/n]: ").strip()
+					user_input = input(f"Accept predicted type '{detected_type}'? [Y/n]: ").strip()
 					if user_input == '' or user_input.lower() == 'y':
-						write_repo_type_marker(marker_path, token, dry_run=False)
-						return token
+						write_repo_type_marker(marker_path, detected_type, dry_run=False)
+						return detected_type
 					else:
 						# User rejected; re-prompt for explicit type
 						while True:
 							user_type = input(
 								"Project type? [p]ython / [t]ypescript / [r]ust / [s]wift / [o]ther / "
-								"[a]ll / scripted / website / compiled [p]: "
+								"[a]ll / scripted / website / compiled "
+								"(list allowed, e.g. python,rust or pr) [p]: "
 							).strip()
 							chosen_type = parse_repo_type_choice(user_type, 'python')
 							write_repo_type_marker(marker_path, chosen_type, dry_run=False)
@@ -119,7 +142,8 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 			while True:
 				user_type = input(
 					"Project type? [p]ython / [t]ypescript / [r]ust / [s]wift / [o]ther / "
-					"scripted / website / compiled: "
+					"scripted / website / compiled "
+					"(list allowed, e.g. python,rust or pr): "
 				).strip()
 				chosen_type = parse_repo_type_choice(user_type, None)
 				if chosen_type is None:
@@ -133,35 +157,34 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 		# universal walker-routed files still ship. repolib.model was imported at
 		# the top of this function (see note there).
 		if detect_repo_type:
-			token, confidence, _reasoning = detect_repo_type.detect_repo_type(repo_path)
-			if confidence == 'high' and token in repolib.model.KNOWN_REPO_TYPES:
-				return token
+			detected_type, confidence, _reasoning = detect_repo_type.detect_repo_type(repo_path)
+			if confidence == 'high' and detected_type in repolib.model.KNOWN_REPO_TYPES:
+				return detected_type
 		return repolib.model.LANG_UNKNOWN
 
 	with open(marker_path, 'r', encoding='utf-8') as f:
-		token = f.read().strip()
-	# Unknown token: warn (naming token + REPO_TYPE marker) and fall back to other
-	# instead of raising, so a single bad marker never aborts a batch propagation.
-	if token not in repolib.model.KNOWN_REPO_TYPES:
-		repolib.console.log_action("warn", f"repo={os.path.basename(repo_path)} REPO_TYPE token {token!r} not recognized; treating as other")
-		return repolib.model.LANG_OTHER
-	return token
+		marker = f.read().strip()
+	# validate_marker owns per-type validation and the single warning naming every
+	# unrecognized type, so 'python,pyhton' still routes as 'python' and only a
+	# wholly unknown marker degrades to other. A bad marker never aborts a batch.
+	return repolib.model.validate_marker(marker, os.path.basename(repo_path))
 
 
 #============================================
-def write_repo_type_marker(path: str, token: str, dry_run: bool = False) -> bool:
+def write_repo_type_marker(path: str, marker: str, dry_run: bool = False) -> bool:
 	"""
 	Write REPO_TYPE marker file.
 
 	Args:
 		path (str): Path to REPO_TYPE marker file.
-		token (str): Canonical type token (python, typescript, rust, swift, other, all).
+		marker (str): Canonical marker: one type or a comma-separated list
+			(python, typescript, rust, swift, other, all, ...).
 		dry_run (bool): If True, do not write changes.
 
 	Returns:
 		bool: True if written, False on dry-run.
 	"""
-	content = token + '\n'
+	content = marker + '\n'
 	if dry_run:
 		repolib.console.log_action('create', path, dry_run=True)
 		return False
@@ -171,46 +194,84 @@ def write_repo_type_marker(path: str, token: str, dry_run: bool = False) -> bool
 
 
 #============================================
-def parse_repo_type_choice(text: str, default: str | None = None) -> str | None:
+def expand_choice_piece(piece: str) -> list[str] | None:
 	"""
-	Parse user input for repo type choice.
+	Map one answer piece from a type prompt to its canonical types.
 
-	Maps single-letter aliases and full words to canonical tokens. The base
-	types added for repo-type inheritance (scripted, website, compiled) have
-	no single-letter alias, since the existing letters are already claimed by
-	their concrete descendants (p/python, t/typescript, r/rust, s/swift); they
-	are matched by full name only. Unknown input returns default.
+	Resolution order matters. A piece is first looked up whole, so every full name
+	and every single-letter alias resolves as itself. Only a piece that is not a
+	known answer is then read as a run of single-letter aliases, which is what lets
+	'pr' mean 'python,rust' without a comma. Checking whole names first means a real
+	name is never taken apart: 'all' and 'other' resolve as themselves even though
+	'a' and 'o' are also aliases.
+
+	The single-letter set is derived from the alias table rather than restated, so
+	adding an alias there extends the run form automatically.
 
 	Args:
-		text (str): User input or single-letter choice.
-		default (str): Default token if input is unrecognized.
+		piece (str): One answer piece, already split on commas. Case and surrounding
+			whitespace are normalized here.
 
 	Returns:
-		str: Canonical token (python, typescript, rust, swift, other, all,
-			scripted, website, compiled) or default.
+		list[str] | None: Canonical types for this piece, or None when the piece is
+			not a known answer and is not a run of single-letter aliases.
+	"""
+	choice = piece.strip().lower()
+	if not choice:
+		return None
+	# Whole-answer match first: every full name and every single letter lands here.
+	if choice in REPO_TYPE_CHOICE_ALIASES:
+		return [REPO_TYPE_CHOICE_ALIASES[choice]]
+	# Otherwise read the piece as a run of single-letter aliases, e.g. 'pr'.
+	single_letters = {key for key in REPO_TYPE_CHOICE_ALIASES if len(key) == 1}
+	if len(choice) > 1 and all(letter in single_letters for letter in choice):
+		return [REPO_TYPE_CHOICE_ALIASES[letter] for letter in choice]
+	return None
+
+
+#============================================
+def parse_repo_type_choice(text: str, default: str | None = None) -> str | None:
+	"""
+	Parse user input for repo type choice into a canonical marker.
+
+	Maps single-letter aliases and full names to canonical types. The base types
+	added for repo-type inheritance (scripted, website, compiled) have no
+	single-letter alias, since the existing letters are already claimed by their
+	concrete descendants (p/python, t/typescript, r/rust, s/swift); they are
+	matched by full name only.
+
+	Several types may be declared at once, either comma separated ('p,r') or as a
+	run of single-letter aliases ('pr'); both become 'python,rust'. Unrecognized
+	pieces are dropped and the recognized half is kept; input with no recognized
+	piece at all returns default, as does empty input. The result is the canonical
+	written form: lowercase types, comma separated, no spaces, declaration order
+	preserved, and 'all' left as the literal 'all' rather than expanded.
+
+	Args:
+		text (str): User input: a name, a single letter, a run of letters, or a
+			comma-separated list of those.
+		default (str): Default marker if no piece of the input is recognized.
+
+	Returns:
+		str: Canonical marker of one or more types (python, typescript, rust,
+			swift, other, all, scripted, website, compiled) or default.
 	"""
 	if not text:
 		return default
-	choice = text.strip().lower()
-	if choice in ('p', 'python'):
-		return 'python'
-	if choice in ('t', 'typescript'):
-		return 'typescript'
-	if choice in ('r', 'rust'):
-		return 'rust'
-	if choice in ('s', 'swift'):
-		return 'swift'
-	if choice in ('o', 'other'):
-		return 'other'
-	if choice in ('a', 'all'):
-		return 'all'
-	if choice == 'scripted':
-		return 'scripted'
-	if choice == 'website':
-		return 'website'
-	if choice == 'compiled':
-		return 'compiled'
-	return default
+	# Map each comma-separated piece through the alias table, deduping by first
+	# occurrence so 'python,python' collapses to a single type.
+	declared_types: list[str] = []
+	for piece in text.split(','):
+		piece_types = expand_choice_piece(piece)
+		if piece_types is None:
+			continue
+		for declared_type in piece_types:
+			if declared_type not in declared_types:
+				declared_types.append(declared_type)
+	# No piece was recognized: keep the historical unknown-input contract.
+	if not declared_types:
+		return default
+	return ','.join(declared_types)
 
 
 #============================================

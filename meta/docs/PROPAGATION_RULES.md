@@ -79,21 +79,31 @@ using the same noexist/overwrite rules as other typed overlay files.
 
 ## Repo type inheritance
 
-Repo types form a single-token inheritance DAG declared in the
-`repo_type_inherits` manifest (`meta/propagation/manifests.yaml`): `python ->
-scripted`, `rust -> compiled`, `swift -> compiled`, `typescript -> website`.
-`scripted`, `website`, `compiled`, and `other` are roots with no parent; every
-token (including the roots) is a directly usable `REPO_TYPE` marker.
+Each repo type token inherits from at most one parent, forming an inheritance
+DAG declared in the `repo_type_inherits` manifest
+(`meta/propagation/manifests.yaml`): `python -> scripted`, `rust -> compiled`,
+`swift -> compiled`, `typescript -> website`. `scripted`, `website`,
+`compiled`, and `other` are roots with no parent; every token (including the
+roots) is a directly usable `REPO_TYPE` marker.
 
-`repolib.model.effective_type_chain(repo_type)` returns `[repo_type,
-*ancestors]` nearest-first and is the one expansion every routing path
-consumes:
+A marker may declare several tokens, comma separated (for example
+`python,rust`). `repolib.model.expand_marker_types(marker)` is the pure token
+expansion, splitting the marker and expanding `all` in place, and
+`repolib.model.validate_marker(marker, repo_label)` is the warning layer that
+drops unrecognized tokens at the sites that read a marker. See
+[docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for the marker rules themselves.
+
+`repolib.model.effective_type_chain(marker)` returns each declared token
+followed by its ancestors, nearest-first and deduped across the whole marker,
+and is the one expansion every routing path consumes:
 
 - **Typed overlays**: a consumer receives its own `templates/<type>/` overlay
   PLUS every ancestor's overlay, unioned. A `typescript` repo ships
   `templates/typescript/` and `templates/website/` content; a `website` repo
   ships only `templates/website/`. Ancestor conditional overlays
-  (`templates/<ancestor>/_<name>/`) are inherited the same way.
+  (`templates/<ancestor>/_<name>/`) are inherited the same way. A multi-token
+  marker unions the overlays of every declared token, and the first declared
+  token wins when two of them supply the same consumer path.
 - **Shared overlays**: a rule's `repo_types` list matches when it intersects
   the consumer's chain, so naming a base type reaches every descendant.
 - **Disjointness invariant**: a type and its ancestors never ship the same

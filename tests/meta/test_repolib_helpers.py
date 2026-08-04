@@ -226,6 +226,16 @@ class TestParseRepoTypeChoice:
 		assert repolib.repo.parse_repo_type_choice('  p  ') == 'python'
 		assert repolib.repo.parse_repo_type_choice('  python  ') == 'python'
 
+	def test_parse_repo_type_choice_letter_run(self) -> None:
+		"""A run of single-letter aliases declares several types without commas."""
+		assert repolib.repo.parse_repo_type_choice('pr') == 'python,rust'
+		assert repolib.repo.parse_repo_type_choice('p,r') == 'python,rust'
+
+	def test_parse_repo_type_choice_whole_name_wins(self) -> None:
+		"""A full name is matched whole, never split into its letters."""
+		assert repolib.repo.parse_repo_type_choice('all') == 'all'
+		assert repolib.repo.parse_repo_type_choice('other') == 'other'
+
 
 class TestReadRepoType:
 	"""Test read_repo_type marker reading: unknown-token fallback and precedence."""

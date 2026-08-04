@@ -205,6 +205,18 @@ class TestNormalizeProjectTypeSwift:
 		answers = reset_repo.answers_from_config(path)
 		assert answers.project_type == "swift"
 
+
+class TestNormalizeProjectTypeDefault:
+	"""An empty answer normalizes the offered default instead of echoing it."""
+
+	def test_empty_answer_canonicalizes_a_messy_default(self) -> None:
+		"""Accepting a stored marker with Enter collapses duplicates."""
+		assert reset_repo.normalize_project_type("", "python,python") == "python"
+
+	def test_empty_answer_expands_default_aliases(self) -> None:
+		"""A default written in alias form is expanded, not stored verbatim."""
+		assert reset_repo.normalize_project_type("", "p,r") == "python,rust"
+
 	def test_all_config_path_normalizes(self, tmp_path: pathlib.Path) -> None:
 		"""Config with project_type 'all' resolves to 'all' via answers_from_config."""
 		cfg = {"project_type": "all", "code_license": "MIT"}

@@ -403,6 +403,32 @@ def deduplicate_gitignore(gitignore_path: str, dry_run: bool, counters: dict | N
 
 
 #============================================
+def spaced_block(block_lines: list[str]) -> list[str]:
+	"""
+	Return a managed block's content with exactly one trailing blank line.
+
+	Stacked managed blocks are easier to scan when a blank line separates them.
+	The separator is carried as the LAST line of a block's own content rather than
+	emitted before the next header, which is what keeps repeated runs idempotent:
+	replace_managed_block swaps a block's whole content region at once, so a
+	trailing blank is rewritten each run instead of accumulating one blank per run.
+	Any blank lines already at the end are collapsed to exactly one, so a file
+	written by an older version converges on the first run.
+
+	Args:
+		block_lines (list[str]): Block content lines, without the header.
+
+	Returns:
+		list[str]: The same content with exactly one trailing blank line.
+	"""
+	# Drop any existing trailing blanks first so the result is always exactly one.
+	trimmed = list(block_lines)
+	while trimmed and trimmed[-1].strip() == '':
+		trimmed.pop()
+	return trimmed + ['']
+
+
+#============================================
 def replace_managed_block(lines: list[str], header: str, block_lines: list[str]) -> list[str]:
 	"""
 	Replace or append a named managed block in a line list.
@@ -650,7 +676,8 @@ def merge_conftest(source_file: str, dest_file: str) -> str | None:
 def merge_gitignore_blocks(repo_dir: str, repo_type: str, template_root: str, context: 'repolib.model.PropagateContext', counters: dict | None = None) -> None:
 	"""
 	Manage .gitignore as a sequence of named blocks delimited by '# === <NAME> ==='.
-	Blocks: UNIVERSAL (always), and <REPO_TYPE_UPPERCASE> (when non-empty).
+	Blocks: UNIVERSAL (always), then one <TYPE_UPPERCASE> block per declared type
+	whose gitignore template is non-empty, in declaration order.
 	If block header exists, replace just that block. If not, append at end.
 	User-added lines OUTSIDE any managed block stay untouched.
 
@@ -659,7 +686,8 @@ def merge_gitignore_blocks(repo_dir: str, repo_type: str, template_root: str, co
 
 	Args:
 		repo_dir (str): Repository directory path.
-		repo_type (str): Type of repository (python, typescript, rust, swift, other).
+		repo_type (str): Repository type marker; may declare several comma-separated
+			types (for example 'python,rust'), or 'all' for every type.
 		template_root (str): Template root directory for gitignore sources.
 		context (PropagateContext): Context with dry_run and path formatting info.
 		counters (dict | None): Optional counter dict to update with created/merged counts.
@@ -677,19 +705,26 @@ def merge_gitignore_blocks(repo_dir: str, repo_type: str, template_root: str, co
 	gitignore_universal_path = os.path.join(template_root, 'templates', 'gitignore.universal')
 	universal_lines = load_gitignore_block(gitignore_universal_path)
 
-	gitignore_typed_path = os.path.join(template_root, 'templates', repo_type, f'gitignore.{repo_type}')
-	type_lines = load_gitignore_block(gitignore_typed_path)
-
 	universal_header = '# === UNIVERSAL ==='
-	type_header = f"# === {repo_type.upper()} ==="
 
 	# Build new content
 	new_lines = list(existing_lines)
-	new_lines = replace_managed_block(new_lines, universal_header, universal_lines)
+	new_lines = replace_managed_block(new_lines, universal_header, spaced_block(universal_lines))
 
-	# Handle type-specific block (if any)
-	if type_lines:
-		new_lines = replace_managed_block(new_lines, type_header, type_lines)
+	# One managed block per declared type that has a non-empty source, in
+	# declaration order. 'all' expands to every type here, so an 'all' repo
+	# receives every typed block rather than only the universal one.
+	# replace_managed_block replaces-or-appends per header, so repeated runs on the
+	# same marker leave the file byte-identical.
+	for declared_type in repolib.model.expand_marker_types(repo_type):
+		gitignore_typed_path = os.path.join(
+			template_root, 'templates', declared_type, f'gitignore.{declared_type}',
+		)
+		type_lines = load_gitignore_block(gitignore_typed_path)
+		if not type_lines:
+			continue
+		type_header = f"# === {declared_type.upper()} ==="
+		new_lines = replace_managed_block(new_lines, type_header, spaced_block(type_lines))
 
 	# Build content with proper trailing newline
 	content = '\n'.join(new_lines)
@@ -817,14 +852,24 @@ _init_module_constants()
 #============================================
 def resolve_spec_for_type(repo_type: str, template_root: str | None = None, counters: dict | None = None, repo_dir: str | None = None) -> dict:
 	"""
-	Return the six-bucket propagation spec for the given repo_type.
+	Return the six-bucket propagation spec for the given marker.
+
+	The marker may declare several comma-separated types (for example
+	'python,rust'); it is validated through repolib.model.partition_known_types so a
+	multi-type marker is accepted while a garbage type still fails loudly. Callers
+	that read a consumer marker run it through repolib.model.validate_marker first,
+	which drops unrecognized types with a warning, so a raise here means a
+	programmer error rather than a bad consumer repo.
+
 	Uses compute_propagation_plan with template_root (defaults to script directory).
 	"""
 	# Accept consumer tokens from the shared set plus the internal pseudo-types.
-	# Pseudo-types (universal, unknown) are added here explicitly so they never
+	# Pseudo-types (universal, unknown) are checked here explicitly so they never
 	# leak into KNOWN_REPO_TYPES and the consumer-facing token set stays clean.
-	if repo_type not in repolib.model.KNOWN_REPO_TYPES | {'universal', 'unknown'}:
-		raise ValueError(f"unknown repo type {repo_type!r}")
+	if repo_type not in ('universal', repolib.model.LANG_UNKNOWN):
+		known_types, unknown_types = repolib.model.partition_known_types(repo_type)
+		if not known_types or unknown_types:
+			raise ValueError(f"unknown repo type {repo_type!r}")
 	if template_root is None:
 		template_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 	if repo_type == 'universal':
@@ -838,28 +883,31 @@ def auto_discover_test_files(template_root: str, repo_type: str) -> list[str]:
 	Scan template tests/ for files matching test_*.py or test_*.mjs not already
 	in the spec's test_files list. Return their relative paths under tests/.
 
-	For universal and all: scan template_root/tests/ directly. For every known
-	repo_type (repolib.model.KNOWN_REPO_TYPES), walk
-	repolib.model.effective_type_chain(repo_type) (nearest-first) and scan
-	templates/<chain_type>/tests/ for each chain member that has one, so an
-	inheriting type (for example typescript, chained to website) also
-	discovers its ancestor's overlay tests. A chain with no overlay tests dir
-	anywhere (for example python, chained to scripted; or other, a root with no
-	overlay) falls back to scanning template_root/tests/ directly. Any other,
-	unrecognized repo_type (for example the LANG_UNKNOWN pseudo-type) scans only
-	its own templates/<repo_type>/tests/, matching pre-chain behavior.
+	repo_type is a marker that may declare several comma-separated types. Walk
+	repolib.model.effective_type_chain(repo_type) (nearest-first, unioned across
+	every declared type) and scan templates/<chain_type>/tests/ for each chain
+	member that has one, so an inheriting type (for example typescript, chained to
+	website) also discovers its ancestor's overlay tests, and a multi-type marker
+	discovers every declared family's overlay tests. 'universal' is the python
+	alias, and 'all' expands to every type on this same path. A chain with no
+	overlay tests dir anywhere (for example python, chained to scripted; or other,
+	a root with no overlay) falls back to scanning template_root/tests/ directly.
+	An unrecognized marker (for example the LANG_UNKNOWN pseudo-type) yields an
+	empty chain and scans only its own templates/<repo_type>/tests/, matching
+	pre-chain behavior; a comma marker never reaches that branch.
 	"""
 	spec = resolve_spec_for_type(repo_type, template_root)
 	spec_test_files = set(spec['test_files'])
 
 	discovered = []
 
-	if repo_type in ('universal', 'all'):
-		# Scan template root tests/ for the pseudo-types (no chain to walk).
-		test_dirs = [os.path.join(template_root, 'tests')]
-	elif repo_type in repolib.model.KNOWN_REPO_TYPES:
+	# 'universal' is the python alias in the fold scheme, same as resolve_spec_for_type.
+	chain_marker = 'python' if repo_type == 'universal' else repo_type
+	known_types, _unknown_types = repolib.model.partition_known_types(chain_marker)
+
+	if known_types:
 		test_dirs = []
-		for chain_type in repolib.model.effective_type_chain(repo_type):
+		for chain_type in repolib.model.effective_type_chain(chain_marker):
 			overlay_test_dir = os.path.join(template_root, 'templates', chain_type, 'tests')
 			if os.path.isdir(overlay_test_dir):
 				test_dirs.append(overlay_test_dir)
@@ -867,8 +915,10 @@ def auto_discover_test_files(template_root: str, repo_type: str) -> list[str]:
 			# No chain member has its own overlay tests dir: fall back to the root.
 			test_dirs.append(os.path.join(template_root, 'tests'))
 	else:
-		# Unrecognized repo_type (for example LANG_UNKNOWN): no chain to walk,
-		# no root fallback, matching pre-chain behavior.
+		# No declared token is known: the LANG_UNKNOWN pseudo-type, which is the only
+		# marker that reaches here because resolve_spec_for_type above already raised
+		# on any other unrecognized token. No chain to walk and no root fallback,
+		# matching pre-chain behavior. A comma marker never lands here.
 		test_dirs = [os.path.join(template_root, 'templates', repo_type, 'tests')]
 
 	for test_dir in test_dirs:
@@ -908,7 +958,9 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 
 	Args:
 		template_root (str): Root directory of template files to scan.
-		repo_type (str): Repository type (python, typescript, rust, swift, other, all, unknown).
+		repo_type (str): Repository type marker. One token (python, typescript, rust,
+			swift, other, unknown), several comma-separated tokens (for example
+			'python,rust'), or 'all', which expands to every concrete type.
 		counters (dict | None): Optional counter dict for progress tracking.
 		repo_dir (str | None): Optional repository directory for requirement checks.
 			Falls back to template_root for requirement predicate evaluation.
@@ -939,7 +991,7 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 	- templates/<repo_type>/tests/<X> -> test_files
 	- templates/<repo_type>/noexist/<path> -> noexist_files
 	- templates/gitignore.universal -> universal gitignore_block
-	- templates/<repo_type>/gitignore.<repo_type> -> typed gitignore_block
+	- templates/<type>/gitignore.<type> for every declared type -> typed gitignore_block
 	- templates/shared/<path> -> bucket per shared_overlays rule (ships when repo_type
 	  is listed and the optional lacks_file marker is absent); routed by subdirectory
 	  like a typed overlay. An uncovered templates/shared/ file raises.
@@ -953,24 +1005,12 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 		'gitignore_block': [],
 	}
 
-	if repo_type == 'all':
-		aggregate = {
-			'overwrite_files': [],
-			'noexist_files': [],
-			'merge_files': [],
-			'devel_files': [],
-			'test_files': [],
-			'gitignore_block': [],
-		}
-		for child_type in repolib.model.REPO_TYPE_ORDER:
-			if child_type == 'all':
-				continue
-			child_plan = compute_propagation_plan(template_root, child_type, counters=counters, repo_dir=repo_dir)
-			for bucket, values in child_plan.items():
-				for value in values:
-					if value not in aggregate[bucket]:
-						aggregate[bucket].append(value)
-		return aggregate
+	# Recognized types for this marker, in declaration order. 'all' expands here to
+	# every concrete type, so it rides the same multi-type path as any other marker
+	# instead of a separate aggregation branch. Unrecognized types are dropped: they
+	# have no templates/<type>/ overlay and no gitignore source, so carrying them
+	# further would add lookups that can never resolve.
+	known_types, _unknown_types = repolib.model.partition_known_types(repo_type)
 
 	# Default repo_dir to template_root if not provided (for requirement checks)
 	if repo_dir is None:
@@ -984,10 +1024,10 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 				return True
 		return False
 
-	# 1. Walk universal files at template root. Every known consumer type plus the
-	# 'unknown' pseudo-type receives the universal walk; derive from the shared set
-	# so a future type is covered without editing this condition.
-	if repo_type in repolib.model.KNOWN_REPO_TYPES | {'unknown'}:
+	# 1. Walk universal files at template root. A marker naming at least one known
+	# consumer type receives the universal walk, as does the 'unknown' pseudo-type;
+	# derive from the shared set so a future type is covered without editing this.
+	if known_types or repo_type == repolib.model.LANG_UNKNOWN:
 		for root, dirs, files in os.walk(template_root, topdown=True, followlinks=False):
 			# Skip directories: meta, templates (we walk it separately)
 			dirs[:] = [d for d in dirs if d not in repolib.model.META_DIRS]
@@ -1087,8 +1127,10 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 
 	overlay_segments = repolib.model.select_overlay_dirs(repo_type, repo_dir)
 	for segment in overlay_segments:
-		# The base overlay segment is the bare repo_type with no path separator;
-		# a conditional overlay segment contains '/', e.g. 'python/_pypi'.
+		# segment is one element of the effective type chain (e.g. 'python'), which
+		# may differ from the raw repo_type marker (e.g. 'python,rust'). A base
+		# overlay segment is a bare chain type with no path separator; a
+		# conditional overlay segment contains '/', e.g. 'python/_pypi'.
 		is_base_overlay = '/' not in segment
 		overlay_root = os.path.join(template_root, 'templates', segment)
 		if not os.path.isdir(overlay_root):
@@ -1246,9 +1288,15 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 	universal_gitignore_path = os.path.join(template_root, 'templates', 'gitignore.universal')
 	gitignore_block.extend(load_gitignore_block(universal_gitignore_path))
 
-	# Load typed gitignore block
-	typed_gitignore_path = os.path.join(template_root, 'templates', repo_type, f'gitignore.{repo_type}')
-	gitignore_block.extend(load_gitignore_block(typed_gitignore_path))
+	# Load one typed gitignore block per declared type, in declaration order, so a
+	# multi-type marker (and 'all', which expands to every type) carries the union
+	# of its families' patterns. A type with no gitignore template contributes
+	# nothing: load_gitignore_block returns empty for a missing path.
+	for declared_type in known_types:
+		typed_gitignore_path = os.path.join(
+			template_root, 'templates', declared_type, f'gitignore.{declared_type}',
+		)
+		gitignore_block.extend(load_gitignore_block(typed_gitignore_path))
 
 	# Deduplicate gitignore block
 	plan['gitignore_block'] = list(dict.fromkeys(gitignore_block))

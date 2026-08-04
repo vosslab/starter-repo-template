@@ -23,6 +23,7 @@ import subprocess
 import dataclasses
 
 # local repo modules
+import repolib.repo
 import repolib.model
 import repolib.console
 import repolib.process
@@ -138,7 +139,14 @@ def dry_run_print(msg: str, dry_run: bool) -> None:
 
 
 def write_marker(repo_root: str, project_type: str, dry_run: bool) -> int:
-	"""Write REPO_TYPE marker atomically via temp + replace."""
+	"""Write REPO_TYPE marker atomically via temp + replace.
+
+	The marker is written in canonical form: lowercase types, comma separated,
+	no spaces, declaration order preserved, and "all" left as the literal "all"
+	rather than expanded. Every caller supplies a project_type that already came
+	through normalize_project_type, which produces exactly that form, so this
+	writes the value verbatim instead of re-normalizing it here.
+	"""
 	marker_path = os.path.join(repo_root, "REPO_TYPE")
 	content = f"{project_type}\n"
 	if dry_run:
@@ -453,7 +461,7 @@ def verify_scaffold_sentinel(repo_root: str, project_type: str) -> None:
 
 	Args:
 		repo_root (str): Repository root path.
-		project_type (str): The project type token (e.g. 'typescript', 'python').
+		project_type (str): The project type marker (e.g. 'typescript', 'python,rust').
 
 	Raises:
 		RuntimeError: When the sentinel path is absent after propagation.
@@ -486,9 +494,9 @@ def truncate_file(path: str, repo_root: str, dry_run: bool) -> int:
 #============================================
 
 def normalize_project_type(raw: str, default: str) -> str:
-	"""Normalize a raw project-type answer to a canonical token.
+	"""Normalize a raw project-type answer to a canonical marker.
 
-	Accepts the single-letter menu shortcuts (p/t/r/s/o), the full token names
+	Accepts the single-letter menu shortcuts (p/t/r/s/o), the full type names
 	(python/typescript/rust/swift/other/all), the base types added for repo-type
 	inheritance (scripted/website/compiled, full name only, no single-letter
 	alias since their letters are already claimed by concrete descendants), or
@@ -496,38 +504,56 @@ def normalize_project_type(raw: str, default: str) -> str:
 	interview and the config producers so the accepted values cannot drift
 	between the two paths.
 
+	Several types may be declared at once, either comma separated ("p,r") or as a
+	run of single-letter aliases ("pr"); both become "python,rust". The result is
+	the canonical written form: lowercase types, comma separated, no spaces,
+	declaration order preserved, deduped by first occurrence, and "all" left as the
+	literal "all" rather than expanded.
+
+	An empty answer selects the default, and the default is normalized through the
+	same path rather than returned verbatim. That matters when the default came
+	from an existing REPO_TYPE marker: a stored marker carrying duplicates or stray
+	spacing is rewritten in canonical form instead of being perpetuated by someone
+	simply pressing Enter.
+
+	Unlike the propagator's marker reader, an unrecognized piece exits rather
+	than degrading. Bootstrap validates its input up front, before any mutation,
+	so reset never fails partway through a reset. Every piece is checked before
+	anything is returned.
+
 	Args:
 		raw (str): The raw user answer or config value.
-		default (str): Token to use when raw is empty.
+		default (str): Marker to use when raw is empty. Normalized like any answer.
 
 	Returns:
-		str: One of "python", "typescript", "rust", "swift", "other", "all",
-			"scripted", "website", "compiled".
+		str: A canonical marker of one or more comma-separated types drawn from
+			"python", "typescript", "rust", "swift", "other", "all", "scripted",
+			"website", "compiled".
 	"""
-	token = raw.strip().lower()
-	if token == "":
+	answer = raw.strip().lower()
+	if answer == "":
+		# Normalize the default through the same path instead of returning it as
+		# stored, so accepting an existing marker with Enter canonicalizes it.
+		answer = default.strip().lower()
+	if answer == "":
 		return default
-	# Map menu shortcuts and full names to the canonical token.
-	mapping = {
-		"p": "python",
-		"python": "python",
-		"t": "typescript",
-		"typescript": "typescript",
-		"r": "rust",
-		"rust": "rust",
-		"s": "swift",
-		"swift": "swift",
-		"o": "other",
-		"other": "other",
-		"a": "all",
-		"all": "all",
-		"scripted": "scripted",
-		"website": "website",
-		"compiled": "compiled",
-	}
-	if token not in mapping:
-		sys.exit(f"Invalid project type: {raw!r}")
-	return mapping[token]
+	# Answer parsing is shared with the propagator's prompt
+	# (repolib.repo.expand_choice_piece and its alias table), so adding or renaming
+	# a repo type is a single edit rather than two copies that can silently drift,
+	# and both prompts accept the same forms. Only the parsing is shared: this
+	# function still exits on an invalid piece, while the propagator's reader drops
+	# unknown pieces and keeps the valid half.
+	# Validate and collect every piece before returning, so an invalid piece is
+	# rejected up front rather than after part of the answer was accepted.
+	declared_types: list[str] = []
+	for piece in answer.split(","):
+		piece_types = repolib.repo.expand_choice_piece(piece)
+		if piece_types is None:
+			sys.exit(f"Invalid project type: {raw!r}")
+		for declared_type in piece_types:
+			if declared_type not in declared_types:
+				declared_types.append(declared_type)
+	return ",".join(declared_types)
 
 
 def resolve_project_type(repo_root: str) -> str:
@@ -541,13 +567,19 @@ def resolve_project_type(repo_root: str) -> str:
 		repo_root (str): Repository root path.
 
 	Returns:
-		str: The resolved project type token.
+		str: The resolved project type marker, one or more comma-separated types.
 	"""
 	marker_path = os.path.join(repo_root, "REPO_TYPE")
 	existing_marker = None
 	if os.path.isfile(marker_path):
 		with open(marker_path, "r") as f:
-			existing_marker = f.read().strip()
+			marker_text = f.read().strip()
+		# Readers tolerate stray whitespace around commas, but an accepted default is
+		# rewritten to the marker file, so reduce it to the canonical no-spaces form.
+		# normalize_project_type canonicalizes the default again on the way out, so a
+		# stored marker with duplicates is not perpetuated by pressing Enter.
+		marker_types = [piece.strip() for piece in marker_text.split(",") if piece.strip()]
+		existing_marker = ",".join(marker_types)
 
 	# Choose the default offered at the prompt: an existing marker wins, then
 	# detection, then python.
@@ -555,20 +587,22 @@ def resolve_project_type(repo_root: str) -> str:
 		default_type = existing_marker
 	elif detect_repo_type:
 		# Try to predict repo type when the detector module is available.
-		token, confidence, _ = detect_repo_type.detect_repo_type(repo_root)
-		if confidence == 'high' and token != 'ambiguous':
-			default_type = token
+		detected_type, confidence, _ = detect_repo_type.detect_repo_type(repo_root)
+		if confidence == 'high' and detected_type != 'ambiguous':
+			default_type = detected_type
 		elif confidence == 'medium':
-			default_type = token
+			default_type = detected_type
 		else:
 			default_type = "python"
 	else:
 		default_type = "python"
 
-	# Always prompt; an empty answer accepts the default.
+	# Always prompt; an empty answer accepts the default. The default is shown in
+	# full rather than as its first letter, since it may be a comma-separated marker.
 	user_input = input(
 		"Project type? [p]ython / [t]ypescript / [r]ust / [s]wift / [o]ther / "
-		f"[a]ll / scripted / website / compiled [{default_type[0]}]: "
+		"[a]ll / scripted / website / compiled "
+		f"(list allowed, e.g. python,rust or pr) [{default_type}]: "
 	).strip()
 	return normalize_project_type(user_input, default_type)
 
@@ -580,7 +614,7 @@ def resolve_pypi(project_type: str) -> bool:
 	For python repos, prompt the user; default is no.
 
 	Args:
-		project_type (str): Resolved project type token.
+		project_type (str): Resolved project type marker.
 
 	Returns:
 		bool: True when pyproject.toml should be seeded before propagation.
@@ -644,7 +678,7 @@ class ResetAnswers:
 	"""Resolved bootstrap answers, from interview or config.
 
 	Attributes:
-		project_type (str): Canonical project type token.
+		project_type (str): Canonical project type marker.
 		code_license (str): Resolved SPDX code license id.
 		docs_license (str): Resolved SPDX docs license id, or "none".
 		pypi (bool): Whether to seed pyproject.toml for PyPI publishing.
