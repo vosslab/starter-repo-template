@@ -31,6 +31,27 @@
 
 ### Behavior or Interface Changes
 
+- `devel/flatten_broken_md_links.py` no longer requires `docs/archive/` to exist. It previously
+  hard-exited when that directory was missing, which broke the tool's default mode in this very
+  repo, since `docs/archive/` is created lazily by changelog rotation and its absence is normal.
+  It is now one optional scope among several, guarded the way `docs/active_plans/` and
+  `experiments/` already were. The `sys.exit` calls at the touched sites became raised errors,
+  per `docs/PYTHON_STYLE.md`.
+- `devel/flatten_broken_md_links.py` gained `-g/--glob`, which selects markdown by glob pattern
+  or by directory, anchored at the repo root so behavior does not depend on the working
+  directory. A bare directory walks recursively (`--glob docs/specs/`), while a wildcard is used
+  as typed, so `--glob 'docs/*.md'` is top level only and `--glob 'docs/**/*.md'` recurses.
+  Patterns resolving outside the repo are rejected by name, non-markdown matches are filtered
+  out, and overlapping patterns yield each file once so the rewrite pass cannot run twice over
+  the same text.
+- The four boolean scope presets on that script (`--include-changelog`,
+  `--include-active-plans`, `--include-experiments`, `--include-canonical`) were retired;
+  `--glob` expresses all of them. Use `--glob 'docs/CHANGELOG*.md'`, `--glob docs/active_plans/`,
+  `--glob experiments/`, and `--glob 'docs/*.md'` respectively. This follows ARGPARSE MINIMALISM
+  in `docs/PYTHON_STYLE.md`. `--include-canonical` had also quietly walked `docs/specs/**` in
+  addition to `docs/*.md`, so a flag named "canonical" was pulling in a subdirectory its name
+  did not suggest; the explicit glob forms remove that surprise. `--input` is unchanged,
+  including its inverted apply/dry-run default.
 - Unknown tokens in a marker are now dropped with a warning and the valid half is preserved,
   so `python,pyhton` routes as `python`. The marker degrades to `other` only when no declared
   token is known. Previously any unrecognized token degraded the whole marker to `other`.

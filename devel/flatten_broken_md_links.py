@@ -71,17 +71,18 @@ def get_repo_root() -> pathlib.Path:
 
 #============================================
 def anchor_pattern(repo_root: pathlib.Path, pattern: str) -> str:
-	"""Anchor one -g/--glob pattern at the repo root and reject escapes.
+	"""Anchor one -g/--glob argument at the repo root and reject escapes.
 
-	A repo-relative pattern is joined onto the repo root rather than the
+	A repo-relative argument is joined onto the repo root rather than the
 	current working directory, so the tool behaves identically no matter which
-	subdirectory it is run from. Absolute patterns are accepted as typed. The
+	subdirectory it is run from. Absolute arguments are accepted as typed. The
 	join is normalized lexically (not via resolve()) because a pattern holds
-	wildcards and need not name an existing path.
+	wildcards and need not name an existing path. normpath also drops a
+	trailing slash, so 'docs/specs' and 'docs/specs/' anchor identically.
 
 	Args:
 		repo_root: Repository root, as returned by get_repo_root().
-		pattern: One glob pattern exactly as typed on the command line.
+		pattern: One glob pattern or directory as typed on the command line.
 
 	Returns:
 		str: Absolute, normalized glob pattern inside the repo root.
@@ -103,6 +104,33 @@ def anchor_pattern(repo_root: pathlib.Path, pattern: str) -> str:
 
 
 #============================================
+def expand_pattern(repo_root: pathlib.Path, pattern: str) -> str:
+	"""Anchor one -g/--glob argument, expanding a bare directory into a walk.
+
+	Naming a folder generally means everything in it, so a bare directory
+	becomes a RECURSIVE markdown walk. Handing the directory to glob.glob
+	unchanged would match only the directory itself, which the *.md filter then
+	drops, leaving a silently empty scope. An argument that already carries
+	wildcards is anchored and otherwise left alone, which keeps 'docs/*.md'
+	top-level only and 'docs/**/*.md' recursive.
+
+	Args:
+		repo_root: Repository root, as returned by get_repo_root().
+		pattern: One glob pattern or directory as typed on the command line.
+
+	Returns:
+		str: Absolute glob pattern ready for glob.glob(recursive=True).
+
+	Raises:
+		ValueError: The pattern points outside the repo root.
+	"""
+	anchored = anchor_pattern(repo_root, pattern)
+	if os.path.isdir(anchored):
+		anchored = os.path.join(anchored, '**', '*.md')
+	return anchored
+
+
+#============================================
 def collect_markdown_files(repo_root: pathlib.Path, patterns: list) -> list:
 	"""Expand glob patterns into a sorted, de-duplicated list of *.md files.
 
@@ -119,7 +147,7 @@ def collect_markdown_files(repo_root: pathlib.Path, patterns: list) -> list:
 	source_files = []
 	seen = set()
 	for pattern in patterns:
-		anchored = anchor_pattern(repo_root, pattern)
+		anchored = expand_pattern(repo_root, pattern)
 		for match in glob.glob(anchored, recursive=True):
 			candidate = pathlib.Path(match)
 			if candidate.suffix.lower() != '.md' or not candidate.is_file():
@@ -309,10 +337,12 @@ def parse_args() -> argparse.Namespace:
 		action='store_true', help='Print every rewrite.')
 	parser.add_argument('-g', '--glob', dest='glob_patterns', nargs='+',
 		default=[], metavar='PATTERN',
-		help='Select *.md files by glob pattern, anchored at the repo root '
-			"(globs expand in Python, so quote them). '**' is recursive. "
+		help='Select *.md files by glob pattern or directory, anchored at the '
+			'repo root (globs expand in Python, so quote them). A bare '
+			'directory walks recursively; a wildcard pattern is used as typed, '
+			"so 'docs/*.md' is top level only and 'docs/**/*.md' recurses. "
 			"Default: '" + DEFAULT_GLOB + "'. "
-			"Example: --glob 'docs/specs/*.md' 'tests/*.md'.")
+			"Example: --glob docs/specs/ 'tests/*.md'.")
 	args = parser.parse_args()
 	return args
 

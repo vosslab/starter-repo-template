@@ -52,6 +52,32 @@ def test_single_star_pattern_stays_at_one_level(tmp_path: pathlib.Path) -> None:
 
 
 #============================================
+def test_bare_directory_walks_recursively(tmp_path: pathlib.Path) -> None:
+	"""Naming a folder means every markdown under it, at any depth."""
+	nested_dir = tmp_path / "docs" / "specs"
+	nested_dir.mkdir(parents=True)
+	nested_doc = nested_dir / "format.md"
+	nested_doc.write_text("# format\n", encoding="utf-8")
+	source_files = devel.flatten_broken_md_links.collect_markdown_files(
+		tmp_path, ["docs"])
+	assert source_files == [nested_doc.resolve()]
+
+
+#============================================
+def test_trailing_slash_does_not_change_the_scope(tmp_path: pathlib.Path) -> None:
+	"""'docs/specs' and 'docs/specs/' name the same directory."""
+	docs_dir = tmp_path / "docs"
+	docs_dir.mkdir()
+	doc = docs_dir / "usage.md"
+	doc.write_text("# usage\n", encoding="utf-8")
+	without_slash = devel.flatten_broken_md_links.collect_markdown_files(
+		tmp_path, ["docs"])
+	with_slash = devel.flatten_broken_md_links.collect_markdown_files(
+		tmp_path, ["docs/"])
+	assert with_slash == without_slash == [doc.resolve()]
+
+
+#============================================
 def test_non_markdown_matches_are_filtered_out(tmp_path: pathlib.Path) -> None:
 	"""A wide pattern hands only markdown to the link rewriter."""
 	docs_dir = tmp_path / "docs"
