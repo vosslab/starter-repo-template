@@ -63,3 +63,62 @@ def test_set_version_synchronizes_rust_versions(
 		'version = "1.2.3"\n',
 	)
 	assert version_file.read_text(encoding="utf-8") == "26.07\n"
+
+
+#============================================
+def test_set_version_updates_workspace_package_only(
+	tmp_path: pathlib.Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""Workspace members inheriting a version keep version.workspace = true."""
+	workspace_toml = tmp_path / "Cargo.toml"
+	cargo_lock = tmp_path / "Cargo.lock"
+	member_dir = tmp_path / "crates" / "demo"
+	member_dir.mkdir(parents=True)
+	member_toml = member_dir / "Cargo.toml"
+	workspace_toml.write_text(
+		'[workspace]\nmembers = ["crates/demo"]\n\n'
+		'[workspace.package]\nversion = "26.5.0"\nedition = "2024"\n',
+		encoding="utf-8",
+	)
+	member_toml.write_text(
+		'[package]\nname = "demo"\nversion.workspace = true\n',
+		encoding="utf-8",
+	)
+	cargo_lock.write_text(
+		'version = 4\n\n'
+		'[[package]]\n'
+		'name = "demo"\n'
+		'version = "26.5.0"\n',
+		encoding="utf-8",
+	)
+	monkeypatch.setattr(
+		sys,
+		"argv",
+		[
+			"bump_version.py",
+			"-A",
+			"--set-version",
+			"26.07",
+			"--base-dir",
+			str(tmp_path),
+		],
+	)
+
+	devel.bump_version.main()
+
+	workspace_outputs = (
+		workspace_toml.read_text(encoding="utf-8"),
+		cargo_lock.read_text(encoding="utf-8"),
+	)
+	assert workspace_outputs == (
+		'[workspace]\nmembers = ["crates/demo"]\n\n'
+		'[workspace.package]\nversion = "26.7.0"\nedition = "2024"\n',
+		'version = 4\n\n'
+		'[[package]]\n'
+		'name = "demo"\n'
+		'version = "26.7.0"\n',
+	)
+	assert member_toml.read_text(encoding="utf-8") == (
+		'[package]\nname = "demo"\nversion.workspace = true\n'
+	)

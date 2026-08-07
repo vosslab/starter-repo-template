@@ -1,3 +1,75 @@
+## 2026-08-07
+
+### Behavior or Interface Changes
+
+- `devel/bump_version.py` now skips a root-level `OTHER_REPOS/` directory during discovery, via a
+  new `ROOT_SKIP_DIRS` set applied only at depth 0. Vendored sibling repos there carry unrelated
+  upstream versions (for example WeBWork's `$WW_VERSION = '2.21'`) and were being rewritten by a
+  bump of the host repo. The skip is root-anchored rather than added to the depth-agnostic
+  `SKIP_DIRS`, matching the deliberate root-anchored `/OTHER_REPOS/` rule in
+  `templates/gitignore.universal`.
+- `devel/bump_version.py`: Cargo.lock entries now display as `Cargo.lock [package_name]` through the
+  new `format_entry_label` helper, used by the discovered, skipped, and planned listings. One lock
+  file contributes one entry per local package stanza, so the old path-only output printed the same
+  line many times with no way to tell the stanzas apart.
+- `devel/bump_version.py`: with `--update-all` or an explicit version, entries already at the target
+  are excluded from the plan instead of being listed and rewritten as no-ops. The applied-file count
+  now counts distinct paths, so a Cargo.lock with thirteen member stanzas reports as one file.
+
+### Fixes and Maintenance
+
+- `devel/bump_version.py`: inherited Cargo versions are no longer treated as literal versions.
+  `parse_toml_version` required only a truthy value and stringified it, so a member manifest with
+  `version.workspace = true` parsed as the table `{'workspace': True}`, was reported as a discovered
+  version, and was counted as a planned update even though the rewrite could never match its line.
+  The check is now `isinstance(version, str)`, so inheriting members yield no entry at all.
+- `devel/bump_version.py`: `parse_cargo_toml` now also reads `[workspace.package] version`, making
+  the workspace root the single CalVer-derived source that Cargo.lock member stanzas are updated
+  from. It returns `(entry, package_name)` so a member's package name is still collected when the
+  member owns no version; keying name collection off the version entry would have left every
+  inheriting member unmatched in Cargo.lock once inherited versions stopped producing entries.
+
+- `devel/bump_version.py`: `parse_version_details` no longer repeats the same six-line numeric and
+  width extraction once per accepted version format. The seven format branches now call a shared
+  `version_number_parts` helper, which is the single place the zero-padding filter lives (recording
+  that "08" was two characters, so `26.08` rebuilds as `26.08` and not `26.8`). Behavior is
+  unchanged; the seven branches keep their own `pre_tag`, `pre_num`, `style`, and `patch_optional`
+  values, which is the only thing that actually varied between them.
+- `devel/bump_version.py`: the prerelease tag maps are now the module constants `PRE_TAG_NAMES`,
+  `PRE_TAG_SHORT`, and `CARGO_PRE_TAG_NAMES`, instead of four dict literals rebuilt on every call
+  inside `parse_version_details` (twice), `format_version`, and `normalize_cargo_version`. The three
+  constants are kept separate rather than derived from one another, since they are three different
+  directions (short to long, long to short, and Cargo's accept-either form).
+- `devel/changelog_lib.py`: added `current_calver_month` and `calver_month_prefix`. The current-month
+  probe was written three times (`devel/bump_version.py`, `devel/commit_changelog.py`,
+  `templates/shared/devel/make_release.py`) and the YY.MM prefix extract twice. `make_release.py` and
+  `commit_changelog.py` now call the shared pair; both already imported `changelog_lib`. This follows
+  the existing precedent in that module, which absorbed the git trio and the console helpers rather
+  than spawning per-concern lib modules.
+- `devel/bump_version.py` deliberately keeps its own local `current_calver_month` rather than
+  importing the shared one: `changelog_lib` pulls in rich, and this tool is otherwise stdlib-only.
+  Version SHAPE validation also stays here in `validate_yy_mm_patch`, which is stricter than the
+  freshness checks need (it enforces the month range and the accepted prerelease spellings).
+
+### Developer Tests and Notes
+
+- `tests/meta/test_bump_version.py`: added `test_set_version_updates_workspace_package_only`,
+  covering the inherited-version parser branch. Kept as a permanent test because it exercises parser
+  logic that was demonstrably wrong, runs offline inside `tmp_path` in well under a second, and is
+  date-independent (it passes an explicit `--set-version`). The broader scratch harnesses used while
+  rebuilding were one-time proofs and were deleted rather than committed.
+- Confirmed the width metadata is load-bearing before treating it as shared logic: parsing and
+  reformatting with widths suppressed turns `26.08.1` into `26.8.1`, `26.08` into `26.8.0`, and
+  `26.08.3rc1` into `26.8.3rc1`, while `1.2.3` is unaffected. `26.8.1` is exactly the Cargo form, so
+  the widths are the only thing separating the repo representation from the Cargo representation.
+  The `--set-version` path passes a canonical string straight through, but the bump path rebuilds
+  from the parsed existing version, which is where the widths are consumed.
+- Verified against a synthetic workspace (root `[workspace.package]`, two members inheriting via
+  `version.workspace = true`, a Cargo.lock holding both member stanzas plus a third-party `serde`
+  stanza, and a root `OTHER_REPOS/pg/VERSION`). Result: the root manifest and both lock stanzas
+  updated, member manifests and the `serde` stanza untouched, the vendored `2.21` left alone, and
+  the summary reported two files.
+
 ## 2026-08-03
 
 ### Additions and New Features
