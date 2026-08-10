@@ -1,3 +1,35 @@
+## 2026-08-10
+
+### Additions and New Features
+
+- Added the universal `tests/test_source_file_line_limit.py` hygiene gate. It scans Git-tracked
+  authored source files through `file_utils.discover_files`, accepts 999 physical lines, fails at
+  1000, and writes the standard complete violation report. Scope includes common programming,
+  build, query, template, and authored-document formats (including `.md`) plus conventional names
+  such as `Makefile` and `Dockerfile`; generic `.txt`, data, config, generated, notebook, and binary
+  formats remain outside the gate.
+- Added the optional manager-owned `tests/source_file_line_limit_overrides.txt` contract for exact
+  paths to tracked sources outside local control, such as a downloaded normative specification.
+  Blank lines and full-line comments are accepted; globs and paths escaping the repo are rejected.
+  The propagation manifest marks the file as template-meta so one repo's approvals never ship to
+  another repo.
+
+### Decisions and Failures
+
+- Untracked `local-only/` reference books need no path exception because hygiene discovery already
+  uses `git ls-files`. The source selector deliberately does not exclude that directory, preventing
+  it from becoming a loophole for tracked oversized code.
+
+### Developer Tests and Notes
+
+- Added an explicit boundary case proving that 999 lines passes and 1000 lines fails.
+- Added an inline `tmp_path` behavior case proving the optional override list loads an exact path
+  while ignoring comments and blank lines.
+- The boundary cases pass, and direct pyflakes validation is clean. The complete new gate reports
+  four existing source debts instead of weakening the rule: `devel/bump_version.py` (1329),
+  `repolib/files.py` (1332), `reset_repo.py` (1126), and
+  `templates/python/_pypi/devel/submit_to_pypi.py` (1349).
+
 ## 2026-08-07
 
 ### Behavior or Interface Changes
