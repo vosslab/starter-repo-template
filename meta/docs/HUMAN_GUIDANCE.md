@@ -5,6 +5,46 @@ Keep entries current. Move outdated entries to `docs/CHANGELOG.md`.
 
 See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 
+## Documentation ownership
+
+- [REPO_TYPE.md](REPO_TYPE.md) owns marker format, names, inheritance, and
+  multi-type behavior.
+- [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) owns repository conventions.
+  Keep type-marker rules out of it; the shared `REPO_` prefix does not make the
+  two documents interchangeable.
+
+## Hygiene discovery ownership
+
+- Top-level hygiene tests select tracked files through
+  [tests/file_utils.py](../../tests/file_utils.py) `discover_files`; they do not
+  maintain local discovery or exclusion-prefix copies.
+- Universal skip directories belong in [tests/file_utils.py](../../tests/file_utils.py).
+  Repo-specific exclusions belong in [tests/conftest.py](../../tests/conftest.py)
+  `REPO_HYGIENE_FILTERS`.
+- The line-limit gate keeps only its exact-path manager approval list because
+  that policy is specific to the gate.
+
+## Plan and test gates
+
+- Review implementation plans against [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md),
+  [docs/PYTEST_STYLE.md](../../docs/PYTEST_STYLE.md),
+  [tests/TESTS_README.md](../../tests/TESTS_README.md),
+  [devel/DEVEL_README.md](../../devel/DEVEL_README.md), and relevant language guides.
+- Ground acceptance gates in product behavior, repository policy, or measured evidence.
+  Use byte equality, pixel equality, and timing thresholds only when exactness or
+  performance is an explicit contract supported by a realistic baseline.
+- Classify implementation probes separately from permanent tests. Keep useful
+  one-time checks during the rebuild, then remove them before handoff.
+- Apply the permanent-test checklist in
+  [docs/PYTEST_STYLE.md](../../docs/PYTEST_STYLE.md). Permanent pytest stays
+  deterministic, offline, fixture-light, fast, and behavior-focused. When in
+  doubt, remove the test.
+
+## Shebang semantics
+
+- WeBWorK `.conf` files use an exact first-line `#!perl` configuration marker.
+  Shebang hygiene treats that marker as data, not an OS interpreter directive.
+
 ## Propagation routing model
 
 - File location is the primary routing determinant. Agents use location first;

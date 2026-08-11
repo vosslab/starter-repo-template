@@ -95,9 +95,9 @@ with a Rust extension, a Python tool with a TypeScript front end.
 splitting the marker and expanding `all` in place, and
 `repolib.model.validate_marker(marker, repo_label)` is the warning layer that
 drops unrecognized tokens at the sites that read a marker.
-[docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) states the short consumer-facing
-contract (where the file lives, what it declares, canonical form); the parsing
-and routing rules below are template-side and live only here.
+[REPO_TYPE.md](REPO_TYPE.md) states the marker contract (where the file lives,
+what it declares, and its canonical form); the parsing and routing mechanics
+below remain template-side.
 
 `repolib.model.effective_type_chain(marker)` returns each declared token
 followed by its ancestors, nearest-first and deduped across the whole marker,

@@ -5,6 +5,8 @@ Only `README.md` and `docs/CHANGELOG.md` are intentionally repository-specific; 
 
 ## Documentation
 
+- [meta/docs/REPO_TYPE.md](meta/docs/REPO_TYPE.md): Repository type marker format, available
+  types, inheritance, and multi-type behavior.
 - [docs/REPO_STYLE.md](docs/REPO_STYLE.md): Repository structure, naming, versioning, dependency manifest, and licensing conventions.
 - [docs/PYTHON_STYLE.md](docs/PYTHON_STYLE.md): Python implementation rules for formatting, structure, imports, argparse, and testing.
 - [docs/PYTEST_STYLE.md](docs/PYTEST_STYLE.md): Pytest test-writing rules, commands, and failure triage.

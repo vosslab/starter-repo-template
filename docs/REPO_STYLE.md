@@ -26,17 +26,6 @@ Core principles guide work in this repo. Cite them by name when making judgment 
 - Keep `README.md` and `AGENTS.md` at the repo root.
 - Determine REPO_ROOT with `git rev-parse --show-toplevel`, not by deriving paths from the current working directory.
 
-Every repo carries a `REPO_TYPE` file at the repo root holding one or more
-comma-separated lowercase type names plus a newline, for example `python` or
-`python,rust`. The available names are `python`, `pypi`, `typescript`, `rust`,
-`swift`, `other`, `scripted`, `website`, `compiled`, and `all`. The `pypi` type
-inherits the complete `python` rule set and adds package-publishing tools. A repo declares several
-names when it genuinely ships several families, such as a Python CLI with a Rust
-extension. The marker declares which shared rule sets the repo follows. Write it
-in canonical form: lowercase, comma separated, no spaces, declaration order
-preserved. Keep `REPO_TYPE` maintained after bootstrap; it is a live declaration,
-not a one-time scaffolding artifact.
-
 ## AGENTS.md files
 
 Keep `AGENTS.md` files concise and operational. They should usually be around

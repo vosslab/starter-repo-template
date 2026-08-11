@@ -30,6 +30,14 @@
 
 ### Fixes and Maintenance
 
+- Split repository classification from repository style: `meta/docs/REPO_TYPE.md` now owns
+  marker format, names, inheritance, and multi-type behavior, while `docs/REPO_STYLE.md`
+  contains no type-marker contract. Updated human-guidance and propagation references.
+- Recorded plan-gate guidance: ground exactness and performance requirements in measured product
+  contracts, separate one-time implementation probes from permanent tests, and apply the
+  permanent-test checklist before adding suite coverage.
+- `tests/test_shebangs.py` now treats exact `#!perl` lines in `.conf` files as WeBWorK
+  configuration markers rather than executable shebangs, covered with inline `tmp_path` input.
 - Added template-local pytest import paths so `pytest tests/` resolves the template's helper
   modules without adding `PYTHONPATH` or custom commands to the downstream `source_me.sh` seed.
 - Removed the fragile reset self-propagation pytest; the whole reset workflow remains in the
