@@ -13,14 +13,15 @@ import pytest
 
 import file_utils
 
-import reset_repo
+import repolib.reset
+import repolib.reset_answers
 
 REPO_ROOT = pathlib.Path(file_utils.get_repo_root())
 
 # Every selectable license that ships a body file. "none" is a docs sentinel
 # meaning "no docs license", so it ships no file and is excluded here.
-INSTALLABLE_LICENSES = reset_repo.CODE_LICENSES + [
-	spdx for spdx in reset_repo.DOCS_LICENSES if spdx != "none"
+INSTALLABLE_LICENSES = repolib.reset_answers.CODE_LICENSES + [
+	spdx for spdx in repolib.reset_answers.DOCS_LICENSES if spdx != "none"
 ]
 
 
@@ -44,6 +45,6 @@ def test_copy_license_installs_each_license(spdx: str, tmp_path: pathlib.Path) -
 	"""copy_license reproduces every license body byte-for-byte, no exceptions."""
 	source = REPO_ROOT / "LICENSES" / f"LICENSE.{spdx}.md"
 	target_filename = f"LICENSE.{spdx}.md"
-	reset_repo.copy_license(str(tmp_path), str(source), target_filename, dry_run=False)
+	repolib.reset.copy_license(str(tmp_path), str(source), target_filename, dry_run=False)
 	installed = (tmp_path / target_filename).read_text(encoding="utf-8")
 	assert installed == source.read_text(encoding="utf-8")

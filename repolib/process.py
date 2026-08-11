@@ -10,6 +10,7 @@ import os
 
 import repolib.console
 import repolib.files
+import repolib.plan
 import repolib.model
 import repolib.repo
 
@@ -67,7 +68,7 @@ def remove_deprecated_tests(tests_dir: str, dry_run: bool) -> int:
 	"""
 	deprecated_tests = repolib.files.load_deprecation_list(
 		'meta/propagation/deprecated_tests.txt',
-		os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+		repolib.repo.resolve_source_dir(None),
 	)
 
 	removed = 0
@@ -338,11 +339,11 @@ def process_repo(repo_dir: str, context: repolib.model.PropagateContext, counter
 	repo_copies = 0
 	repo_skips = 0
 
-	spec = repolib.files.resolve_spec_for_type(repo_type, context.source_dir, counters=counters, repo_dir=repo_dir)
+	spec = repolib.plan.resolve_spec_for_type(repo_type, context.source_dir, counters=counters, repo_dir=repo_dir)
 
 	auto_discovered = []
 	if context.auto_discover:
-		auto_discovered = repolib.files.auto_discover_test_files(context.source_dir, repo_type)
+		auto_discovered = repolib.plan.auto_discover_test_files(context.source_dir, repo_type)
 		if auto_discovered:
 			counters['auto_discovered_count'] += len(auto_discovered)
 			spec['test_files'].extend(auto_discovered)

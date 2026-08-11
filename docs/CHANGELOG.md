@@ -14,6 +14,44 @@
   The propagation manifest marks the file as template-meta so one repo's approvals never ship to
   another repo.
 
+### Behavior or Interface Changes
+
+- `devel/bump_version.py patch` now prepares the next patch release. It treats repo versions such
+  as `26.08` and Cargo versions such as `26.8.0` as the same release, previews the affected files,
+  and uses plain `Current version` and `Next version` labels.
+- Shortened source file line-limit report entries to `path: N lines`; the report header carries
+  the shared policy context once.
+- Promoted PyPI packaging from the file-presence-driven `templates/python/_pypi/` conditional
+  overlay to the real `pypi` repo type under `templates/pypi/`. The inheritance declaration
+  `pypi: python` gives packages the complete Python rule set plus publishing-specific files.
+  Declaring `python` selects Python tooling; declaring `pypi` adds publishing files.
+  Legacy reset configs using `project_type: python` with `pypi: true` normalize to the canonical
+  `pypi` marker.
+
+### Fixes and Maintenance
+
+- Added template-local pytest import paths so `pytest tests/` resolves the template's helper
+  modules without adding `PYTHONPATH` or custom commands to the downstream `source_me.sh` seed.
+- Removed the fragile reset self-propagation pytest; the whole reset workflow remains in the
+  clone-based E2E runner.
+- Removed the unused `repolib.files.safe_walk` helper and corrected release-routing documentation.
+- Condensed the source-file-size rules to the boundary, scope owner, and override path.
+- Reduced `reset_repo.py` to an executable CLI stub. Filesystem mutation and orchestration now
+  live in `repolib/reset.py`, while interview and JSON-answer resolution live in
+  `repolib/reset_answers.py`.
+- Split propagation planning from file mutation: `repolib/files.py` retains file and merge
+  operations, and `repolib/plan.py` owns plan construction, typed overlays, and source buckets.
+- Split the version command into the small `devel/bump_version.py` CLI,
+  `devel/version_lib.py` for shared version behavior, and `devel/version_files.py` for repository
+  discovery and updates. `make_release.py` and the PyPI publisher now use the same version library.
+- Split PyPI authentication/repository resolution and console/subprocess helpers into
+  `pypi_auth.py` and `pypi_support.py`. All three files propagate together into a package repo's
+  `devel/` directory and use normal sibling imports; template tests provide those source overlay
+  paths through a test-only `PYTHONPATH`.
+- Extracted shared overlay routing into `repolib/plan.py`.
+- Extracted reset cleanup and completion phases into focused helpers.
+- Clarified reset answer parsing and aligned the extracted helpers with repository style.
+
 ### Decisions and Failures
 
 - Untracked `local-only/` reference books need no path exception because hygiene discovery already
@@ -29,6 +67,12 @@
   four existing source debts instead of weakening the rule: `devel/bump_version.py` (1329),
   `repolib/files.py` (1332), `reset_repo.py` (1126), and
   `templates/python/_pypi/devel/submit_to_pypi.py` (1349).
+- Resolved all four debts above without overrides. The largest replacement module is now
+  `templates/pypi/devel/submit_to_pypi.py` at 988 lines. The complete pytest suite passes with
+  1727 tests and 2 environment-dependent skips; the standalone real-Git release E2E also passes.
+- Exported the staged index into an isolated temporary Git repository and completed a live `pypi`
+  reset. The canonical marker, Python inheritance, PyPI support trio, shared version modules, and
+  source-release helper were present afterward; template/repolib/reset infrastructure was removed.
 
 ## 2026-08-07
 

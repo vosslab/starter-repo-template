@@ -28,6 +28,7 @@ import pytest
 # local repo modules
 import file_utils
 import repolib.files
+import repolib.plan
 import repolib.model
 
 
@@ -244,7 +245,7 @@ def test_coverage_guard_raises_on_uncovered_shared_file(tmp_path: pathlib.Path) 
 	# No rule names orphan.txt, so it is uncovered regardless of the registered
 	# source_release rule; the walk must raise.
 	with pytest.raises(RuntimeError, match='shared overlay leak'):
-		repolib.files.compute_propagation_plan(str(tmp_path), 'rust')
+		repolib.plan.compute_propagation_plan(str(tmp_path), 'rust')
 
 
 #============================================
@@ -257,7 +258,7 @@ def test_coverage_guard_raises_on_uncovered_shared_file(tmp_path: pathlib.Path) 
 # Derive the routing constants from the live manifest so the tests stay in sync
 # with repolib.model.SHARED_OVERLAYS instead of hardcoding the registered values.
 # source_release ships make_release.py UNCONDITIONALLY to its listed types
-# (python incl. PyPI, rust, swift, other); typescript is excluded because those
+# (python and its PyPI child, rust, swift, other); typescript is excluded because those
 # repos are GitHub Pages based and do not cut releases.
 _SOURCE_RELEASE_RULE = repolib.model.SHARED_OVERLAYS['source_release']
 SOURCE_RELEASE_PATHS = _SOURCE_RELEASE_RULE['paths']
@@ -279,15 +280,12 @@ def test_source_release_ships_to_recipient_types(
 
 
 @pytest.mark.parametrize('shared_path', SOURCE_RELEASE_PATHS)
-def test_source_release_ships_to_python_with_pyproject(
+def test_source_release_ships_to_pypi_child(
 	shared_path: str,
 	tmp_path: pathlib.Path,
 ) -> None:
-	"""source_release ships to python repos even when they carry pyproject.toml (PyPI)."""
-	# A PyPI python repo gets make_release.py (source snapshot) alongside its
-	# _pypi submit_to_pypi.py; the rule no longer gates on pyproject.toml.
-	(tmp_path / 'pyproject.toml').write_text('[project]\nname = "dummy"\n')
-	result = repolib.model.shared_path_ships(shared_path, 'python', str(tmp_path))
+	"""The PyPI child inherits source-release tooling from scripted."""
+	result = repolib.model.shared_path_ships(shared_path, 'pypi', str(tmp_path))
 	assert result is True
 
 
@@ -325,5 +323,5 @@ def test_typescript_receives_playwright_style_through_website_overlay() -> None:
 	templates/shared/); typescript ships it only because effective_type_chain
 	('typescript') includes 'website', not through any shared_overlays rule.
 	"""
-	plan = repolib.files.compute_propagation_plan(TEMPLATE_ROOT, 'typescript')
+	plan = repolib.plan.compute_propagation_plan(TEMPLATE_ROOT, 'typescript')
 	assert 'docs/PLAYWRIGHT_TEST_STYLE.md' in plan['overwrite_files']

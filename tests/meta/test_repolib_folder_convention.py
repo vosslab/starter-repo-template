@@ -12,6 +12,7 @@ buckets returned by compute_propagation_plan.
 import pathlib
 
 import repolib.files
+import repolib.plan
 import repolib.model
 
 
@@ -20,7 +21,7 @@ def test_universal_doc_routes_overwrite(tmp_path: pathlib.Path) -> None:
 	docs_dir = tmp_path / 'docs'
 	docs_dir.mkdir()
 	(docs_dir / 'FOO.md').write_text('test')
-	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
+	plan = repolib.plan.compute_propagation_plan(str(tmp_path), 'python')
 	assert 'docs/FOO.md' in plan['overwrite_files']
 
 
@@ -34,14 +35,14 @@ def test_universal_doc_reaches_every_type(tmp_path: pathlib.Path) -> None:
 	docs_dir.mkdir()
 	(docs_dir / 'SHARED.md').write_text('test')
 	for repo_type in repolib.model.REPO_TYPE_ORDER:
-		plan = repolib.files.compute_propagation_plan(str(tmp_path), repo_type)
+		plan = repolib.plan.compute_propagation_plan(str(tmp_path), repo_type)
 		assert 'docs/SHARED.md' in plan['overwrite_files']
 
 
 def test_meta_file_excluded_basename_form(tmp_path: pathlib.Path) -> None:
 	"""META_FILES entry by basename (e.g. README.md) excludes the file."""
 	(tmp_path / 'README.md').write_text('test')
-	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
+	plan = repolib.plan.compute_propagation_plan(str(tmp_path), 'python')
 	assert 'README.md' not in plan['overwrite_files']
 
 
@@ -50,7 +51,7 @@ def test_meta_dir_excludes_nested_files(tmp_path: pathlib.Path) -> None:
 	meta_docs = tmp_path / 'meta' / 'docs'
 	meta_docs.mkdir(parents=True)
 	(meta_docs / 'PROPAGATION_RULES.md').write_text('test')
-	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
+	plan = repolib.plan.compute_propagation_plan(str(tmp_path), 'python')
 	assert 'meta/docs/PROPAGATION_RULES.md' not in plan['overwrite_files']
 
 
@@ -64,7 +65,7 @@ def test_meta_dir_excludes_root_tools_nested(tmp_path: pathlib.Path) -> None:
 	tools_dir = tmp_path / 'tools'
 	tools_dir.mkdir()
 	(tools_dir / 'detect_repo_type.py').write_text('test')
-	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
+	plan = repolib.plan.compute_propagation_plan(str(tmp_path), 'python')
 	assert 'tools/detect_repo_type.py' not in plan['overwrite_files']
 
 
@@ -78,8 +79,8 @@ def test_typescript_overlay_tools_ships(tmp_path: pathlib.Path) -> None:
 	tools_dir = tmp_path / 'templates' / 'typescript' / 'tools'
 	tools_dir.mkdir(parents=True)
 	(tools_dir / 'sync_typescript_package_pins.py').write_text('test')
-	plan_ts = repolib.files.compute_propagation_plan(str(tmp_path), 'typescript')
-	plan_py = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
+	plan_ts = repolib.plan.compute_propagation_plan(str(tmp_path), 'typescript')
+	plan_py = repolib.plan.compute_propagation_plan(str(tmp_path), 'python')
 	assert 'tools/sync_typescript_package_pins.py' in plan_ts['overwrite_files']
 	# Other repo types do not get the typescript overlay file.
 	assert 'tools/sync_typescript_package_pins.py' not in plan_py['overwrite_files']
@@ -95,7 +96,7 @@ def test_typescript_overlay_tools_meta_file_basename_excluded(tmp_path: pathlib.
 	tools_dir = tmp_path / 'templates' / 'typescript' / 'tools'
 	tools_dir.mkdir(parents=True)
 	(tools_dir / 'README.md').write_text('test')
-	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'typescript')
+	plan = repolib.plan.compute_propagation_plan(str(tmp_path), 'typescript')
 	assert 'tools/README.md' not in plan['overwrite_files']
 	assert 'README.md' not in plan['overwrite_files']
 
@@ -105,7 +106,7 @@ def test_meta_test_prefix_excluded(tmp_path: pathlib.Path) -> None:
 	tests_dir = tmp_path / 'tests'
 	tests_dir.mkdir()
 	(tests_dir / 'test_repolib_x.py').write_text('test')
-	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
+	plan = repolib.plan.compute_propagation_plan(str(tmp_path), 'python')
 	assert 'tests/test_repolib_x.py' not in plan['test_files']
 
 
@@ -119,7 +120,7 @@ def test_tests_denylist_ships_non_test_helper(tmp_path: pathlib.Path) -> None:
 	tests_dir.mkdir()
 	(tests_dir / 'test_foo.py').write_text('test')
 	(tests_dir / 'helper_thing.py').write_text('test')
-	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
+	plan = repolib.plan.compute_propagation_plan(str(tmp_path), 'python')
 	assert 'tests/test_foo.py' in plan['test_files']
 	assert 'tests/helper_thing.py' in plan['test_files']
 
@@ -129,7 +130,7 @@ def test_tests_denylist_skips_scratch(tmp_path: pathlib.Path) -> None:
 	tests_dir = tmp_path / 'tests'
 	tests_dir.mkdir()
 	(tests_dir / '_scratch.py').write_text('test')
-	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
+	plan = repolib.plan.compute_propagation_plan(str(tmp_path), 'python')
 	all_entries = (
 		plan['overwrite_files']
 		+ plan['noexist_files']
@@ -148,7 +149,7 @@ def test_tests_denylist_skips_conftest(tmp_path: pathlib.Path) -> None:
 	tests_dir = tmp_path / 'tests'
 	tests_dir.mkdir()
 	(tests_dir / 'conftest.py').write_text('test')
-	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
+	plan = repolib.plan.compute_propagation_plan(str(tmp_path), 'python')
 	all_entries = (
 		plan['overwrite_files']
 		+ plan['noexist_files']
@@ -165,7 +166,7 @@ def test_typescript_overlay_routes_to_overwrite(tmp_path: pathlib.Path) -> None:
 	type_dir = tmp_path / 'templates' / 'typescript'
 	type_dir.mkdir(parents=True)
 	(type_dir / 'foo.ts').write_text('test')
-	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'typescript')
+	plan = repolib.plan.compute_propagation_plan(str(tmp_path), 'typescript')
 	assert 'foo.ts' in plan['overwrite_files']
 
 
@@ -174,7 +175,7 @@ def test_typescript_noexist_routes_to_noexist(tmp_path: pathlib.Path) -> None:
 	noexist_dir = tmp_path / 'templates' / 'typescript' / 'noexist'
 	noexist_dir.mkdir(parents=True)
 	(noexist_dir / 'package.json').write_text('test')
-	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'typescript')
+	plan = repolib.plan.compute_propagation_plan(str(tmp_path), 'typescript')
 	assert 'package.json' in plan['noexist_files']
 
 
@@ -190,9 +191,9 @@ def test_typed_overlay_doc_is_language_specific(tmp_path: pathlib.Path) -> None:
 	py_docs = tmp_path / 'templates' / 'python' / 'docs'
 	py_docs.mkdir(parents=True)
 	(py_docs / 'PY_ONLY.md').write_text('test')
-	plan_py = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
-	plan_ts = repolib.files.compute_propagation_plan(str(tmp_path), 'typescript')
-	plan_other = repolib.files.compute_propagation_plan(str(tmp_path), 'other')
+	plan_py = repolib.plan.compute_propagation_plan(str(tmp_path), 'python')
+	plan_ts = repolib.plan.compute_propagation_plan(str(tmp_path), 'typescript')
+	plan_other = repolib.plan.compute_propagation_plan(str(tmp_path), 'other')
 	assert 'docs/PY_ONLY.md' in plan_py['overwrite_files']
 	assert 'docs/PY_ONLY.md' not in plan_ts['overwrite_files']
 	assert 'docs/PY_ONLY.md' not in plan_other['overwrite_files']
@@ -210,9 +211,9 @@ def test_typed_overlay_devel_is_language_specific(tmp_path: pathlib.Path) -> Non
 	py_devel = tmp_path / 'templates' / 'python' / 'devel'
 	py_devel.mkdir(parents=True)
 	(py_devel / 'py_tool.py').write_text('test')
-	plan_py = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
-	plan_ts = repolib.files.compute_propagation_plan(str(tmp_path), 'typescript')
-	plan_other = repolib.files.compute_propagation_plan(str(tmp_path), 'other')
+	plan_py = repolib.plan.compute_propagation_plan(str(tmp_path), 'python')
+	plan_ts = repolib.plan.compute_propagation_plan(str(tmp_path), 'typescript')
+	plan_other = repolib.plan.compute_propagation_plan(str(tmp_path), 'other')
 	assert 'py_tool.py' in plan_py['devel_files']
 	assert 'py_tool.py' not in plan_ts['devel_files']
 	assert 'py_tool.py' not in plan_other['devel_files']
@@ -221,7 +222,7 @@ def test_typed_overlay_devel_is_language_specific(tmp_path: pathlib.Path) -> Non
 def test_universal_noexist_overrides_overwrite(tmp_path: pathlib.Path) -> None:
 	"""AGENTS.md in UNIVERSAL_NOEXIST moves to noexist_files, not overwrite."""
 	(tmp_path / 'AGENTS.md').write_text('test')
-	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
+	plan = repolib.plan.compute_propagation_plan(str(tmp_path), 'python')
 	assert 'AGENTS.md' not in plan['overwrite_files']
 	assert 'AGENTS.md' in plan['noexist_files']
 
@@ -235,7 +236,7 @@ def test_universal_noexist_root_file_reaches_every_type(tmp_path: pathlib.Path) 
 	"""
 	(tmp_path / 'source_me.sh').write_text('test')
 	for repo_type in ('python', 'typescript', 'other'):
-		plan = repolib.files.compute_propagation_plan(str(tmp_path), repo_type)
+		plan = repolib.plan.compute_propagation_plan(str(tmp_path), repo_type)
 		assert 'source_me.sh' in plan['noexist_files']
 		assert 'source_me.sh' not in plan['overwrite_files']
 
@@ -243,7 +244,7 @@ def test_universal_noexist_root_file_reaches_every_type(tmp_path: pathlib.Path) 
 def test_root_file_not_in_allowlist_excluded(tmp_path: pathlib.Path) -> None:
 	"""Root file outside allowlist not in plan."""
 	(tmp_path / 'random_root.md').write_text('test')
-	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
+	plan = repolib.plan.compute_propagation_plan(str(tmp_path), 'python')
 	assert 'random_root.md' not in plan['overwrite_files']
 	assert 'random_root.md' not in plan['noexist_files']
 
@@ -257,7 +258,7 @@ def test_gitignore_blocks_loaded_from_files(tmp_path: pathlib.Path) -> None:
 	ts_dir = tmp_path / 'templates' / 'typescript'
 	ts_dir.mkdir()
 	(ts_dir / 'gitignore.typescript').write_text('node_modules/\ndist/\n')
-	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'typescript')
+	plan = repolib.plan.compute_propagation_plan(str(tmp_path), 'typescript')
 	assert 'report_*.txt' in plan['gitignore_block']
 	assert '.DS_Store' in plan['gitignore_block']
 	assert 'node_modules/' in plan['gitignore_block']

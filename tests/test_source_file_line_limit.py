@@ -165,7 +165,7 @@ def violations_for_line_count(rel: str, line_count: int) -> list[str]:
 	"""
 	if line_count < LINE_LIMIT:
 		return []
-	message = f"{rel}: {line_count} lines; source files must contain fewer than {LINE_LIMIT} lines"
+	message = f"{rel}: {line_count} lines"
 	return [message]
 
 

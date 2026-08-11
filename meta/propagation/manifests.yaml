@@ -45,16 +45,7 @@ routing_overrides:
 # Shape: repo_type -> { overlay_name -> {when, path, description} }.
 # overlay_name is the underscore folder under templates/<repo_type>/.
 # Supported 'when' verbs: has_file (apply overlay when <path> exists at consumer).
-conditional_overlays:
-  python:
-    # _pypi layers PyPI packaging files onto python repos that ship a
-    # pyproject.toml at their root (templates/python/_pypi/).
-    _pypi:
-      when: has_file
-      path: pyproject.toml
-      description: >-
-        PyPI packaging overlay: ships submit_to_pypi.py and a pyproject.toml
-        seed only to python repos that are packaged for PyPI.
+conditional_overlays: {}
 
 # Shared overlays: canonical files under templates/shared/ routed to a chosen SET
 # of repo types via named rules. Unlike conditional_overlays (one repo_type via an
@@ -110,6 +101,7 @@ merge_files:
 
 # Files that NEVER ship (template-meta).
 meta_files:
+  - pytest.ini
   - propagate_style_guides.py
   - reset_repo.py
   - README.md
@@ -185,6 +177,7 @@ default_repo_skip_names:
 # are NOT consumer tokens and are added at their own guard in repolib.files.
 known_repo_types:
   - python
+  - pypi
   - typescript
   - rust
   - swift
@@ -202,6 +195,7 @@ known_repo_types:
 # stay acyclic and every parent must be a known_repo_types token; the loader
 # validates both at import time.
 repo_type_inherits:
+  pypi: python
   python: scripted
   rust: compiled
   swift: compiled

@@ -4,6 +4,7 @@ import os
 import file_utils
 import repolib.model
 import repolib.files
+import repolib.plan
 
 
 def test_repolib_spec_all_entries_resolve_to_source() -> None:
@@ -11,7 +12,7 @@ def test_repolib_spec_all_entries_resolve_to_source() -> None:
 	repo_root = file_utils.get_repo_root()
 
 	for repo_type in repolib.model.REPO_TYPE_ORDER:
-		plan = repolib.files.compute_propagation_plan(repo_root, repo_type)
+		plan = repolib.plan.compute_propagation_plan(repo_root, repo_type)
 		for bucket, entries in plan.items():
 			if bucket == 'gitignore_block':
 				continue

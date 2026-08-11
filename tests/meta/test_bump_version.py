@@ -10,6 +10,37 @@ import devel.bump_version
 
 
 #============================================
+def test_patch_updates_repo_and_cargo_versions(
+	tmp_path: pathlib.Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""The patch action recognizes equivalent repo and Cargo versions."""
+	cargo_toml = tmp_path / "Cargo.toml"
+	version_file = tmp_path / "VERSION"
+	cargo_toml.write_text(
+		'[package]\nname = "demo"\nversion = "26.8.0"\nedition = "2024"\n',
+		encoding="utf-8",
+	)
+	version_file.write_text("26.08\n", encoding="utf-8")
+	monkeypatch.setattr(
+		sys,
+		"argv",
+		[
+			"bump_version.py",
+			"patch",
+			"--apply",
+			"--base-dir",
+			str(tmp_path),
+		],
+	)
+
+	devel.bump_version.main()
+
+	assert version_file.read_text(encoding="utf-8") == "26.08.1\n"
+	assert 'version = "26.8.1"' in cargo_toml.read_text(encoding="utf-8")
+
+
+#============================================
 def test_set_version_synchronizes_rust_versions(
 	tmp_path: pathlib.Path,
 	monkeypatch: pytest.MonkeyPatch,

@@ -40,7 +40,8 @@ Do not try to eliminate all hardcoding. Root has mixed semantics; explicit lists
 | TypeScript-only file (any subpath, including tools/) | templates/typescript/<consumer-path> | typescript repos only |
 | Web-general file (playwright style, web docs) | templates/website/<consumer-path> | the website family: website repos plus inheriting types (typescript) |
 | Rust-only file (any subpath, including tools/) | templates/rust/<consumer-path> | rust repos only |
-| Conditionally-shipped overlay (e.g. PyPI tools) | templates/<type>/_overlay/<consumer-path> + conditional_overlays rule | selected repos only (see below) |
+| PyPI-package file | templates/pypi/<consumer-path> | `pypi` repos; also inherits the Python overlay |
+| Conditionally-shipped overlay | templates/<type>/_overlay/<consumer-path> + conditional_overlays rule | selected repos only (see below) |
 | One canonical file shared by a SET of types | templates/shared/<consumer-path> + shared_overlays rule | the rule's repo_types (see below) |
 | Root-level file like AGENTS.md | template root + add to ROOT_PROPAGATE_ALLOWLIST | every repo, overwrite |
 | Universal gitignore blocks | templates/gitignore.universal | every repo, merged into .gitignore under `# === UNIVERSAL ===` |
@@ -57,7 +58,7 @@ directory is separate: it holds template infrastructure (e.g.
 `tools/detect_repo_type.py`), never ships, and is removed during reset.
 
 **Underscore folders (`_folder`) are conditional overlays.** Any folder whose
-name starts with `_` under `templates/<type>/` (e.g. `templates/python/_pypi/`)
+name starts with `_` under `templates/<type>/` (e.g. `templates/python/_ci/`)
 is a conditional overlay. The base typed-overlay walk skips it. A matching rule
 in `conditional_overlays` in `meta/propagation/manifests.yaml` enables it per
 consumer. Conditional overlay shape:
@@ -65,23 +66,24 @@ consumer. Conditional overlay shape:
 ```yaml
 conditional_overlays:
   python:
-    _pypi:
+    _ci:
       when: has_file
-      path: pyproject.toml
+      path: .ci-enabled
       description: >-
-        PyPI packaging overlay: ships submit_to_pypi.py and a pyproject.toml
-        seed only to python repos that are packaged for PyPI.
+        Example Python CI overlay selected by a consumer marker file.
 ```
 
 The only supported `when` verb is `has_file`. The overlay ships when the named
 `path` exists at the consumer repo root. Files inside the overlay are routed
 using the same noexist/overwrite rules as other typed overlay files.
+The live manifest currently defines no conditional overlays; the mechanism is
+retained for future state-dependent routing.
 
 ## Repo type inheritance
 
 Each repo type token inherits from at most one parent, forming an inheritance
 DAG declared in the `repo_type_inherits` manifest
-(`meta/propagation/manifests.yaml`): `python -> scripted`, `rust -> compiled`,
+(`meta/propagation/manifests.yaml`): `pypi -> python -> scripted`, `rust -> compiled`,
 `swift -> compiled`, `typescript -> website`. `scripted`, `website`,
 `compiled`, and `other` are roots with no parent; every token (including the
 roots) is a directly usable `REPO_TYPE` marker.
@@ -203,10 +205,9 @@ noexist-only, everything else -> overwrite at its relative path. Every file unde
 raises on an uncovered file so a shared file never routes nowhere. An empty or
 absent `templates/shared/` tree is a no-op.
 
-The `lacks_file: pyproject.toml` example reuses this template's PyPI marker
-convention (`pyproject.toml` present means a PyPI python repo). It is a template
-convention here, not a Python-ecosystem rule; a non-PyPI python repo that keeps a
-`pyproject.toml` for tooling would be treated as PyPI by this rule.
+Do not infer repo type from a marker tested by a shared-overlay condition. In
+particular, `pyproject.toml` does not imply PyPI packaging; `REPO_TYPE=pypi` is
+the authoritative declaration.
 
 ## Precedence
 
@@ -255,7 +256,7 @@ deprecation-strip list); consumer keeps any local `@`-imports and non-`@` conten
   `docs/CLAUDE_HOOK_USAGE_GUIDE.md: {exclude_repos: [claude-code-permissions-hook]}` (blocks the
   mirror from shipping back to its source repo). Language gates, `requires_repo_file` gates, and
   `bucket` fields have been removed; use location or `conditional_overlays` instead. `docs/PYTHON_STYLE.md`
-  and `devel/submit_to_pypi.py` now route by location (universal doc and `_pypi` overlay respectively).
+  and `devel/submit_to_pypi.py` route by location (universal doc and `pypi` type overlay respectively).
 - `conditional_overlays` -- per-type underscore-folder rules. See the `_folder` section above.
 - `shared_overlays` -- named rules routing `templates/shared/` files to a SET of repo types, with
   an optional `lacks_file` condition. See the shared-overlays section above.
@@ -269,7 +270,7 @@ deprecation-strip list); consumer keeps any local `@`-imports and non-`@` conten
 - Adding `tests/test_security_audit.py` -- drop in `tests/`, every repo gets it. The `tests/` walk is a denylist: it ships every non-meta `tests/` file by location and skips only dotfiles, `_`-prefixed scratch, `conftest.py` (owned by `merge_conftest`), and `META_TEST_PREFIXES`. A non-`test_`-prefixed helper like `tests/helper_thing.py` ships too.
 - Adding `templates/typescript/.eslintignore` -- drop under `templates/typescript/`. TypeScript repos get it at consumer root.
 - Adding a new starter `Makefile` that must not clobber existing ones -- drop at `templates/<type>/noexist/Makefile` (per type) or add path to `UNIVERSAL_NOEXIST` + place at template root.
-- Adding a python-only tool needed only when `pyproject.toml` exists -- place under `templates/python/_pypi/<consumer-path>` and add a `conditional_overlays.python._pypi` rule (already defined). Example: `devel/submit_to_pypi.py` lives at `templates/python/_pypi/devel/submit_to_pypi.py`.
+- Adding a PyPI-package tool -- place it under `templates/pypi/<consumer-path>`. The `pypi` child type inherits all Python files and adds that overlay. Example: `devel/submit_to_pypi.py` lives at `templates/pypi/devel/submit_to_pypi.py`.
 - Adding an `exclude_repos` exception -- add to `ROUTING_OVERRIDES` in `meta/propagation/manifests.yaml` with `exclude_repos: [<repo-basename>]`. Use only to prevent a mirror file from shipping back to its source repo.
 
 ## conftest.py managed blocks

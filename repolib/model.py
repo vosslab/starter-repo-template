@@ -328,8 +328,8 @@ def single_type_overlay_dirs(repo_type: str, repo_dir: str) -> list[str]:
 		repo_dir (str): Consumer repository directory to test marker files against.
 
 	Returns:
-		list[str]: Ordered overlay path segments for this one type, e.g.
-			['python', 'python/_pypi'] when pyproject.toml exists at repo_dir.
+		list[str]: Ordered overlay path segments for this type, starting with its
+			base folder and followed by any configured conditional overlays.
 	"""
 	# Base repo_type overlay always applies and comes first.
 	overlay_dirs = [repo_type]
@@ -535,9 +535,8 @@ def source_path_for_bucket(template_root: str, bucket: str, file_rel: str, repo_
 	"""
 	Resolve canonical source path for a file in a bucket.
 	Handles universal files at template root and typed files under templates/<repo_type>/.
-	Typed lookups also search the repo_type's conditional overlays
-	(templates/<repo_type>/_<name>/), so an overlay file such as
-	templates/python/_pypi/devel/submit_to_pypi.py resolves for python repos.
+	Typed lookups also search the repo_type's configured conditional overlays
+	(templates/<repo_type>/_<name>/).
 	For noexist_files, looks under templates/<repo_type>[/_overlay]/noexist/ as well as root.
 	"""
 	# Reuse the non-raising resolver, then fail loud if nothing matched.
@@ -593,7 +592,7 @@ def find_source_for_bucket(template_root: str, bucket: str, file_rel: str, repo_
 		# devel/submit_to_pypi.py) sits at the universal devel/ location. Checking
 		# the universal root first would resolve the propagation SOURCE to that
 		# consumer file, making the copy a self no-op and leaving stale content in
-		# place. An overlay-only file like _pypi/devel/submit_to_pypi.py must resolve
+		# place. An overlay-only devel file must resolve
 		# to its overlay source so the refresh/overwrite actually happens.
 		# Typed/overlay roots: templates/<repo_type>[/_overlay]/devel/<name>
 		for typed_root in typed_roots:

@@ -6,6 +6,7 @@ import pytest
 
 import file_utils
 import repolib.files
+import repolib.plan
 import repolib.model
 
 TEMPLATE_ROOT = file_utils.get_repo_root()
@@ -50,7 +51,7 @@ def _assert_entry_not_meta(entry: str, bucket_name: str, repo_type: str) -> None
 @pytest.mark.parametrize('repo_type', REPO_TYPES)
 def test_no_meta_leak_any_bucket(repo_type: str) -> None:
 	"""No plan entry across any bucket may match META_FILES or traverse META_DIRS."""
-	plan = repolib.files.compute_propagation_plan(TEMPLATE_ROOT, repo_type)
+	plan = repolib.plan.compute_propagation_plan(TEMPLATE_ROOT, repo_type)
 	for bucket in PATH_BUCKETS + BASENAME_BUCKETS:
 		for entry in plan.get(bucket, []):
 			_assert_entry_not_meta(entry, bucket, repo_type)

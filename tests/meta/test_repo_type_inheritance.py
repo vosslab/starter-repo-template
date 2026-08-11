@@ -20,6 +20,7 @@ import pytest
 # local repo modules
 import file_utils
 import repolib.files
+import repolib.plan
 import repolib.manifests
 import repolib.model
 
@@ -300,7 +301,7 @@ def test_routing_matrix_anchor_assets(
 	expect_make_release: bool,
 ) -> None:
 	"""Each repo_type ships (or omits) the three anchor assets per the DAG design."""
-	plan = repolib.files.compute_propagation_plan(TEMPLATE_ROOT, repo_type)
+	plan = repolib.plan.compute_propagation_plan(TEMPLATE_ROOT, repo_type)
 	assert (PLAYWRIGHT_TEST_STYLE_MD in plan['overwrite_files']) == expect_playwright_style
 	assert (TSCONFIG_JSON in plan['noexist_files']) == expect_tsconfig
 	assert (MAKE_RELEASE_PY in plan['devel_files']) == expect_make_release
@@ -336,31 +337,32 @@ def _union_plan(repo_types: tuple) -> dict:
 		'test_files': set(),
 	}
 	for repo_type in repo_types:
-		plan = repolib.files.compute_propagation_plan(TEMPLATE_ROOT, repo_type)
+		plan = repolib.plan.compute_propagation_plan(TEMPLATE_ROOT, repo_type)
 		for bucket in union:
 			union[bucket].update(plan[bucket])
 	return union
 
 
-def test_all_set_equals_legacy_concrete_union() -> None:
-	"""REPO_TYPE=all ships the same file set as the union of the pre-change types."""
-	all_plan = repolib.files.compute_propagation_plan(TEMPLATE_ROOT, 'all')
-	legacy_union = _union_plan(LEGACY_CONCRETE_TYPES)
-	for bucket in legacy_union:
-		assert set(all_plan[bucket]) == legacy_union[bucket], (
-			f"bucket {bucket!r} differs between REPO_TYPE=all and the legacy union"
+def test_all_set_equals_concrete_union() -> None:
+	"""REPO_TYPE=all ships the union of every concrete type, including pypi."""
+	all_plan = repolib.plan.compute_propagation_plan(TEMPLATE_ROOT, 'all')
+	concrete_types = LEGACY_CONCRETE_TYPES + ('pypi',)
+	concrete_union = _union_plan(concrete_types)
+	for bucket in concrete_union:
+		assert set(all_plan[bucket]) == concrete_union[bucket], (
+			f"bucket {bucket!r} differs between REPO_TYPE=all and the concrete union"
 		)
 
 
 def test_all_includes_playwright_test_style() -> None:
 	"""REPO_TYPE=all ships docs/PLAYWRIGHT_TEST_STYLE.md (via the website overlay)."""
-	all_plan = repolib.files.compute_propagation_plan(TEMPLATE_ROOT, 'all')
+	all_plan = repolib.plan.compute_propagation_plan(TEMPLATE_ROOT, 'all')
 	assert PLAYWRIGHT_TEST_STYLE_MD in all_plan['overwrite_files']
 
 
 def test_website_only_asset_absent_from_non_website_type() -> None:
 	"""A website-only asset ships to website but not to a type outside its chain."""
-	website_plan = repolib.files.compute_propagation_plan(TEMPLATE_ROOT, 'website')
-	rust_plan = repolib.files.compute_propagation_plan(TEMPLATE_ROOT, 'rust')
+	website_plan = repolib.plan.compute_propagation_plan(TEMPLATE_ROOT, 'website')
+	rust_plan = repolib.plan.compute_propagation_plan(TEMPLATE_ROOT, 'rust')
 	assert PLAYWRIGHT_TEST_STYLE_MD in website_plan['overwrite_files']
 	assert PLAYWRIGHT_TEST_STYLE_MD not in rust_plan['overwrite_files']

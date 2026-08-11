@@ -168,12 +168,19 @@ def test_override_key_source_resolves_typed_overlay(tmp_path: pathlib.Path) -> N
 	assert result == str(source)
 
 
-def test_override_key_source_resolves_conditional_overlay(tmp_path: pathlib.Path) -> None:
+def test_override_key_source_resolves_conditional_overlay(
+	tmp_path: pathlib.Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
 	"""A devel source under a configured conditional overlay resolves."""
-	# Discover the overlay folder name from live config rather than hardcoding it,
-	# because override_key_source consults the live CONDITIONAL_OVERLAYS table.
-	overlays = repolib.model.CONDITIONAL_OVERLAYS[repolib.model.LANG_PYTHON]
-	overlay_name = next(iter(overlays))
+	# The live manifest currently has no conditional overlays. Install a synthetic
+	# rule so this remains a behavior test of the generic mechanism.
+	overlay_name = '_synthetic'
+	monkeypatch.setattr(
+		repolib.model,
+		'CONDITIONAL_OVERLAYS',
+		{'python': {overlay_name: {'when': 'has_file', 'path': 'marker.txt'}}},
+	)
 	source = write_file(
 		tmp_path / 'templates' / 'python' / overlay_name / 'devel' / 'z.py'
 	)

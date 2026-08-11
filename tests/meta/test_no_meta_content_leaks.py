@@ -43,6 +43,7 @@ import pytest
 
 import file_utils
 import repolib.files
+import repolib.plan
 import repolib.model
 
 TEMPLATE_ROOT = file_utils.get_repo_root()
@@ -139,7 +140,7 @@ def collect_shipped_markdown() -> list[str]:
 	# Union across repo types; a doc shipped to several types is scanned once.
 	sources = set()
 	for repo_type in REPO_TYPES:
-		plan = repolib.files.compute_propagation_plan(TEMPLATE_ROOT, repo_type)
+		plan = repolib.plan.compute_propagation_plan(TEMPLATE_ROOT, repo_type)
 		for bucket in PLAN_BUCKETS:
 			for entry in plan.get(bucket, []):
 				if not entry.endswith('.md'):

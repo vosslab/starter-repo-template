@@ -30,17 +30,23 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 
 ## Conditional overlays (_folder convention)
 
-- An underscore folder under `templates/<type>/` (e.g. `templates/python/_pypi/`)
+- An underscore folder under `templates/<type>/` (e.g. `templates/python/_ci/`)
   is a conditional overlay. The base walk skips it; a `conditional_overlays`
   manifest rule enables it per consumer.
 - Conditional overlay rules live in `meta/propagation/manifests.yaml` under
   `conditional_overlays: <type>: <overlay_name>: {when, path, description}`.
 - The only supported `when` verb is `has_file`: the overlay ships when the named
   file exists at the consumer repo root.
-- Current example: `_pypi` overlay (`templates/python/_pypi/`) selected when the
-  consumer has `pyproject.toml`. Ships `devel/submit_to_pypi.py` and a
-  `noexist/pyproject.toml` seed.
+- The mechanism currently has no live overlays; `conditional_overlays` is empty.
 - Prefer conditional overlays over `requires_repo_file` in `ROUTING_OVERRIDES`.
+
+## PyPI child type
+
+- `pypi` is a real child repo type of `python`, declared by `pypi: python` in
+  `repo_type_inherits`.
+- PyPI-only files live under `templates/pypi/` and ship through the `pypi` type.
+- The legacy reset answer `project_type: python` plus `pypi: true` is normalized
+  to the canonical `pypi` marker.
 
 ## Manifests single source of truth
 
@@ -62,7 +68,7 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 - `--config <file>` is the testing/reproducibility interface: a JSON answer file
   drives a non-interactive reset for e2e and subagent testing. It is not required for
   normal human use. Required JSON keys: `project_type` and `code_license`. Optional
-  keys with defaults: `docs_license` (CC-BY-4.0), `pypi` (false, python-only),
+  keys with defaults: `docs_license` (CC-BY-4.0), `pypi` (false; legacy Python-to-PyPI promotion),
   `stage` (true), `commit` (false). Short aliases are accepted for both required keys.
 - Folder-name guard: reset refuses to run when the repo root basename is exactly
   `starter-repo-template`. This protects the template development checkout. Guard is

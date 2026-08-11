@@ -8,6 +8,7 @@ import os
 import pathlib
 
 import repolib.files
+import repolib.plan
 import repolib.model
 
 
@@ -81,7 +82,7 @@ def test_meta_propagation_excluded_from_plan() -> None:
 	"""compute_propagation_plan() must not include any meta/propagation/ entry."""
 	template_root = repolib.files.TEMPLATE_ROOT
 	for repo_type in repolib.model.REPO_TYPE_ORDER:
-		plan = repolib.files.compute_propagation_plan(template_root, repo_type)
+		plan = repolib.plan.compute_propagation_plan(template_root, repo_type)
 		flat = _flatten_plan(plan)
 		# No entry should contain 'meta/propagation' or just 'propagation' (devel-bucket bare name).
 		for entry in flat:
@@ -96,7 +97,7 @@ def test_meta_propagation_excluded_from_plan() -> None:
 def test_load_deprecation_lists_test_file_not_in_plan() -> None:
 	"""This test file itself lives under tests/meta/ and must not repolib."""
 	template_root = repolib.files.TEMPLATE_ROOT
-	plan = repolib.files.compute_propagation_plan(template_root, 'python')
+	plan = repolib.plan.compute_propagation_plan(template_root, 'python')
 	for entry in plan.get('test_files', []):
 		assert 'test_load_deprecation_lists' not in entry, (
 			f'tests/meta/test_load_deprecation_lists.py leaked into plan: {entry!r}'

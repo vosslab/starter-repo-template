@@ -5,6 +5,7 @@ import pathlib
 
 import file_utils
 import repolib.files
+import repolib.plan
 import repolib.model
 
 
@@ -94,9 +95,9 @@ class TestGitignoreBlockUnion:
 		"""A 'python,rust' plan's gitignore_block is a superset of each single-type block."""
 		template_root = file_utils.get_repo_root()
 
-		combined_plan = repolib.files.compute_propagation_plan(template_root, 'python,rust')
-		python_plan = repolib.files.compute_propagation_plan(template_root, 'python')
-		rust_plan = repolib.files.compute_propagation_plan(template_root, 'rust')
+		combined_plan = repolib.plan.compute_propagation_plan(template_root, 'python,rust')
+		python_plan = repolib.plan.compute_propagation_plan(template_root, 'python')
+		rust_plan = repolib.plan.compute_propagation_plan(template_root, 'rust')
 
 		assert set(python_plan['gitignore_block']) <= set(combined_plan['gitignore_block'])
 		assert set(rust_plan['gitignore_block']) <= set(combined_plan['gitignore_block'])
@@ -110,8 +111,8 @@ class TestGitignoreBlockUnion:
 		"""
 		template_root = file_utils.get_repo_root()
 
-		all_plan = repolib.files.compute_propagation_plan(template_root, 'all')
-		python_plan = repolib.files.compute_propagation_plan(template_root, 'python')
+		all_plan = repolib.plan.compute_propagation_plan(template_root, 'all')
+		python_plan = repolib.plan.compute_propagation_plan(template_root, 'python')
 
 		assert set(python_plan['gitignore_block']) <= set(all_plan['gitignore_block'])
 

@@ -13,7 +13,8 @@ import pathlib
 import pytest
 
 # local repo modules (injected by tests/meta/conftest.py sys.path setup)
-import reset_repo
+import repolib.reset
+import repolib.reset_answers
 
 
 #============================================
@@ -52,28 +53,28 @@ class TestAnswersFromConfigNormalization:
 		"""
 		cfg = {"project_type": "p", "code_license": "MIT"}
 		path = write_json(tmp_path, "cfg.json", cfg)
-		answers = reset_repo.answers_from_config(path)
+		answers = repolib.reset_answers.answers_from_config(path)
 		assert answers.project_type == "python"
 
 	def test_code_license_alias_normalized(self, tmp_path: pathlib.Path) -> None:
 		"""Short 'm' -> 'MIT' via resolve_license alias mapping."""
 		cfg = {"project_type": "python", "code_license": "m"}
 		path = write_json(tmp_path, "cfg.json", cfg)
-		answers = reset_repo.answers_from_config(path)
+		answers = repolib.reset_answers.answers_from_config(path)
 		assert answers.code_license == "MIT"
 
 	def test_code_license_prefix_normalized(self, tmp_path: pathlib.Path) -> None:
 		"""Unique prefix 'Apache' -> 'Apache-2.0' via resolve_license prefix match."""
 		cfg = {"project_type": "python", "code_license": "apache"}
 		path = write_json(tmp_path, "cfg.json", cfg)
-		answers = reset_repo.answers_from_config(path)
+		answers = repolib.reset_answers.answers_from_config(path)
 		assert answers.code_license == "Apache-2.0"
 
 	def test_docs_license_alias_normalized(self, tmp_path: pathlib.Path) -> None:
 		"""Short docs_license alias 'cb' -> 'CC-BY-4.0'."""
 		cfg = {"project_type": "python", "code_license": "MIT", "docs_license": "cb"}
 		path = write_json(tmp_path, "cfg.json", cfg)
-		answers = reset_repo.answers_from_config(path)
+		answers = repolib.reset_answers.answers_from_config(path)
 		assert answers.docs_license == "CC-BY-4.0"
 
 
@@ -89,14 +90,14 @@ class TestAnswersFromConfigRequiredKeys:
 		cfg = {"code_license": "MIT"}
 		path = write_json(tmp_path, "cfg.json", cfg)
 		with pytest.raises(SystemExit):
-			reset_repo.answers_from_config(path)
+			repolib.reset_answers.answers_from_config(path)
 
 	def test_missing_code_license_raises(self, tmp_path: pathlib.Path) -> None:
 		"""Config without 'code_license' must raise SystemExit."""
 		cfg = {"project_type": "python"}
 		path = write_json(tmp_path, "cfg.json", cfg)
 		with pytest.raises(SystemExit):
-			reset_repo.answers_from_config(path)
+			repolib.reset_answers.answers_from_config(path)
 
 
 #============================================
@@ -121,8 +122,15 @@ class TestAnswersFromConfigOptionalDefaults:
 		"""Omitting pypi defaults to False (interview default: no)."""
 		cfg = {"project_type": "python", "code_license": "MIT"}
 		path = write_json(tmp_path, "cfg.json", cfg)
-		answers = reset_repo.answers_from_config(path)
+		answers = repolib.reset_answers.answers_from_config(path)
 		assert answers.pypi is False
+
+	def test_legacy_pypi_flag_promotes_python_type(self, tmp_path: pathlib.Path) -> None:
+		"""A legacy python plus pypi config writes the canonical pypi marker."""
+		cfg = {"project_type": "python", "code_license": "MIT", "pypi": True}
+		path = write_json(tmp_path, "cfg.json", cfg)
+		answers = repolib.reset_answers.answers_from_config(path)
+		assert answers.project_type == "pypi"
 
 
 #============================================
@@ -139,13 +147,13 @@ class TestLoadConfigInvalidJson:
 			# Write text that is not valid json at all.
 			f.write("{not valid json}")
 		with pytest.raises(SystemExit):
-			reset_repo.load_config(file_path)
+			repolib.reset_answers.load_config(file_path)
 
 	def test_missing_file_raises(self, tmp_path: pathlib.Path) -> None:
 		"""A path that does not exist must raise SystemExit."""
 		absent = os.path.join(str(tmp_path), "no_such_file.json")
 		with pytest.raises(SystemExit):
-			reset_repo.load_config(absent)
+			repolib.reset_answers.load_config(absent)
 
 
 #============================================
@@ -159,13 +167,13 @@ class TestLoadConfigNonDictTopLevel:
 		"""Top-level json array is not a valid config object."""
 		path = write_json(tmp_path, "list.json", ["python", "MIT"])
 		with pytest.raises(SystemExit):
-			reset_repo.load_config(path)
+			repolib.reset_answers.load_config(path)
 
 	def test_bare_string_raises(self, tmp_path: pathlib.Path) -> None:
 		"""Top-level json string is not a valid config object."""
 		path = write_json(tmp_path, "str.json", "python")
 		with pytest.raises(SystemExit):
-			reset_repo.load_config(path)
+			repolib.reset_answers.load_config(path)
 
 
 #============================================
@@ -177,26 +185,26 @@ class TestNormalizeProjectTypeSwift:
 
 	def test_single_letter_s_returns_swift(self) -> None:
 		"""Single-letter alias 's' normalizes to 'swift'."""
-		result = reset_repo.normalize_project_type("s", "python")
+		result = repolib.reset_answers.normalize_project_type("s", "python")
 		assert result == "swift"
 
 	def test_full_name_swift_returns_swift(self) -> None:
 		"""Full name 'swift' normalizes to 'swift'."""
-		result = reset_repo.normalize_project_type("swift", "python")
+		result = repolib.reset_answers.normalize_project_type("swift", "python")
 		assert result == "swift"
 
 	def test_swift_config_path_normalizes(self, tmp_path: pathlib.Path) -> None:
 		"""Config with project_type 'swift' resolves to 'swift' via answers_from_config."""
 		cfg = {"project_type": "swift", "code_license": "MIT"}
 		path = write_json(tmp_path, "cfg.json", cfg)
-		answers = reset_repo.answers_from_config(path)
+		answers = repolib.reset_answers.answers_from_config(path)
 		assert answers.project_type == "swift"
 
 	def test_swift_short_alias_config_path_normalizes(self, tmp_path: pathlib.Path) -> None:
 		"""Config with project_type 's' resolves to 'swift' via answers_from_config."""
 		cfg = {"project_type": "s", "code_license": "MIT"}
 		path = write_json(tmp_path, "cfg.json", cfg)
-		answers = reset_repo.answers_from_config(path)
+		answers = repolib.reset_answers.answers_from_config(path)
 		assert answers.project_type == "swift"
 
 
@@ -205,17 +213,17 @@ class TestNormalizeProjectTypeDefault:
 
 	def test_empty_answer_canonicalizes_a_messy_default(self) -> None:
 		"""Accepting a stored marker with Enter collapses duplicates."""
-		assert reset_repo.normalize_project_type("", "python,python") == "python"
+		assert repolib.reset_answers.normalize_project_type("", "python,python") == "python"
 
 	def test_empty_answer_expands_default_aliases(self) -> None:
 		"""A default written in alias form is expanded, not stored verbatim."""
-		assert reset_repo.normalize_project_type("", "p,r") == "python,rust"
+		assert repolib.reset_answers.normalize_project_type("", "p,r") == "python,rust"
 
 	def test_all_config_path_normalizes(self, tmp_path: pathlib.Path) -> None:
 		"""Config with project_type 'all' resolves to 'all' via answers_from_config."""
 		cfg = {"project_type": "all", "code_license": "MIT"}
 		path = write_json(tmp_path, "cfg.json", cfg)
-		answers = reset_repo.answers_from_config(path)
+		answers = repolib.reset_answers.answers_from_config(path)
 		assert answers.project_type == "all"
 
 
@@ -230,14 +238,14 @@ class TestAnswersFromConfigPypiForced:
 		"""Typescript config with pypi=True must have pypi forced to False."""
 		cfg = {"project_type": "typescript", "code_license": "MIT", "pypi": True}
 		path = write_json(tmp_path, "cfg.json", cfg)
-		answers = reset_repo.answers_from_config(path)
+		answers = repolib.reset_answers.answers_from_config(path)
 		assert answers.pypi is False
 
 	def test_pypi_false_for_rust(self, tmp_path: pathlib.Path) -> None:
 		"""Rust config with pypi=True must have pypi forced to False."""
 		cfg = {"project_type": "rust", "code_license": "MIT", "pypi": True}
 		path = write_json(tmp_path, "cfg.json", cfg)
-		answers = reset_repo.answers_from_config(path)
+		answers = repolib.reset_answers.answers_from_config(path)
 		assert answers.pypi is False
 
 
@@ -251,14 +259,14 @@ class TestIsTemplateSourceDir:
 	def test_returns_true_for_template_name(self, tmp_path: pathlib.Path) -> None:
 		"""A path whose basename is 'starter-repo-template' returns True."""
 		template_dir = os.path.join(str(tmp_path), "starter-repo-template")
-		assert reset_repo.is_template_source_dir(template_dir) is True
+		assert repolib.reset.is_template_source_dir(template_dir) is True
 
 	def test_returns_false_for_consumer_name(self, tmp_path: pathlib.Path) -> None:
 		"""A path with any other basename returns False."""
 		consumer_dir = os.path.join(str(tmp_path), "my-project")
-		assert reset_repo.is_template_source_dir(consumer_dir) is False
+		assert repolib.reset.is_template_source_dir(consumer_dir) is False
 
 	def test_returns_false_for_similar_name(self, tmp_path: pathlib.Path) -> None:
 		"""A path whose basename contains but is not 'starter-repo-template' returns False."""
 		similar_dir = os.path.join(str(tmp_path), "my-starter-repo-template-fork")
-		assert reset_repo.is_template_source_dir(similar_dir) is False
+		assert repolib.reset.is_template_source_dir(similar_dir) is False

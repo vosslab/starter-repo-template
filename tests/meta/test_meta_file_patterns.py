@@ -12,6 +12,7 @@ import pathlib
 
 # local repo modules
 import repolib.files
+import repolib.plan
 import repolib.model
 
 
@@ -85,7 +86,7 @@ def _all_plan_entries(plan: dict) -> list[str]:
 def test_changelog_archive_in_no_bucket(tmp_path: pathlib.Path) -> None:
 	"""A docs/CHANGELOG-*.md archive appears in no propagation bucket."""
 	_build_synthetic_template(tmp_path)
-	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
+	plan = repolib.plan.compute_propagation_plan(str(tmp_path), 'python')
 	entries = _all_plan_entries(plan)
 	# The archive must not appear in any bucket regardless of bucket or name form.
 	assert 'docs/CHANGELOG-2099-01a.md' not in entries
@@ -94,7 +95,7 @@ def test_changelog_archive_in_no_bucket(tmp_path: pathlib.Path) -> None:
 def test_normal_doc_ships_in_plan(tmp_path: pathlib.Path) -> None:
 	"""A normal docs/*.md file appears in the propagation plan's overwrite bucket."""
 	_build_synthetic_template(tmp_path)
-	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
+	plan = repolib.plan.compute_propagation_plan(str(tmp_path), 'python')
 	# docs/USAGE.md is not meta and should be routed to overwrite_files.
 	assert 'docs/USAGE.md' in plan['overwrite_files']
 
@@ -102,7 +103,7 @@ def test_normal_doc_ships_in_plan(tmp_path: pathlib.Path) -> None:
 def test_active_changelog_in_no_bucket(tmp_path: pathlib.Path) -> None:
 	"""docs/CHANGELOG.md (active, in META_FILES) appears in no propagation bucket."""
 	_build_synthetic_template(tmp_path)
-	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'python')
+	plan = repolib.plan.compute_propagation_plan(str(tmp_path), 'python')
 	entries = _all_plan_entries(plan)
 	assert 'docs/CHANGELOG.md' not in entries
 
@@ -110,7 +111,7 @@ def test_active_changelog_in_no_bucket(tmp_path: pathlib.Path) -> None:
 def test_archive_exclusion_holds_for_typescript(tmp_path: pathlib.Path) -> None:
 	"""The archive exclusion applies regardless of repo_type."""
 	_build_synthetic_template(tmp_path)
-	plan = repolib.files.compute_propagation_plan(str(tmp_path), 'typescript')
+	plan = repolib.plan.compute_propagation_plan(str(tmp_path), 'typescript')
 	entries = _all_plan_entries(plan)
 	assert 'docs/CHANGELOG-2099-01a.md' not in entries
 	# Normal doc still ships to typescript consumers.

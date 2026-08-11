@@ -58,6 +58,7 @@ LOCAL_CHECKOUT = subprocess.run(
 DEVEL_SOURCES = {
 	"changelog_lib.py": os.path.join(LOCAL_CHECKOUT, "devel", "changelog_lib.py"),
 	"commit_changelog.py": os.path.join(LOCAL_CHECKOUT, "devel", "commit_changelog.py"),
+	"version_lib.py": os.path.join(LOCAL_CHECKOUT, "devel", "version_lib.py"),
 	"make_release.py": os.path.join(
 		LOCAL_CHECKOUT, "templates", "shared", "devel", "make_release.py"
 	),

@@ -60,8 +60,10 @@ if _LOCAL_CHECKOUT not in sys.path:
 	sys.path.insert(0, _LOCAL_CHECKOUT)
 
 # local repo modules (sys.path insert above ensures these resolve to the local checkout)
-import reset_repo
+import repolib.reset
+import repolib.reset_answers
 import repolib.files
+import repolib.plan
 
 # Clone sources, as module-level constants. LOCAL clones the local checkout
 # (committed history only); REMOTE clones the published github https URL.
@@ -87,12 +89,10 @@ TEMPLATE_META_PATHS = [
 	"reset_repo.py",
 ]
 
-# source_release files: routed to rust/swift/other and python-without-pyproject.
-# TypeScript and python+PyPI repos must receive none of these after reset.
+# Source-release tooling follows the scripted and compiled families plus other.
+# The website family, including TypeScript, does not receive it.
 SOURCE_RELEASE_FILES = [
 	"devel/make_release.py",
-	"docs/RELEASE_HISTORY.md",
-	"docs/NEWS.md",
 ]
 
 
@@ -268,8 +268,7 @@ def expected_propagated_paths(repo_type: str, clone_dir: str) -> list[str]:
 
 	Computes the propagation plan from the local checkout (which still holds the
 	templates/ overlays) as the source, but passes repo_dir=clone_dir so
-	conditional-overlay selection sees the clone's on-disk markers (for example
-	pyproject.toml selecting python/_pypi). The plan's buckets are mapped to
+	shared-overlay predicates see the clone's on-disk state. The plan's buckets are mapped to
 	consumer destination paths via target_path_for_bucket semantics:
 
 	  - overwrite_files, noexist_files, merge_files: repo-root-relative as-is.
@@ -279,13 +278,13 @@ def expected_propagated_paths(repo_type: str, clone_dir: str) -> list[str]:
 	The gitignore_block bucket is not a file list and is excluded.
 
 	Args:
-		repo_type (str): Consumer repo type (python, typescript, rust, other).
+		repo_type (str): Consumer repo type, including inherited child types.
 		clone_dir (str): The clone whose markers drive overlay selection.
 
 	Returns:
 		list[str]: Sorted, de-duplicated repo-root-relative consumer paths.
 	"""
-	plan = repolib.files.compute_propagation_plan(
+	plan = repolib.plan.compute_propagation_plan(
 		LOCAL_CHECKOUT, repo_type, repo_dir=clone_dir
 	)
 	consumer_paths: set[str] = set()
@@ -374,7 +373,7 @@ def assert_pyproject(clone_dir: str, pypi: bool, label: str) -> None:
 
 
 def assert_submit_to_pypi(clone_dir: str, pypi: bool, label: str) -> None:
-	"""Assert devel/submit_to_pypi.py is present iff the _pypi overlay applies."""
+	"""Assert devel/submit_to_pypi.py is present iff the pypi type applies."""
 	submit_path = os.path.join(clone_dir, "devel", "submit_to_pypi.py")
 	present = os.path.isfile(submit_path)
 	if present != pypi:
@@ -389,10 +388,7 @@ def assert_submit_to_pypi(clone_dir: str, pypi: bool, label: str) -> None:
 def assert_source_release_absent(clone_dir: str, label: str) -> None:
 	"""Assert none of the source_release files exist in the clone after reset.
 
-	Python+PyPI repos and typescript repos must not receive the source_release
-	files (devel/make_release.py, docs/RELEASE_HISTORY.md, docs/NEWS.md).
-	The source_release rule uses lacks_file: pyproject.toml, so PyPI python repos
-	are excluded; typescript is not in the rule's repo_types.
+	The TypeScript/website family does not receive `devel/make_release.py`.
 
 	Args:
 		clone_dir (str): The clone root to inspect.
@@ -532,6 +528,8 @@ def run_case(mode: str, case: dict) -> None:
 	# Derive the expectations the anchors read from the case config.
 	repo_type = normalize_case_type(config["project_type"])
 	pypi = case_pypi(config, repo_type)
+	if pypi:
+		repo_type = repolib.reset_answers.promote_pypi_type(repo_type)
 	code_license = resolve_case_code_license(config["code_license"])
 	stage = config.get("stage", True)
 	commit = config.get("commit", False)
@@ -547,10 +545,8 @@ def run_case(mode: str, case: dict) -> None:
 	assert_submit_to_pypi(clone_dir, pypi, label)
 	assert_stage_state(clone_dir, stage, commit, label)
 	assert_commit_state(clone_dir, commit, label)
-	# (e) source_release routing: PyPI python and typescript must receive none of the files.
-	# The lacks_file: pyproject.toml condition excludes PyPI python repos; typescript
-	# is not listed in the source_release rule's repo_types.
-	if pypi or repo_type == 'typescript':
+	# (e) source_release routing: TypeScript is outside the scripted/compiled set.
+	if repo_type == 'typescript':
 		assert_source_release_absent(clone_dir, label)
 
 
@@ -570,13 +566,15 @@ def normalize_case_type(raw: str) -> str:
 	Returns:
 		str: One of python, typescript, rust, other.
 	"""
-	return reset_repo.normalize_project_type(raw, "python")
+	return repolib.reset_answers.normalize_project_type(raw, "python")
 
 
 def case_pypi(config: dict, repo_type: str) -> bool:
-	"""Return the effective pypi flag for a case (only python repos can be PyPI)."""
-	# Non-python repos never seed pyproject, mirroring reset_repo.py.
-	if repo_type != "python":
+	"""Return whether a case selects or promotes to the PyPI child type."""
+	if repo_type == "pypi":
+		return True
+	# Only a Python selection can use the legacy promotion boolean.
+	if "python" not in repolib.model.effective_type_chain(repo_type):
 		return False
 	return bool(config.get("pypi", False))
 
@@ -593,8 +591,11 @@ def resolve_case_code_license(raw: str) -> str:
 	Returns:
 		str: The resolved SPDX license id (e.g. 'MIT').
 	"""
-	return reset_repo.resolve_license(
-		raw, reset_repo.CODE_LICENSES, reset_repo.CODE_ALIASES, default=None
+	return repolib.reset_answers.resolve_license(
+		raw,
+		repolib.reset_answers.CODE_LICENSES,
+		repolib.reset_answers.CODE_ALIASES,
+		default=None,
 	)
 
 

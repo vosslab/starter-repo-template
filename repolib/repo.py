@@ -2,6 +2,7 @@
 
 import os
 import sys
+import subprocess
 
 import repolib.console
 # repolib.model is imported lazily inside read_repo_type (not at module top) to
@@ -15,6 +16,7 @@ import repolib.console
 REPO_TYPE_CHOICE_ALIASES = {
 	'p': 'python',
 	'python': 'python',
+	'pypi': 'pypi',
 	't': 'typescript',
 	'typescript': 'typescript',
 	'r': 'rust',
@@ -67,7 +69,7 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 
 	# Optional import: tools/detect_repo_type is present in template, removed at consumer bootstrap.
 	detect_repo_type = None
-	template_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+	template_root = resolve_source_dir(None)
 	tools_dir = os.path.join(template_root, 'tools')
 	if os.path.isdir(tools_dir) and os.path.isfile(os.path.join(tools_dir, 'detect_repo_type.py')):
 		sys.path.insert(0, tools_dir)
@@ -121,7 +123,7 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 						# User rejected; re-prompt for explicit type
 						while True:
 							user_type = input(
-								"Project type? [p]ython / [t]ypescript / [r]ust / [s]wift / [o]ther / "
+								"Project type? [p]ython / pypi / [t]ypescript / [r]ust / [s]wift / [o]ther / "
 								"[a]ll / scripted / website / compiled "
 								"(list allowed, e.g. python,rust or pr) [p]: "
 							).strip()
@@ -141,7 +143,7 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 			# Interactive prompt for ambiguous
 			while True:
 				user_type = input(
-					"Project type? [p]ython / [t]ypescript / [r]ust / [s]wift / [o]ther / "
+					"Project type? [p]ython / pypi / [t]ypescript / [r]ust / [s]wift / [o]ther / "
 					"scripted / website / compiled "
 					"(list allowed, e.g. python,rust or pr): "
 				).strip()
@@ -321,11 +323,9 @@ def resolve_source_dir(source_dir_arg: str | None) -> str:
 	"""
 	Resolve the source template root used for propagation.
 
-	When no override is provided, the source is the repo root of the running
-	source checkout -- the one that contains propagate_style_guides.py and
-	repolib/. This is anchored on repolib/__file__ (stable regardless of which
-	entry script runs) via the find_repo_root() walk, so it never resolves to a
-	target -R repo.
+	When no override is provided, Git resolves the source checkout containing the
+	current working directory. Callers pass an override when routing from a
+	different source tree.
 
 	Args:
 		source_dir_arg (str | None): Optional user-provided source dir.
@@ -335,16 +335,19 @@ def resolve_source_dir(source_dir_arg: str | None) -> str:
 	"""
 	source_dir = source_dir_arg
 	if source_dir is None:
-		# Anchor on this package's location, not the cwd or any target repo.
-		package_dir = os.path.dirname(os.path.abspath(__file__))
-		detected_repo_root = find_repo_root(package_dir)
-		if detected_repo_root is None:
+		result = subprocess.run(
+			["git", "rev-parse", "--show-toplevel"],
+			capture_output=True,
+			text=True,
+			check=False,
+		)
+		detected_repo_root = result.stdout.strip()
+		if result.returncode != 0 or not detected_repo_root:
 			raise FileNotFoundError(
-				"Default source dir not found: repolib package is not inside a recognizable repo root."
+				"Default source dir not found: current directory is not in a Git repository."
 			)
 		source_dir = detected_repo_root
 	return os.path.abspath(os.path.expanduser(source_dir))
 
 
 #============================================
-
