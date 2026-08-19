@@ -67,12 +67,12 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 	# or those references raise UnboundLocalError on the predict-and-write path.
 	import repolib.model
 
-	# Optional import: tools/detect_repo_type is present in template, removed at consumer bootstrap.
+	# Optional import: meta/tools/detect_repo_type exists only in the source template.
 	detect_repo_type = None
 	template_root = resolve_source_dir(None)
-	tools_dir = os.path.join(template_root, 'tools')
-	if os.path.isdir(tools_dir) and os.path.isfile(os.path.join(tools_dir, 'detect_repo_type.py')):
-		sys.path.insert(0, tools_dir)
+	meta_tools_dir = os.path.join(template_root, 'meta', 'tools')
+	if os.path.isfile(os.path.join(meta_tools_dir, 'detect_repo_type.py')):
+		sys.path.insert(0, meta_tools_dir)
 		import detect_repo_type
 
 	marker_path = os.path.join(repo_path, 'REPO_TYPE')

@@ -187,6 +187,7 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 	- Universal tests/ (denylist): ship all non-meta tests/ files by location;
 	  skip dotfiles, `_`-scratch, conftest.py (merge-owned), and META_TEST_PREFIXES
 	- Universal devel/ -> devel_files
+	- Universal tools/ -> overwrite_files
 	- Root files in ROOT_PROPAGATE_ALLOWLIST -> overwrite_files
 	- ROUTING_OVERRIDES (via should_ship_override) applies to routing decisions
 	- Paths in UNIVERSAL_NOEXIST override overwrite_files -> noexist_files
@@ -291,6 +292,9 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 					if file_rel not in plan['test_files']:
 						assert_not_meta(file_rel)
 						plan['test_files'].append(file_rel)
+				elif file_rel.startswith('tools/'):
+					assert_not_meta(file_rel)
+					plan['overwrite_files'].append(file_rel)
 				elif file_rel in repolib.model.ROOT_PROPAGATE_ALLOWLIST:
 					assert_not_meta(file_rel)
 					plan['overwrite_files'].append(file_rel)
@@ -308,19 +312,15 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 	# exclude_repos gate).
 	#
 	# Standard: EVERY file under a selected overlay ships at its relative path to
-	# consumers of that type. The typed overlay deliberately does NOT skip the
-	# META_DIRS-style 'tools' directory the way the universal walk does: the ROOT
-	# tools/ is template infrastructure (never ships), but templates/<type>/tools/
-	# is consumer-bound content (e.g. tools/sync_typescript_package_pins.py).
-	# The genuine walk-efficiency skips (node_modules, build, dist, caches, .git)
-	# still apply; only 'tools' and 'meta' are removed from the trim so typed
-	# overlay subpaths under them ship verbatim.
+	# consumers of that type. The genuine walk-efficiency skips (node_modules,
+	# build, dist, caches, .git) still apply. `meta` is removed from the trim so a
+	# typed overlay may use that consumer-facing directory name when needed.
 	#
 	# In the BASE overlay walk (segment == repo_type, no '/'), underscore-prefixed
 	# subdirectories are conditional overlays. They are skipped here so the base
 	# walk never ships their content wholesale; instead they ride in as their own
 	# selected overlay segment when their marker is present.
-	typed_overlay_skip_dirs = repolib.model.SKIP_WALK_DIRS - {'tools', 'meta'}
+	typed_overlay_skip_dirs = repolib.model.SKIP_WALK_DIRS - {'meta'}
 
 	overlay_segments = repolib.model.select_overlay_dirs(repo_type, repo_dir)
 	for segment in overlay_segments:

@@ -9,7 +9,7 @@ import sys
 # local repo modules
 import repolib.repo
 import repolib.model
-import tools.detect_repo_type as detect_repo_type
+import meta.tools.detect_repo_type as detect_repo_type
 
 CODE_LICENSES = ["MIT", "Apache-2.0", "LGPL-3.0", "GPL-3.0", "AGPL-3.0", "MPL-2.0"]
 DOCS_LICENSES = ["CC-BY-4.0", "CC-BY-SA-4.0", "none"]

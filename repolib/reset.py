@@ -396,12 +396,10 @@ def seed_pyproject(repo_root: str, dry_run: bool) -> int:
 # Template-owned root-level directories that must be absent after reset cleanup.
 # Only the specific template convention locations for "meta" are checked:
 # root meta/ and tests/meta/. Legitimate consumer meta/ elsewhere is not rejected.
-# Note: root tools/ is intentionally NOT listed. The cleanup phase still runs
-# `git rm -r tools/` to remove the template's own tracked root tools/ (e.g.
-# tools/detect_repo_type.py), but typed overlays may now legitimately ship files
-# into a consumer's tools/ (e.g. tools/sync_typescript_package_pins.py for
-# typescript). Those freshly propagated, still-untracked files survive `git rm`
-# and must not trip the end-state verifier, so tools/ is not an owned prefix.
+# Root tools/ is consumer-facing universal content and remains after reset.
+# Legacy template-owned tracked root tools may still be present in template
+# history (for example, tools/detect_repo_type.py), so cleanup removes tracked
+# root tools while allowing propagated untracked files to stay in place.
 TEMPLATE_OWNED_PREFIXES = [
 	"templates/",
 	"repolib/",
@@ -426,11 +424,9 @@ def verify_clean_end_state(repo_root: str, dry_run: bool) -> int:
 
 	In dry-run, logs the check that would be performed.
 	In live mode, checks (a) git ls-files and (b) disk for each TEMPLATE_OWNED_PREFIXES
-	entry. Raises RuntimeError listing every leftover path found. Note that root
-	tools/ is deliberately excluded from TEMPLATE_OWNED_PREFIXES: typed overlays may
-	ship files into a consumer's tools/ (e.g. tools/sync_typescript_package_pins.py),
-	so a tools/ directory remaining on disk after `git rm -r tools/` is expected and
-	must not fail this verifier.
+	entry. Raises RuntimeError listing every leftover path found. Root tools/ is
+	not part of TEMPLATE_OWNED_PREFIXES because universal and typed consumer
+	tools are expected to remain after reset.
 
 	Returns:
 		int: 1 (action taken or announced).

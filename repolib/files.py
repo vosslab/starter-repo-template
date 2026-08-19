@@ -47,10 +47,10 @@ def assert_not_meta_file(file_rel: str) -> None:
 	patterns like docs/CHANGELOG-*.md). This is the consumer-path-safe guard:
 	it protects per-consumer files the template must never clobber (README.md,
 	VERSION, .gitignore, etc.) without rejecting paths that merely traverse a
-	META_DIRS component. Legitimate consumer paths may live under a directory
-	named like a META_DIRS entry -- for example templates/<type>/tools/ ships
-	at the consumer's tools/ -- so the apply-time dispatcher uses this check,
-	not the stricter directory-traversal check in assert_not_meta.
+	META_DIRS component. Legitimate consumer paths from a typed overlay may use
+	a directory name that is template metadata at the source root, so the
+	apply-time dispatcher uses this check, not the stricter directory-traversal
+	check in assert_not_meta.
 
 	Args:
 		file_rel: Repo-root-relative file path about to be copied to a consumer.
@@ -71,12 +71,11 @@ def assert_not_meta(file_rel: str) -> None:
 
 	Called at every UNIVERSAL-walk plan-construction append site. Catches walker
 	leaks where a universal-walk branch forgets to filter a META file or a path
-	under a META_DIRS directory (e.g. the ROOT tools/ infrastructure).
+	under a META_DIRS directory.
 
 	This is the strict guard: it rejects both META_FILES matches AND any path
-	traversing a META_DIRS component. It must NOT be used on consumer paths from
-	the typed overlay, where a consumer tools/ subpath is legitimate. Apply-time
-	and typed-overlay code use assert_not_meta_file instead.
+	traversing a META_DIRS component. Apply-time and typed-overlay code use
+	assert_not_meta_file instead because their paths name consumer destinations.
 
 	Args:
 		file_rel: Template-root-relative file path about to be added to a bucket.

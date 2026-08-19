@@ -15,8 +15,8 @@
 # routing fate. This is a folder-based propagation system -- prefer placing a
 # file so its folder routes it, and touch this manifest only for genuinely
 # special cases:
-#   - universal file (ships to every type) -> put it in devel/, docs/, or
-#     tests/ at the template root. NO manifest entry.
+#   - universal file (ships to every type) -> put it in devel/, docs/, tests/,
+#     or tools/ at the template root. NO manifest entry.
 #   - single-type file -> put it under templates/<type>/. NO manifest entry.
 #   - one-type-conditional file -> templates/<type>/_<name>/ (conditional_overlays).
 #   - SUBSET of types (more than one, fewer than all), one canonical copy ->
@@ -130,7 +130,6 @@ meta_dirs:
   - templates
   - meta
   - repolib
-  - tools
   - docs/active_plans
   - docs/archive
   - experiment_reports
@@ -151,7 +150,6 @@ skip_walk_dirs:
   - node_modules
   - venv
   - meta
-  - tools
 
 # Docs excluded from auto-discovery.
 auto_discover_docs_exclude:

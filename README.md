@@ -18,7 +18,7 @@ Only `README.md` and `docs/CHANGELOG.md` are intentionally repository-specific; 
 
 ## Template layout
 
-File location is the primary routing determinant. Files under `docs/`, `tests/`, and `devel/` ship universally to every consumer repo. Files under `templates/<type>/` (e.g., `templates/typescript/`, `templates/python/`, `templates/rust/`) ship only to repos of that type. Root-level files ship only when listed in `ROOT_PROPAGATE_ALLOWLIST`. Template-only tooling (e.g., `tools/detect_repo_type.py`) lives under `tools/`; it never propagates and is removed by `reset_repo.py` at consumer bootstrap. Propagation manifests live in `meta/propagation/manifests.yaml` (template-only; never ships to consumers).
+File location is the primary routing determinant. Files under `docs/`, `tests/`, `devel/`, and `tools/` ship universally to every consumer repo. Files under `templates/<type>/` (e.g., `templates/typescript/`, `templates/python/`, `templates/rust/`) ship only to repos of that type. Root-level files ship only when listed in `ROOT_PROPAGATE_ALLOWLIST`. Template-only tooling lives under `meta/tools/`; it never propagates and is removed by `reset_repo.py` at consumer bootstrap. Propagation manifests live in `meta/propagation/manifests.yaml` (template-only; never ships to consumers).
 
 ## Quick start
 
