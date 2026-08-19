@@ -28,52 +28,56 @@ if [[ "$PWD" != "$GIT_ROOT" ]]; then
 fi
 
 print_manager_context() {
-echo "MANAGER CONTEXT (copy/paste for subagent dispatch):"
-echo
-echo "Repository root: $GIT_ROOT"
-echo "Repository type token (REPO_TYPE): $(cat REPO_TYPE 2>/dev/null || echo '<missing>')"
-echo "Git remote:"
-git remote get-url origin 2>/dev/null || echo "  <no origin configured>"
-echo
-echo "Primary repo rules to preserve in every brief:"
-echo "  - AGENTS.md"
-echo "  - docs/REPO_STYLE.md"
-echo "  - docs/PYTHON_STYLE.md"
-echo "  - docs/MARKDOWN_STYLE.md"
-echo "  - docs/PYTEST_STYLE.md"
-echo
-echo "Subagent-relevant manifests:"
-echo "  - meta/propagation/manifests.yaml"
-echo "  - meta/docs/REPO_TYPE.md"
-echo "  - meta/propagation/deprecated_gitignore.txt"
-echo "  - meta/propagation/deprecated_claude_md.txt"
-echo "  - meta/propagation/deprecated_tests.txt"
-echo
-if [[ -d docs/active_plans ]]; then
-	echo "Open plans:"
-	ls docs/active_plans/{active,audits,reports,decisions,workstreams} 2>/dev/null | sed 's#^#  - #' || true
-else
-	echo "Open plans: docs/active_plans directory not present"
-fi
-echo
-echo "Suggested delegation command list:"
-echo "  graphify query \"what are the main risk areas and impacted files?\" --budget 1800"
-echo "  graphify explain \"<symbol>\""
-echo "  graphify affected \"<symbol>\" --depth 2"
-echo
-echo "Suggested task boundary template:"
 cat <<'EOF'
+GRAPHIFY CONTEXT (FOR MANAGERS)
+
+What Graphify is:
+- Graphify is a static code-map builder for this repository.
+- It indexes files, symbols, imports, and call relationships into graphify-out/.
+- It produces a dependency graph and community-aware view that helps managers scope work
+  before opening source files.
+
+What Graphify commands to use:
+- graphify query "<question>" --budget 1500
+  - Start with one high-level question to identify affected modules, symbols, and risk areas.
+- graphify explain "<symbol_or_path>"
+  - Read concise meaning, neighbors, and dependencies for a target.
+- graphify affected "<symbol_or_path>" --depth 2
+  - Expand precise impact area before assigning code changes.
+- graphify path "<symbol A>" "<symbol B>"
+  - Find dependency paths when a boundary decision depends on flow.
+- graphify god-nodes --top 20
+  - Identify high-connectivity symbols before choosing delegation boundaries.
+- graphify label . --backend=ollama --model="qwen2.5-coder:7b-instruct"
+  - Assign community labels after extract.
+- graphify benchmark
+  - Produce consistency output for current graph state.
+
+How to orient subagents with fewer tokens:
+1) Run one focused Graphify pass first.
+2) Convert each query result into one narrow task slice (max ~1-3 high-impact symbols).
+3) Dispatch subagents with only the needed Graphify evidence and required scope, not the full repo.
+4) Require `graphify` evidence in the first message before deeper file reading.
+
+Suggested manager dispatch template:
 {
-  "plan_path": "<optional>",
-  "task_text": "<exact scope text>",
-  "evidence_gate": [
+  "task": "<short task statement>",
+  "scope_hint": "<expected impacted symbols/files>",
+  "graphify_inputs": [
     "graphify-out/GRAPH_REPORT.md",
     "graphify query results",
-    "graphify path/explain outputs"
+    "graphify explain / affected outputs"
   ],
-  "owned_files": [],
-  "verification": []
+  "evidence_gate": [
+    "Only edit files not listed in graphify risk map unless query/affected expands scope."
+  ],
+  "output": "<exact artifact + verification checklist>"
 }
+
+Goal:
+Use Graphify to shrink each subagent prompt to only the minimum required symbols and
+dependency context, which lowers prompt size and reduces token spend while keeping task
+coverage stable.
 EOF
 }
 

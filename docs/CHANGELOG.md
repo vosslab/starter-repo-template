@@ -1,3 +1,12 @@
+## 2026-08-19
+
+### Behavior or Interface Changes
+
+- Updated `tools/graphify_map_repo.sh context` output to be strictly Graphify-focused.
+  The context now defines what Graphify is, the key commands for query/explain/affected/path,
+  and a manager delegation template that uses Graphify evidence to minimize prompt/context
+  size when assigning subagent tasks.
+
 ## 2026-08-12
 
 ### Behavior or Interface Changes
