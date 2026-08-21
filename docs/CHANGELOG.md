@@ -1,3 +1,10 @@
+## 2026-08-21
+
+### Fixes and Maintenance
+
+- Added a vendored-file header to every propagated `test_*.py` file. It warns that local changes
+  can and will be overwritten, without identifying or linking an upstream source location.
+
 ## 2026-08-20
 
 ### Additions and New Features
