@@ -1,3 +1,31 @@
+## 2026-08-20
+
+### Additions and New Features
+
+- Added a universal `.graphifyignore` seed that excludes `tests/`, `devel/`, `tools/`, and
+  `docs/` from Graphify repository maps. It propagates to every repo only when absent,
+  preserving repository-specific additions after bootstrap.
+
+### Fixes and Maintenance
+
+- Added the canonical `graphifyy[ollama,sql,terraform]` PyPI development requirement. This installs
+  Graphify's complete base dependency set plus the Ollama backend used by
+  `tools/graphify_map_repo.sh`, the `tree-sitter-sql` parser needed for authored database schemas,
+  and the `tree-sitter-hcl` parser needed for Terraform repositories, without unrelated optional
+  integrations. This keeps the dependency inventory explicit under ASVS 15.1.2 and 15.2.4.
+- Corrected the stale propagation test that still classified root `tools/` as template metadata.
+  Root tools are universal consumer tools under the current location-based routing policy.
+
+### Developer Tests and Notes
+
+- Confirmed from the `graphifyy` 0.9.48 wheel metadata that the package requires Python 3.10+,
+  its `ollama` extra adds the `openai` client, its `sql` extra adds `tree-sitter-sql`, and its
+  `terraform` extra adds `tree-sitter-hcl`.
+- Confirmed the native Graphify ignore matcher excludes all four universal paths and the
+  propagation plan routes `.graphifyignore` to `noexist_files` for every declared repo type.
+- The complete pytest suite passes with 1723 tests. Direct ASCII checks and `git diff --check`
+  also pass for the changed files.
+
 ## 2026-08-19
 
 ### Behavior or Interface Changes

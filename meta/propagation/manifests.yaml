@@ -81,6 +81,7 @@ shared_overlays:
 # HOW it ships (overwrite vs noexist-only). Overlap with universal_noexist is
 # intentional (AGENTS.md, source_me.sh).
 root_propagate_allowlist:
+  - .graphifyignore
   - CLAUDE.md
   - AGENTS.md
   - source_me.sh
@@ -89,6 +90,7 @@ root_propagate_allowlist:
 # Files that ship only when absent at the consumer (universal noexist).
 # Overrides the docs/ universal-overwrite default; repo-root-relative paths.
 universal_noexist:
+  - .graphifyignore
   - AGENTS.md
   - source_me.sh
   - docs/AUTHORS.md

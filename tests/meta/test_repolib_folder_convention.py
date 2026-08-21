@@ -55,26 +55,21 @@ def test_meta_dir_excludes_nested_files(tmp_path: pathlib.Path) -> None:
 	assert 'meta/docs/PROPAGATION_RULES.md' not in plan['overwrite_files']
 
 
-def test_meta_dir_excludes_root_tools_nested(tmp_path: pathlib.Path) -> None:
-	"""ROOT tools/ (META_DIRS entry) never ships, regardless of file name.
-
-	This guards the template's own root infrastructure (e.g.
-	tools/detect_repo_type.py). The separate templates/<type>/tools/ overlay
-	path DOES ship -- see test_typescript_overlay_tools_ships.
-	"""
+def test_root_tools_routes_universal(tmp_path: pathlib.Path) -> None:
+	"""A root tools/ file ships universally at its tools/ consumer path."""
 	tools_dir = tmp_path / 'tools'
 	tools_dir.mkdir()
-	(tools_dir / 'detect_repo_type.py').write_text('test')
+	(tools_dir / 'graphify_map_repo.sh').write_text('test')
 	plan = repolib.plan.compute_propagation_plan(str(tmp_path), 'python')
-	assert 'tools/detect_repo_type.py' not in plan['overwrite_files']
+	assert 'tools/graphify_map_repo.sh' in plan['overwrite_files']
 
 
 def test_typescript_overlay_tools_ships(tmp_path: pathlib.Path) -> None:
 	"""templates/typescript/tools/<file> ships at consumer tools/<file>.
 
 	Standard: every file under templates/<type>/ ships at its relative path,
-	including tools/ subpaths. This is the typed-overlay counterpart to the
-	ROOT tools/ exclusion above.
+	including tools/ subpaths. Unlike universal root tools, the typed-overlay
+	tool reaches only consumers of the selected type.
 	"""
 	tools_dir = tmp_path / 'templates' / 'typescript' / 'tools'
 	tools_dir.mkdir(parents=True)

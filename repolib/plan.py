@@ -243,10 +243,10 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 
 			# Process files in this directory
 			for name in files:
-				if name.startswith('.'):
-					continue
-
 				file_rel = os.path.join(rel_root, name) if rel_root else name
+				# Root dotfiles ship only when the manifest explicitly allowlists them.
+				if name.startswith('.') and file_rel not in repolib.model.ROOT_PROPAGATE_ALLOWLIST:
+					continue
 
 				# Skip META_FILES (matches by full rel-path OR bare basename for
 				# entries that may appear at any depth). docs/active_plans and

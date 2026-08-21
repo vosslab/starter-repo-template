@@ -87,6 +87,14 @@ def test_universal_noexist_overrides_overwrite(tmp_path: pathlib.Path) -> None:
 	assert 'AGENTS.md' in plan['noexist_files']
 
 
+def test_allowlisted_root_dotfile_routes_to_noexist(tmp_path: pathlib.Path) -> None:
+	"""An allowlisted root dotfile can ship without overwriting consumer changes."""
+	(tmp_path / '.graphifyignore').write_text('tests/\n')
+	plan = repolib.plan.compute_propagation_plan(str(tmp_path), 'python')
+	assert '.graphifyignore' in plan['noexist_files']
+	assert '.graphifyignore' not in plan['overwrite_files']
+
+
 def test_typed_noexist_overrides_typed_overwrite(tmp_path: pathlib.Path) -> None:
 	"""Type-specific NOEXIST entries override type-specific OVERWRITE."""
 	type_dir = tmp_path / 'templates' / 'typescript'

@@ -57,6 +57,8 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 - `pip_requirements-dev.txt` ships universally (root `root_propagate_allowlist`
   + `universal_noexist`). `pip_requirements.txt` is python-only noexist
   (`templates/python/noexist/pip_requirements.txt`).
+- `.graphifyignore` ships universally as a noexist seed. Its shared defaults exclude
+  `tests/`, `devel/`, `tools/`, and `docs/`; each consumer may add local exclusions afterward.
 
 ## ROUTING_OVERRIDES holds only exclude_repos
 

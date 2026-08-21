@@ -236,10 +236,12 @@ Most additions are drop-and-go. All manifests live in `meta/propagation/manifest
 `repolib/model.py` assigns the loaded values to its module-level public names. Do not add inline
 manifest literals back to `repolib/model.py`.
 
-- `ROOT_PROPAGATE_ALLOWLIST` -- root files that DO ship. Default: CLAUDE.md, AGENTS.md, source_me.sh,
-  dist_clean.sh, pip_requirements-dev.txt. Add here when introducing a new root-level file all repos need.
-- `UNIVERSAL_NOEXIST` -- universal files that ship only when missing at consumer. Default: AGENTS.md,
-  source_me.sh, docs/AUTHORS.md, tests/TESTS_README.md, pip_requirements-dev.txt.
+- `ROOT_PROPAGATE_ALLOWLIST` -- root files that DO ship. Default: `.graphifyignore`, CLAUDE.md,
+  AGENTS.md, source_me.sh, dist_clean.sh, and pip_requirements-dev.txt. Add here when introducing
+  a new root-level file all repos need.
+- `UNIVERSAL_NOEXIST` -- universal files that ship only when missing at consumer. Default:
+  `.graphifyignore`, AGENTS.md, source_me.sh, docs/AUTHORS.md, tests/TESTS_README.md, and
+  pip_requirements-dev.txt.
 
 The two sets compose: `ROOT_PROPAGATE_ALLOWLIST` decides IF a root file ships; `UNIVERSAL_NOEXIST`
 then decides HOW (overwrite vs noexist-only). Overlap is intentional: `AGENTS.md` and `source_me.sh`
