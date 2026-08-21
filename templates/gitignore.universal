@@ -7,6 +7,9 @@ report_*.txt
 # Generated release/build outputs
 output*/
 
+# Generated Graphify code maps
+/graphify-out/
+
 # AI agent temp scripts
 _temp*.?*
 

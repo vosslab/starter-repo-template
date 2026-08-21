@@ -8,6 +8,13 @@
 
 ### Fixes and Maintenance
 
+- Added `/graphify-out/` to `templates/gitignore.universal`, the canonical source for the
+  propagation-managed `UNIVERSAL` `.gitignore` block. This preserves Graphify output ignores
+  across future propagation runs.
+- Added the `pytestqt` to `pytest-qt` import-distribution alias to
+  `tests/test_import_requirements.py`.
+- Added canonical import-distribution aliases for `applefoundationmodels`, `bricklink`,
+  `exiftool`, `graphify`, `markdown_it`, `material`, `screencapturekit`, and `skimage`.
 - Added the canonical `graphifyy[ollama,sql,terraform]` PyPI development requirement. This installs
   Graphify's complete base dependency set plus the Ollama backend used by
   `tools/graphify_map_repo.sh`, the `tree-sitter-sql` parser needed for authored database schemas,
