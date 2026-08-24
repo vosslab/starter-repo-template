@@ -2,8 +2,46 @@
 
 ### Behavior or Interface Changes
 
-- Added prominent step labels to `tools/graphify_map_repo.sh` before dependency installation,
-  Ollama model pulling, graph extraction or reuse, community labeling, and benchmarking.
+- Preserved prominent phase labels in the Python Graphify tool for graph extraction or update,
+  community labeling, and benchmarking.
+- Replaced `tools/graphify_map_repo.sh` with the executable Python 3.12 tool
+  `tools/graphify_map_repo.py`. It automatically extracts a missing graph or runs the real
+  `graphify update .` path for an existing graph, then labels communities and benchmarks the
+  current result.
+- Replaced the long generic manager manual with a concise artifact-driven orientation. The tool
+  lists only supported user-facing outputs that exist, omits internal manifests and backup
+  directories, recommends targeted Graphify commands when needed, reports authored areas excluded
+  by `.graphifyignore`, warns when generated output is visible to Git, and keeps source,
+  configuration, tests, and runtime behavior authoritative.
+
+### Removals and Deprecations
+
+- Removed per-run Graphify package upgrades, automatic Ollama model downloads, and the old
+  `fresh`, `update`, and `context` mode arguments. Setup is now explicit and normal execution is
+  free of package-install and model-download side effects.
+- Added `meta/propagation/deprecated_paths.txt` so propagation removes the retired
+  `tools/graphify_map_repo.sh` path from consumer repositories after shipping the Python tool.
+
+### Decisions and Failures
+
+- The first sandboxed Graphify extraction failed with `Operation not permitted` when Graphify
+  started its AST workers. The same command completed outside the sandbox; this is an execution
+  permission requirement, not a repository parsing failure.
+- The `attack-on-cancer` trial has no Graphify ignore policy. Its final orientation correctly
+  warned that generated graph files are visible to Git instead of silently presenting a clean
+  repository state.
+
+### Developer Tests and Notes
+
+- Added focused behavior tests for fresh/update command selection, generated artifact inventory,
+  concise orientation output, universal tool routing, and traversal-safe deprecated-path cleanup.
+- Exercised real fresh and update lifecycles in this template and `attack-on-cancer`, plus real
+  updates in `peptidyle-learning-engine` and `ferrum-chemical-forge`. Final maps ranged from 371
+  nodes in this template to 19,047 nodes in Ferrum; every run produced the required report and
+  graph artifacts and reached the concise orientation.
+- The complete `pytest tests/` suite passes with 1,751 tests. Focused pyflakes, typing,
+  indentation, shebang, ASCII, import-requirement, Bandit, source-size, CLI-help, rejected-mode,
+  and `git diff --check` validation also pass.
 
 ## 2026-08-21
 

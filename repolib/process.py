@@ -86,6 +86,42 @@ def remove_deprecated_tests(tests_dir: str, dry_run: bool) -> int:
 
 
 #============================================
+def resolve_deprecated_path(repo_dir: str, relative_path: str) -> str:
+	"""Resolve one trusted repository-relative deprecation path."""
+	# ASVS 5.3.2: validate the manifest path before joining it to a consumer root.
+	path_parts = relative_path.replace('\\', '/').split('/')
+	if os.path.isabs(relative_path) or any(part in ('', '.', '..') for part in path_parts):
+		raise ValueError(f"Invalid deprecated repository path: {relative_path!r}")
+	repo_root = os.path.abspath(repo_dir)
+	target_path = os.path.abspath(os.path.join(repo_root, *path_parts))
+	if os.path.commonpath((repo_root, target_path)) != repo_root:
+		raise ValueError(f"Deprecated path escapes repository root: {relative_path!r}")
+	return target_path
+
+
+#============================================
+def remove_deprecated_paths(repo_dir: str, dry_run: bool) -> int:
+	"""Remove exact obsolete template-owned file paths from one consumer repo."""
+	deprecated_paths = repolib.files.load_deprecation_list(
+		'meta/propagation/deprecated_paths.txt',
+		repolib.repo.resolve_source_dir(None),
+	)
+
+	removed = 0
+	for relative_path in deprecated_paths:
+		target_path = resolve_deprecated_path(repo_dir, relative_path)
+		if not os.path.isfile(target_path) and not os.path.islink(target_path):
+			continue
+		if dry_run:
+			repolib.console.log_action("removed", target_path, dry_run=True)
+		else:
+			os.remove(target_path)
+			repolib.console.log_action("removed", target_path)
+		removed += 1
+	return removed
+
+
+#============================================
 def apply_file_bucket(bucket_name: str, spec: dict, repo_dir: str, repo_type: str, context: repolib.model.PropagateContext, counters: dict) -> tuple[int, int, int]:
 	"""
 	Process one file bucket (overwrite_files, noexist_files, devel_files, test_files).
@@ -376,6 +412,7 @@ def process_repo(repo_dir: str, context: repolib.model.PropagateContext, counter
 					counters['created_count'] += 1
 
 	remove_deprecated_tests(tests_dir, context.dry_run)
+	remove_deprecated_paths(repo_dir, context.dry_run)
 
 	devel_dir = os.path.join(repo_dir, 'devel')
 	if not os.path.isdir(devel_dir):

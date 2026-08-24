@@ -7,9 +7,14 @@ propagation-plan exclusion (meta/propagation/ must never ship to consumers).
 import os
 import pathlib
 
-import repolib.files
+# PIP3 modules
+import pytest
+
+# local repo modules
 import repolib.plan
+import repolib.files
 import repolib.model
+import repolib.process
 
 
 # ============================================
@@ -45,6 +50,30 @@ def test_deprecated_test_scripts_loaded() -> None:
 def test_deprecated_gitignore_entries_loaded() -> None:
 	"""Real file loads as a non-empty list."""
 	assert len(repolib.files.DEPRECATED_GITIGNORE_ENTRIES) > 0
+
+
+def test_deprecated_paths_names_replaced_graphify_tool() -> None:
+	"""The propagated Python rename retires the old shell tool path."""
+	deprecated_paths = repolib.files.load_deprecation_list(
+		'meta/propagation/deprecated_paths.txt',
+		repolib.files.TEMPLATE_ROOT,
+	)
+	assert 'tools/graphify_map_repo.sh' in deprecated_paths
+
+
+def test_remove_deprecated_paths_removes_exact_file(tmp_path: pathlib.Path) -> None:
+	"""Generic deprecation cleanup removes the obsolete consumer file."""
+	deprecated_tool = tmp_path / 'tools' / 'graphify_map_repo.sh'
+	deprecated_tool.parent.mkdir()
+	deprecated_tool.write_text('old tool', encoding='utf-8')
+	repolib.process.remove_deprecated_paths(str(tmp_path), dry_run=False)
+	assert not deprecated_tool.exists()
+
+
+def test_deprecated_path_rejects_parent_traversal(tmp_path: pathlib.Path) -> None:
+	"""Deprecation entries cannot escape the consumer repository root."""
+	with pytest.raises(ValueError):
+		repolib.process.resolve_deprecated_path(str(tmp_path), '../outside')
 
 
 # ============================================
@@ -92,6 +121,7 @@ def test_meta_propagation_excluded_from_plan() -> None:
 		# Also confirm the deprecation filenames do not appear as bare devel-bucket names.
 		assert 'deprecated_tests.txt' not in plan.get('devel_files', [])
 		assert 'deprecated_gitignore.txt' not in plan.get('devel_files', [])
+		assert 'deprecated_paths.txt' not in plan.get('devel_files', [])
 
 
 def test_load_deprecation_lists_test_file_not_in_plan() -> None:

@@ -45,6 +45,18 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 - WeBWorK `.conf` files use an exact first-line `#!perl` configuration marker.
   Shebang hygiene treats that marker as data, not an OS interpreter directive.
 
+## Graphify orientation
+
+- Keep the Graphify manager and subagent orientation short and artifact-driven.
+- List only user-facing files that actually exist under `graphify-out/`.
+- Use existing artifacts before broad repository searches and focused Graphify commands when
+  the artifacts do not provide enough task detail.
+- Treat Graphify as structural navigation. Verify conclusions against current source,
+  configuration, tests, and runtime behavior.
+- Report authored areas excluded by `.graphifyignore` so agents search them directly when needed.
+- The propagated Python tool automatically extracts a missing graph or updates an existing graph.
+  Dependency installation and Ollama model downloads remain explicit setup operations.
+
 ## Propagation routing model
 
 - File location is the primary routing determinant. Agents use location first;
