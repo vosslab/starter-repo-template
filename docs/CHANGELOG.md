@@ -1,3 +1,10 @@
+## 2026-08-24
+
+### Behavior or Interface Changes
+
+- Added prominent step labels to `tools/graphify_map_repo.sh` before dependency installation,
+  Ollama model pulling, graph extraction or reuse, community labeling, and benchmarking.
+
 ## 2026-08-21
 
 ### Fixes and Maintenance
