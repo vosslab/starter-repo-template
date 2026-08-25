@@ -6,8 +6,8 @@
   community labeling, and benchmarking.
 - Replaced `tools/graphify_map_repo.sh` with the executable Python 3.12 tool
   `tools/graphify_map_repo.py`. It automatically extracts a missing graph or runs the real
-  `graphify update .` path for an existing graph, then labels communities and benchmarks the
-  current result.
+  `graphify update .` path for an existing graph. Fresh extraction labels and benchmarks before
+  manager-context generation; ordinary updates regenerate manager context immediately.
 - Restored explicit Graphify lifecycle controls as `-F`/`--fresh`, `-U`/`--update`, and
   `-C`/`--context` while retaining automatic fresh-or-update selection with no flag. Update mode
   prominently announces and performs a fresh extraction when no graph exists; context prints CLI
@@ -16,20 +16,36 @@
 - Changed Graphify community labeling to use `claude-cli` by default without an API key. Added
   `-O`/`--ollama` as the explicit local-backend override, retaining the configured model and the
   required Ollama package extra.
-- Preserved reusable community labels on actual updates with Graphify's `--missing-only` option.
-  Fresh extraction, including update mode's missing-graph fallback, still labels every community.
-- Restored per-build `graphifyy[ollama,sql,terraform]` upgrades for automatic, fresh, and update
-  runs. Ollama-selected builds also pull the configured model; context performs no setup.
+- Set fresh Claude CLI labeling to pass `--model=sonnet` explicitly. Graphify community naming now
+  uses Sonnet independently of the interactive Claude default, while the Ollama override retains
+  its configured local model.
+- Fresh builds upgrade `graphifyy[ollama,sql,terraform]`; Ollama-selected fresh builds also pull
+  the configured model. Update and context modes perform no package or model setup.
+- Made the Graphify pip upgrade quiet and disabled pip's already-unusable local cache. Fresh builds
+  no longer print the complete satisfied-dependency inventory or cache-permission warning, while
+  installation errors remain visible.
+- Replaced the redundant automatic `label --missing-only` update phase with a true fast path:
+  existing graphs now run only `graphify update .` before manager-context regeneration. Full
+  semantic labeling remains part of fresh extraction instead of a separate relabel lifecycle.
+- Limited package upgrades, full labeling, and benchmarking to fresh extraction.
 - Replaced generic artifact and policy output with repository-specific manager orientation derived
   from `graphify-out/graph.json`. Context now names the repository, map size, primary domain
   subsystems, highly connected code with source locations, cross-subsystem bridges, and copyable
   queries grounded in the active map. It omits `Corpus Check`, `.graphifyignore` exclusions, and
   generated-file hygiene; the complete Graphify diagnostics remain in `GRAPH_REPORT.md`.
+- Capped each cross-area connector at eight displayed community names and appended `and N more` for
+  the remainder. This bounds manager-context size without semantically filtering or reordering
+  Graphify's connector evidence.
+- Strengthened the `Prompt positively` repository principle: lead with the desired action or tool,
+  omit irrelevant unwanted actions, and reserve explicit prohibitions for necessary safety or
+  correctness boundaries.
 
 ### Removals and Deprecations
 
 - Removed the shell tool's positional mode syntax. The Python tool exposes the same lifecycle
   choices as mutually exclusive flags.
+- Removed the intermediate `-R`/`--relabel` mode. Fresh extraction is the single intentional route
+  for full semantic labeling because labeling already dominates the fresh-build cost.
 - Added `meta/propagation/deprecated_paths.txt` so propagation removes the retired
   `tools/graphify_map_repo.sh` path from consumer repositories after shipping the Python tool.
 
@@ -41,6 +57,18 @@
 - The `attack-on-cancer` trial has no Graphify ignore policy. Its final orientation correctly
   warned that generated graph files are visible to Git instead of silently presenting a clean
   repository state.
+- Graphify 0.9.49 source confirms that `update` replaces stale names with hub-derived labels and
+  that `label --missing-only` treats those names as present. The old incremental label phase could
+  not improve them, but still repeated clustering, analysis, and report/JSON/HTML generation.
+- Benchmark traverses the graph to measure token reduction but does not improve agent-facing graph
+  data. It is therefore outside the routine update path.
+- A 19,334-node fresh run inherited the interactive Opus default and exhausted the shared Claude
+  session allowance while labeling 711 communities. Graphify continued with fallback names for
+  failed batches, so the next intentional fresh build should run after the allowance resets with
+  the explicit Sonnet model.
+- Sonnet is the conservative default for fresh community labeling because semantic label quality
+  matters more than the incremental Haiku savings on an occasional fresh build. Haiku remains a
+  one-time comparison candidate on a representative large repository.
 
 ### Developer Tests and Notes
 
@@ -64,6 +92,23 @@
   identical hashes, and the workflow regenerated reports, benchmarked, and wrote manager context.
 - All 27 focused Graphify behavior tests and the complete 1,787-test suite pass after adding the
   Claude CLI default, Ollama override, and missing-only update lifecycle.
+- A connected quiet-mode update completed in 2.2 seconds. Its package phase printed only the
+  prominent phase heading before continuing to Graphify update, with no dependency inventory or
+  cache warning.
+- The final connected fast update completed in 0.6 seconds and ran only `graphify update .` before
+  regenerating `MANAGER_CONTEXT.md`. It performed no pip, label-backend, labeling, or benchmark
+  phase. Fresh extraction remains the intentional route for replacing degraded community labels.
+- A permanent-test policy audit retained the offline command-selection, explicit-mode, fresh-label,
+  and Ollama behavior cases, and removed two redundant parser-default checks. The connected runs,
+  timing, pip-output probes, installed-source inspection, and help/context executions remain
+  one-time implementation evidence instead of permanent pytest cases. All 27 focused lifecycle
+  tests and the complete 1,787-test suite pass after the audit.
+- After removing the intermediate relabel mode and bounding connector output, all 26 focused
+  Graphify behavior tests and the complete 1,786-test suite pass. The direct help check exposes
+  only fresh, update, context, and the Ollama backend override.
+- After explicitly selecting Sonnet for fresh Claude CLI labels, all 26 focused Graphify behavior
+  tests and the complete 1,786-test suite pass. The direct help check identifies Sonnet as the
+  Claude label model while retaining the Ollama override.
 
 ## 2026-08-21
 

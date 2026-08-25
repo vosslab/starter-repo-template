@@ -61,13 +61,24 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
   starting queries.
 - Keep `Corpus Check`, ignore/exclusion policy, generated-file hygiene, and generic artifact
   descriptions out of manager context. Preserve Graphify's full diagnostics in `GRAPH_REPORT.md`.
+- Bound each cross-area connector to eight displayed community names and summarize the remainder
+  as `and N more`. Preserve Graphify's deterministic ordering instead of semantically filtering
+  connector communities.
 - Treat Graphify as structural navigation. Verify conclusions against current source,
   configuration, tests, and runtime behavior.
 - The propagated Python tool automatically extracts a missing graph or updates an existing graph.
-  Every build upgrades `graphifyy[ollama,sql,terraform]` with pip. Claude CLI labels communities
-  by default without an API key; `-O`/`--ollama` selects the local backend and pulls its configured
-  model. Fresh extraction labels every community, while updates preserve reusable labels and label
-  only missing communities. Context mode performs no build setup.
+  Ordinary updates run only `graphify update .` before regenerating manager context. Graphify may
+  assign deterministic hub names to changed communities; use a fresh build when those names have
+  degraded enough to warrant full Claude CLI or Ollama labeling.
+- Fresh extraction upgrades `graphifyy[ollama,sql,terraform]`, fully labels every community, and
+  benchmarks. Keep the pip phase concise by suppressing satisfied-dependency inventory and unusable
+  cache warnings while leaving installation failures visible.
+- Fresh Claude CLI labeling explicitly selects Sonnet so Graphify does not inherit the interactive
+  Claude model. This keeps high-volume community naming separate from an Opus coding session.
+- Keep Sonnet as the maintained label-quality default. Treat Haiku as a one-time representative
+  quality comparison before changing the default for additional allowance savings.
+- Ordinary updates perform no package upgrade, labeling pass, or benchmark. Fresh builds include
+  all three operations, including Graphify's benchmark.
 - Use `-F`/`--fresh` to force extraction and `-U`/`--update` to update with a fresh-extraction
   fallback. Use `-C`/`--context` to print existing-map orientation without running Graphify or
   either label backend; before the first graph exists, context prints the CLI help.

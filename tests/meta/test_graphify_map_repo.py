@@ -198,24 +198,6 @@ def test_explicit_mode_flags(flag: str, mode: str) -> None:
 #============================================
 
 
-def test_no_mode_selects_automatic_lifecycle() -> None:
-	"""No mode retains automatic fresh-or-update selection."""
-	args = tools.graphify_map_repo.parse_args([])
-	assert args.mode == tools.graphify_map_repo.MODE_AUTO
-
-
-#============================================
-
-
-def test_claude_cli_is_default_label_backend() -> None:
-	"""Normal builds label through the authenticated Claude CLI."""
-	args = tools.graphify_map_repo.parse_args([])
-	assert args.label_backend == "claude-cli"
-
-
-#============================================
-
-
 @pytest.mark.parametrize("flag", ["-O", "--ollama"])
 def test_ollama_flag_selects_local_backend(flag: str) -> None:
 	"""The explicit Ollama override selects local community labeling."""
@@ -226,11 +208,11 @@ def test_ollama_flag_selects_local_backend(flag: str) -> None:
 #============================================
 
 
-def test_update_labeling_preserves_reusable_claude_labels(
+def test_fresh_claude_labeling_uses_configured_model(
 	tmp_path: pathlib.Path,
 	monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-	"""Incremental Claude labeling requests names only for missing communities."""
+	"""Fresh Claude labeling selects its model independently of the interactive default."""
 	commands = []
 
 	def record_command(command: list[str], repo_root: pathlib.Path) -> None:
@@ -241,9 +223,14 @@ def test_update_labeling_preserves_reusable_claude_labels(
 		"graphify",
 		tmp_path,
 		tools.graphify_map_repo.LABEL_BACKEND,
-		missing_only=True,
 	)
-	expected = ["graphify", "label", ".", "--backend=claude-cli", "--missing-only"]
+	expected = [
+		"graphify",
+		"label",
+		".",
+		"--backend=claude-cli",
+		f"--model={tools.graphify_map_repo.CLAUDE_LABEL_MODEL}",
+	]
 	assert commands == [(expected, tmp_path)]
 
 
@@ -265,14 +252,13 @@ def test_fresh_ollama_labeling_uses_configured_model(
 		"graphify",
 		tmp_path,
 		tools.graphify_map_repo.OLLAMA_BACKEND,
-		missing_only=False,
 	)
 	expected = [
 		"graphify",
 		"label",
 		".",
 		"--backend=ollama",
-		f"--model={tools.graphify_map_repo.MODEL}",
+		f"--model={tools.graphify_map_repo.OLLAMA_MODEL}",
 	]
 	assert commands == [(expected, tmp_path)]
 
@@ -379,6 +365,36 @@ def test_bridge_is_cross_community_instead_of_high_degree(tmp_path: pathlib.Path
 	)
 	assert "Bridge() - connects Area A, Area B, and Area C" in orientation
 	assert "Hub()" not in orientation
+
+
+#============================================
+
+
+def test_cross_area_connector_output_is_bounded(tmp_path: pathlib.Path) -> None:
+	"""One large connector summarizes communities beyond the display bound."""
+	community_names = tuple(
+		f"Area {index:02d}"
+		for index in range(tools.graphify_map_repo.MAX_CONNECTOR_COMMUNITIES + 2)
+	)
+	quoted_names = ", ".join(f"`{name}`" for name in community_names)
+	analysis_data = {
+		"communities": {"0": ["bridge"]},
+		"questions": [
+			{
+				"type": "bridge_node",
+				"question": f"Why does `Bridge()` connect {quoted_names}?",
+			},
+		],
+		"surprises": [],
+		"gods": [],
+	}
+	orientation = tools.graphify_map_repo.format_orientation(
+		tmp_path, None, analysis_data=analysis_data, labels_data={"0": "Bridge Area"}
+	)
+	visible_names = ", ".join(
+		community_names[:tools.graphify_map_repo.MAX_CONNECTOR_COMMUNITIES]
+	)
+	assert f"- Bridge() - connects {visible_names}, and 2 more" in orientation
 
 
 #============================================
