@@ -5,6 +5,14 @@ Keep entries current. Move outdated entries to `docs/CHANGELOG.md`.
 
 See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 
+## Decision priority
+
+- Optimize repository tools for the human maintainer's real workflow and stated preferences.
+- Address the highest-impact risks first. Spend review and validation time on decisions that
+  affect correctness, maintainability, delivery, or the maintainer's routine use.
+- Apply the `Focus on important issues` philosophy directly. Finish consequential work before
+  considering generalization, speculative flexibility, or low-impact polish.
+
 ## Documentation ownership
 
 - [REPO_TYPE.md](REPO_TYPE.md) owns marker format, names, inheritance, and
@@ -56,11 +64,13 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 - Treat Graphify as structural navigation. Verify conclusions against current source,
   configuration, tests, and runtime behavior.
 - The propagated Python tool automatically extracts a missing graph or updates an existing graph.
-  Before every build, it upgrades `graphifyy[ollama,sql,terraform]` with pip and pulls the
-  configured Ollama model. Context mode performs neither setup operation.
+  Every build upgrades `graphifyy[ollama,sql,terraform]` with pip. Claude CLI labels communities
+  by default without an API key; `-O`/`--ollama` selects the local backend and pulls its configured
+  model. Fresh extraction labels every community, while updates preserve reusable labels and label
+  only missing communities. Context mode performs no build setup.
 - Use `-F`/`--fresh` to force extraction and `-U`/`--update` to update with a fresh-extraction
   fallback. Use `-C`/`--context` to print existing-map orientation without running Graphify or
-  Ollama; before the first graph exists, context prints the CLI help.
+  either label backend; before the first graph exists, context prints the CLI help.
 
 ## Propagation routing model
 

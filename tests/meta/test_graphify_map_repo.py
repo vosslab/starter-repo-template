@@ -123,10 +123,11 @@ def test_existing_graph_selects_real_update(tmp_path: pathlib.Path) -> None:
 	output_dir = tmp_path / "graphify-out"
 	output_dir.mkdir()
 	(output_dir / "graph.json").write_text("{}", encoding="utf-8")
-	operation, command = tools.graphify_map_repo.graph_build_command(
+	operation, command, is_fresh = tools.graphify_map_repo.graph_build_command(
 		"graphify", tmp_path, tools.graphify_map_repo.MODE_AUTO
 	)
 	assert (operation, command) == ("UPDATING GRAPHIFY CODE MAP", ["graphify", "update", "."])
+	assert is_fresh is False
 
 
 #============================================
@@ -134,11 +135,12 @@ def test_existing_graph_selects_real_update(tmp_path: pathlib.Path) -> None:
 
 def test_missing_graph_selects_code_extraction(tmp_path: pathlib.Path) -> None:
 	"""A missing graph performs a fresh code-only extraction."""
-	operation, command = tools.graphify_map_repo.graph_build_command(
+	operation, command, is_fresh = tools.graphify_map_repo.graph_build_command(
 		"graphify", tmp_path, tools.graphify_map_repo.MODE_AUTO
 	)
 	expected = ("EXTRACTING GRAPHIFY CODE MAP", ["graphify", "extract", ".", "--code-only"])
 	assert (operation, command) == expected
+	assert is_fresh is True
 
 
 #============================================
@@ -149,11 +151,12 @@ def test_fresh_mode_forces_code_extraction(tmp_path: pathlib.Path) -> None:
 	output_dir = tmp_path / "graphify-out"
 	output_dir.mkdir()
 	(output_dir / "graph.json").write_text("{}", encoding="utf-8")
-	operation, command = tools.graphify_map_repo.graph_build_command(
+	operation, command, is_fresh = tools.graphify_map_repo.graph_build_command(
 		"graphify", tmp_path, tools.graphify_map_repo.MODE_FRESH
 	)
 	expected = ("EXTRACTING GRAPHIFY CODE MAP", ["graphify", "extract", ".", "--code-only"])
 	assert (operation, command) == expected
+	assert is_fresh is True
 
 
 #============================================
@@ -161,7 +164,7 @@ def test_fresh_mode_forces_code_extraction(tmp_path: pathlib.Path) -> None:
 
 def test_update_mode_extracts_when_graph_is_missing(tmp_path: pathlib.Path) -> None:
 	"""Update mode announces the fresh-extraction fallback from the retired tool."""
-	operation, command = tools.graphify_map_repo.graph_build_command(
+	operation, command, is_fresh = tools.graphify_map_repo.graph_build_command(
 		"graphify", tmp_path, tools.graphify_map_repo.MODE_UPDATE
 	)
 	expected = (
@@ -169,6 +172,7 @@ def test_update_mode_extracts_when_graph_is_missing(tmp_path: pathlib.Path) -> N
 		["graphify", "extract", ".", "--code-only"],
 	)
 	assert (operation, command) == expected
+	assert is_fresh is True
 
 
 #============================================
@@ -198,6 +202,79 @@ def test_no_mode_selects_automatic_lifecycle() -> None:
 	"""No mode retains automatic fresh-or-update selection."""
 	args = tools.graphify_map_repo.parse_args([])
 	assert args.mode == tools.graphify_map_repo.MODE_AUTO
+
+
+#============================================
+
+
+def test_claude_cli_is_default_label_backend() -> None:
+	"""Normal builds label through the authenticated Claude CLI."""
+	args = tools.graphify_map_repo.parse_args([])
+	assert args.label_backend == "claude-cli"
+
+
+#============================================
+
+
+@pytest.mark.parametrize("flag", ["-O", "--ollama"])
+def test_ollama_flag_selects_local_backend(flag: str) -> None:
+	"""The explicit Ollama override selects local community labeling."""
+	args = tools.graphify_map_repo.parse_args([flag])
+	assert args.label_backend == tools.graphify_map_repo.OLLAMA_BACKEND
+
+
+#============================================
+
+
+def test_update_labeling_preserves_reusable_claude_labels(
+	tmp_path: pathlib.Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""Incremental Claude labeling requests names only for missing communities."""
+	commands = []
+
+	def record_command(command: list[str], repo_root: pathlib.Path) -> None:
+		commands.append((command, repo_root))
+
+	monkeypatch.setattr(tools.graphify_map_repo, "run_command", record_command)
+	tools.graphify_map_repo.label_graph(
+		"graphify",
+		tmp_path,
+		tools.graphify_map_repo.LABEL_BACKEND,
+		missing_only=True,
+	)
+	expected = ["graphify", "label", ".", "--backend=claude-cli", "--missing-only"]
+	assert commands == [(expected, tmp_path)]
+
+
+#============================================
+
+
+def test_fresh_ollama_labeling_uses_configured_model(
+	tmp_path: pathlib.Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""Fresh Ollama labeling names every community with the configured model."""
+	commands = []
+
+	def record_command(command: list[str], repo_root: pathlib.Path) -> None:
+		commands.append((command, repo_root))
+
+	monkeypatch.setattr(tools.graphify_map_repo, "run_command", record_command)
+	tools.graphify_map_repo.label_graph(
+		"graphify",
+		tmp_path,
+		tools.graphify_map_repo.OLLAMA_BACKEND,
+		missing_only=False,
+	)
+	expected = [
+		"graphify",
+		"label",
+		".",
+		"--backend=ollama",
+		f"--model={tools.graphify_map_repo.MODEL}",
+	]
+	assert commands == [(expected, tmp_path)]
 
 
 #============================================

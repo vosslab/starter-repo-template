@@ -1,6 +1,6 @@
 # Development dependencies
 bandit  # security linting for Python code
-graphifyy[ollama,sql,terraform]  # repository mapping with Ollama labels, SQL, and Terraform parsing
+graphifyy[ollama,sql,terraform]  # mapping with Ollama support plus SQL and Terraform parsing
 packaging  # version parsing/comparison helpers used by tooling/tests
 pyflakes  # static analysis lint checks
 pytest  # automated test runner

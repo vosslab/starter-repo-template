@@ -13,8 +13,13 @@
   prominently announces and performs a fresh extraction when no graph exists; context prints CLI
   help before the first map exists. Expanded `-h`/`--help` with the complete pipeline,
   requirements, output location, and runnable examples.
-- Restored per-build `graphifyy[ollama,sql,terraform]` upgrades and Ollama model pulls for automatic,
-  fresh, and update runs. Context mode performs neither setup operation.
+- Changed Graphify community labeling to use `claude-cli` by default without an API key. Added
+  `-O`/`--ollama` as the explicit local-backend override, retaining the configured model and the
+  required Ollama package extra.
+- Preserved reusable community labels on actual updates with Graphify's `--missing-only` option.
+  Fresh extraction, including update mode's missing-graph fallback, still labels every community.
+- Restored per-build `graphifyy[ollama,sql,terraform]` upgrades for automatic, fresh, and update
+  runs. Ollama-selected builds also pull the configured model; context performs no setup.
 - Replaced generic artifact and policy output with repository-specific manager orientation derived
   from `graphify-out/graph.json`. Context now names the repository, map size, primary domain
   subsystems, highly connected code with source locations, cross-subsystem bridges, and copyable
@@ -54,6 +59,11 @@
 - A fresh six-pass independent audit of the mode and help revision identified and corrected the
   incomplete-output context boundary, stale documentation wording, and missing alias/fallback
   coverage before final validation.
+- The default Claude CLI update path completed against this repository in 1.9 seconds. Graphify
+  found no topology changes, the pre-update and post-update label and analysis sidecars had
+  identical hashes, and the workflow regenerated reports, benchmarked, and wrote manager context.
+- All 27 focused Graphify behavior tests and the complete 1,787-test suite pass after adding the
+  Claude CLI default, Ollama override, and missing-only update lifecycle.
 
 ## 2026-08-21
 

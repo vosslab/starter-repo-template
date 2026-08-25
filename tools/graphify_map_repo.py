@@ -13,6 +13,8 @@ import subprocess
 
 MODEL = "qwen2.5-coder:7b-instruct"
 GRAPHIFY_PACKAGE = "graphifyy[ollama,sql,terraform]"
+LABEL_BACKEND = "claude-cli"
+OLLAMA_BACKEND = "ollama"
 OUTPUT_DIR_NAME = "graphify-out"
 ANALYSIS_FILE_NAME = ".graphify_analysis.json"
 LABELS_FILE_NAME = ".graphify_labels.json"
@@ -36,18 +38,21 @@ def build_parser() -> argparse.ArgumentParser:
 	help_epilog = (
 		"How it works:\n"
 		"  With no mode, update graphify-out/graph.json when it exists; otherwise extract a\n"
-		"  fresh graph. Build modes first upgrade Graphify with pip and pull the configured\n"
-		"  local Ollama model. They then build, label, benchmark, and write concise manager\n"
-		"  context. Context mode prints that orientation without running Graphify or Ollama.\n"
-		"  Before the first map exists, context prints this help instead.\n"
+		"  fresh graph. Build modes first upgrade Graphify with pip. Fresh builds label every\n"
+		"  community; updates preserve reusable labels and label only missing communities.\n"
+		"  Claude CLI is the default label backend. --ollama selects and pulls the configured\n"
+		"  local model. Context mode prints orientation without running build setup. Before\n"
+		"  the first map exists, context prints this help instead.\n"
 		"\n"
 		"Examples:\n"
 		"  %(prog)s              # automatically choose fresh or update\n"
 		"  %(prog)s --fresh      # force a full code-map extraction\n"
 		"  %(prog)s --update     # update, or extract fresh when no graph exists\n"
+		"  %(prog)s --ollama     # use the local Ollama label backend\n"
 		"  %(prog)s --context    # print orientation without rebuilding\n"
 		"\n"
-		f"Build setup: pip upgrades {GRAPHIFY_PACKAGE}; Ollama pulls {MODEL} on every run.\n"
+		f"Build setup: pip upgrades {GRAPHIFY_PACKAGE} on every build.\n"
+		f"Label backend: Claude CLI by default; --ollama pulls {MODEL}.\n"
 		f"Manager context: {OUTPUT_DIR_NAME}/{MANAGER_CONTEXT_FILE_NAME}"
 	)
 	# ASVS 2.1.1 and 2.2.1: document the accepted modes and validate against an allowlist.
@@ -81,7 +86,14 @@ def build_parser() -> argparse.ArgumentParser:
 		const=MODE_CONTEXT,
 		help="print existing-map orientation, or help when no map exists",
 	)
-	parser.set_defaults(mode=MODE_AUTO)
+	parser.add_argument(
+		"-O", "--ollama",
+		dest="label_backend",
+		action="store_const",
+		const=OLLAMA_BACKEND,
+		help=f"use local Ollama model {MODEL} instead of the default Claude CLI backend",
+	)
+	parser.set_defaults(mode=MODE_AUTO, label_backend=LABEL_BACKEND)
 	return parser
 
 
@@ -156,9 +168,14 @@ def run_command(command: list[str], repo_root: pathlib.Path) -> None:
 #============================================
 
 
-def prepare_build_tools(repo_root: pathlib.Path) -> str:
-	"""Upgrade Graphify, pull the configured model, and return Graphify's path."""
-	ollama_executable = require_command("ollama")
+def prepare_build_tools(repo_root: pathlib.Path, label_backend: str) -> str:
+	"""Upgrade Graphify, prepare the selected label backend, and return its path."""
+	# ASVS 2.2.1: select the required executable from the supported backend allowlist.
+	if label_backend not in (LABEL_BACKEND, OLLAMA_BACKEND):
+		raise ValueError(f"Unsupported Graphify label backend: {label_backend}")
+	backend_executable = require_command(
+		"ollama" if label_backend == OLLAMA_BACKEND else "claude"
+	)
 
 	print_step("UPDATING GRAPHIFY PYTHON PACKAGE")
 	# ASVS 1.2.5: fixed package input is passed as argv to the active interpreter.
@@ -167,8 +184,9 @@ def prepare_build_tools(repo_root: pathlib.Path) -> str:
 		repo_root,
 	)
 
-	print_step(f"PULLING OLLAMA MODEL: {MODEL}")
-	run_command([ollama_executable, "pull", MODEL], repo_root)
+	if label_backend == OLLAMA_BACKEND:
+		print_step(f"PULLING OLLAMA MODEL: {MODEL}")
+		run_command([backend_executable, "pull", MODEL], repo_root)
 
 	graphify_executable = require_command("graphify")
 	return graphify_executable
@@ -181,13 +199,14 @@ def graph_build_command(
 	graphify_executable: str,
 	repo_root: pathlib.Path,
 	mode: str,
-) -> tuple[str, list[str]]:
-	"""Return the selected fresh-extract or incremental-update operation."""
-	graph_path = repo_root / OUTPUT_DIR_NAME / "graph.json"
+) -> tuple[str, list[str], bool]:
+	"""Return the graph operation and whether it performs a fresh extraction."""
+	graph_path = repo_root / OUTPUT_DIR_NAME / GRAPH_FILE_NAME
 	graph_exists = graph_path.is_file()
 	if mode not in (MODE_AUTO, MODE_FRESH, MODE_UPDATE):
 		raise ValueError(f"Unsupported Graphify mode: {mode}")
-	if mode == MODE_FRESH or not graph_exists:
+	is_fresh = mode == MODE_FRESH or not graph_exists
+	if is_fresh:
 		if mode == MODE_UPDATE:
 			operation = "NO EXISTING GRAPH; EXTRACTING FRESH GRAPHIFY CODE MAP"
 		else:
@@ -198,7 +217,33 @@ def graph_build_command(
 	else:
 		operation = "UPDATING GRAPHIFY CODE MAP"
 		command = [graphify_executable, "update", "."]
-	return operation, command
+	return operation, command, is_fresh
+
+
+#============================================
+
+
+def label_graph(
+	graphify_executable: str,
+	repo_root: pathlib.Path,
+	label_backend: str,
+	missing_only: bool,
+) -> None:
+	"""Label Graphify communities, preserving reusable labels on updates."""
+	# ASVS 2.2.1: accept only the two documented label backends.
+	if label_backend not in (LABEL_BACKEND, OLLAMA_BACKEND):
+		raise ValueError(f"Unsupported Graphify label backend: {label_backend}")
+	command = [
+		graphify_executable,
+		"label",
+		".",
+		f"--backend={label_backend}",
+	]
+	if label_backend == OLLAMA_BACKEND:
+		command.append(f"--model={MODEL}")
+	if missing_only:
+		command.append("--missing-only")
+	run_command(command, repo_root)
 
 
 #============================================
@@ -628,22 +673,25 @@ def main() -> None:
 		print_context(repo_root)
 		return
 
-	graphify_executable = prepare_build_tools(repo_root)
+	graphify_executable = prepare_build_tools(repo_root, args.label_backend)
 
-	operation, build_command = graph_build_command(graphify_executable, repo_root, args.mode)
+	operation, build_command, is_fresh = graph_build_command(
+		graphify_executable,
+		repo_root,
+		args.mode,
+	)
 	print_step(operation)
 	run_command(build_command, repo_root)
 
-	print_step("LABELING GRAPHIFY COMMUNITIES")
-	run_command(
-		[
-			graphify_executable,
-			"label",
-			".",
-			"--backend=ollama",
-			f"--model={MODEL}",
-		],
+	if is_fresh:
+		print_step("LABELING GRAPHIFY COMMUNITIES")
+	else:
+		print_step("LABELING NEW GRAPHIFY COMMUNITIES")
+	label_graph(
+		graphify_executable,
 		repo_root,
+		args.label_backend,
+		missing_only=not is_fresh,
 	)
 
 	print_step("BENCHMARKING GRAPHIFY CODE MAP")
