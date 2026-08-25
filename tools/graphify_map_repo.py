@@ -2,6 +2,9 @@
 """Build or update a Graphify repository map and print concise agent guidance."""
 
 # Standard Library
+import re
+import sys
+import json
 import shutil
 import pathlib
 import argparse
@@ -9,31 +12,86 @@ import subprocess
 
 
 MODEL = "qwen2.5-coder:7b-instruct"
+GRAPHIFY_PACKAGE = "graphifyy[ollama,sql,terraform]"
 OUTPUT_DIR_NAME = "graphify-out"
-INTERNAL_OUTPUT_NAMES = {
-	"cache",
-	"manifest.json",
-	"needs_update",
-}
-ARTIFACT_DESCRIPTIONS = {
-	"GRAPH_REPORT.md": "architecture, communities, and major relationships",
-	"graph.html": "interactive visual repository map",
-	"graph.json": "backing graph data used by Graphify queries",
-	"wiki/index.md": "generated repository navigation",
-}
-AUTHORED_AREA_PATTERNS = ("tests/", "devel/", "tools/", "docs/")
+ANALYSIS_FILE_NAME = ".graphify_analysis.json"
+LABELS_FILE_NAME = ".graphify_labels.json"
+GRAPH_FILE_NAME = "graph.json"
+REPORT_FILE_NAME = "GRAPH_REPORT.md"
+MANAGER_CONTEXT_FILE_NAME = "MANAGER_CONTEXT.md"
+MODE_AUTO = "auto"
+MODE_FRESH = "fresh"
+MODE_UPDATE = "update"
+MODE_CONTEXT = "context"
+MAX_COMMUNITIES = 8
+MAX_BRIDGE_SYMBOLS = 4
+MAX_RELATIONSHIPS = 3
 
 
 #============================================
 
 
-def parse_args() -> argparse.Namespace:
-	"""Accept no modes while preserving standard command-line help."""
-	# ASVS 2.2.1: argparse rejects every unsupported command-line value.
-	parser = argparse.ArgumentParser(
-		description="Build or update Graphify and print concise agent orientation."
+def build_parser() -> argparse.ArgumentParser:
+	"""Build the documented Graphify command-line parser."""
+	help_epilog = (
+		"How it works:\n"
+		"  With no mode, update graphify-out/graph.json when it exists; otherwise extract a\n"
+		"  fresh graph. Build modes first upgrade Graphify with pip and pull the configured\n"
+		"  local Ollama model. They then build, label, benchmark, and write concise manager\n"
+		"  context. Context mode prints that orientation without running Graphify or Ollama.\n"
+		"  Before the first map exists, context prints this help instead.\n"
+		"\n"
+		"Examples:\n"
+		"  %(prog)s              # automatically choose fresh or update\n"
+		"  %(prog)s --fresh      # force a full code-map extraction\n"
+		"  %(prog)s --update     # update, or extract fresh when no graph exists\n"
+		"  %(prog)s --context    # print orientation without rebuilding\n"
+		"\n"
+		f"Build setup: pip upgrades {GRAPHIFY_PACKAGE}; Ollama pulls {MODEL} on every run.\n"
+		f"Manager context: {OUTPUT_DIR_NAME}/{MANAGER_CONTEXT_FILE_NAME}"
 	)
-	args = parser.parse_args()
+	# ASVS 2.1.1 and 2.2.1: document the accepted modes and validate against an allowlist.
+	parser = argparse.ArgumentParser(
+		description=(
+			"Build or update a Graphify repository map, label and benchmark it, then print "
+			"concise agent orientation."
+		),
+		epilog=help_epilog,
+		formatter_class=argparse.RawDescriptionHelpFormatter,
+	)
+	mode_group = parser.add_mutually_exclusive_group()
+	mode_group.add_argument(
+		"-F", "--fresh",
+		dest="mode",
+		action="store_const",
+		const=MODE_FRESH,
+		help="force a fresh graphify extract, even when a graph already exists",
+	)
+	mode_group.add_argument(
+		"-U", "--update",
+		dest="mode",
+		action="store_const",
+		const=MODE_UPDATE,
+		help="update an existing graph, or extract fresh when no graph exists",
+	)
+	mode_group.add_argument(
+		"-C", "--context",
+		dest="mode",
+		action="store_const",
+		const=MODE_CONTEXT,
+		help="print existing-map orientation, or help when no map exists",
+	)
+	parser.set_defaults(mode=MODE_AUTO)
+	return parser
+
+
+#============================================
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+	"""Parse automatic or explicitly selected Graphify lifecycle modes."""
+	parser = build_parser()
+	args = parser.parse_args(argv)
 	return args
 
 
@@ -80,25 +138,6 @@ def require_command(command_name: str) -> str:
 #============================================
 
 
-def require_ollama_model(ollama_executable: str) -> None:
-	"""Require the configured local Ollama model without downloading it."""
-	# ASVS 1.2.5: the model and executable are trusted fixed values, passed as argv.
-	result = subprocess.run(
-		[ollama_executable, "show", MODEL],
-		capture_output=True,
-		text=True,
-	)
-	if result.returncode != 0:
-		detail = result.stderr.strip()
-		raise RuntimeError(
-			f"Ollama model '{MODEL}' is unavailable. Run 'ollama pull {MODEL}' first. "
-			f"Ollama reported: {detail}"
-		)
-
-
-#============================================
-
-
 def print_step(label: str) -> None:
 	"""Print one prominent runtime phase label."""
 	print()
@@ -117,206 +156,481 @@ def run_command(command: list[str], repo_root: pathlib.Path) -> None:
 #============================================
 
 
+def prepare_build_tools(repo_root: pathlib.Path) -> str:
+	"""Upgrade Graphify, pull the configured model, and return Graphify's path."""
+	ollama_executable = require_command("ollama")
+
+	print_step("UPDATING GRAPHIFY PYTHON PACKAGE")
+	# ASVS 1.2.5: fixed package input is passed as argv to the active interpreter.
+	run_command(
+		[sys.executable, "-m", "pip", "install", "--upgrade", GRAPHIFY_PACKAGE],
+		repo_root,
+	)
+
+	print_step(f"PULLING OLLAMA MODEL: {MODEL}")
+	run_command([ollama_executable, "pull", MODEL], repo_root)
+
+	graphify_executable = require_command("graphify")
+	return graphify_executable
+
+
+#============================================
+
+
 def graph_build_command(
 	graphify_executable: str,
 	repo_root: pathlib.Path,
+	mode: str,
 ) -> tuple[str, list[str]]:
-	"""Return the correct fresh-extract or incremental-update operation."""
+	"""Return the selected fresh-extract or incremental-update operation."""
 	graph_path = repo_root / OUTPUT_DIR_NAME / "graph.json"
-	if graph_path.is_file():
-		operation = "UPDATING GRAPHIFY CODE MAP"
-		command = [graphify_executable, "update", "."]
-	else:
-		operation = "EXTRACTING GRAPHIFY CODE MAP"
+	graph_exists = graph_path.is_file()
+	if mode not in (MODE_AUTO, MODE_FRESH, MODE_UPDATE):
+		raise ValueError(f"Unsupported Graphify mode: {mode}")
+	if mode == MODE_FRESH or not graph_exists:
+		if mode == MODE_UPDATE:
+			operation = "NO EXISTING GRAPH; EXTRACTING FRESH GRAPHIFY CODE MAP"
+		else:
+			operation = "EXTRACTING GRAPHIFY CODE MAP"
 		command = [graphify_executable, "extract", ".", "--code-only"]
 		if (repo_root / "Cargo.toml").is_file():
 			command.append("--cargo")
+	else:
+		operation = "UPDATING GRAPHIFY CODE MAP"
+		command = [graphify_executable, "update", "."]
 	return operation, command
 
 
 #============================================
 
 
-def describe_unknown_artifact(artifact_path: pathlib.Path) -> str:
-	"""Return a concise description for an unrecognized Graphify artifact."""
-	if artifact_path.is_dir():
-		description = "generated Graphify output directory"
-	elif artifact_path.suffix == ".html":
-		description = "generated visual report"
-	elif artifact_path.suffix == ".md":
-		description = "generated Markdown report"
-	elif artifact_path.suffix == ".json":
-		description = "generated Graphify data"
-	else:
-		description = "generated Graphify artifact"
-	return description
+def clean_graph_text(value: str) -> str:
+	"""Return graph-derived text as one printable terminal line."""
+	printable_characters = [character if character.isprintable() else " " for character in value]
+	printable_text = "".join(printable_characters)
+	cleaned_text = " ".join(printable_text.split())
+	return cleaned_text
 
 
 #============================================
 
 
-def visible_output_children(output_dir: pathlib.Path) -> list[pathlib.Path]:
-	"""Return visible, user-facing top-level Graphify output paths."""
-	children = []
-	for child in sorted(output_dir.iterdir(), key=lambda path: path.name.lower()):
-		if child.is_dir() or child.name.startswith(".") or child.name in INTERNAL_OUTPUT_NAMES:
-			continue
-		children.append(child)
-	return children
+def read_json_object(path: pathlib.Path) -> dict:
+	"""Read one fixed Graphify sidecar and require a JSON object."""
+	# ASVS 1.5.2 and 2.2.1: decode safe JSON primitives and validate the outer shape.
+	data = json.loads(path.read_text(encoding="utf-8"))
+	if not isinstance(data, dict):
+		raise RuntimeError(f"Graphify data must be a JSON object: {path}")
+	return data
 
 
 #============================================
 
 
-def discover_artifacts(repo_root: pathlib.Path) -> list[tuple[str, str]]:
-	"""Inventory only Graphify artifacts that exist in the active checkout."""
-	# ASVS 5.3.2: all inspected paths descend from the fixed repository output path.
-	output_dir = repo_root / OUTPUT_DIR_NAME
-	if not output_dir.is_dir():
-		raise RuntimeError(f"Graphify output directory was not created: {output_dir}")
+def load_graph_data(repo_root: pathlib.Path) -> dict:
+	"""Load and validate the fixed Graphify node-link JSON artifact."""
+	# ASVS 5.3.2: every input path is fixed beneath the active repository root.
+	graph_path = repo_root / OUTPUT_DIR_NAME / GRAPH_FILE_NAME
+	graph_data = read_json_object(graph_path)
+	if "nodes" not in graph_data or not isinstance(graph_data["nodes"], list):
+		raise RuntimeError(f"Graphify graph data has no nodes list: {graph_path}")
+	if "links" not in graph_data or not isinstance(graph_data["links"], list):
+		raise RuntimeError(f"Graphify graph data has no links list: {graph_path}")
 
-	artifacts = []
-	known_top_level_names = {pathlib.Path(path).parts[0] for path in ARTIFACT_DESCRIPTIONS}
-	for relative_name, description in ARTIFACT_DESCRIPTIONS.items():
-		artifact_path = output_dir / relative_name
-		if artifact_path.exists():
-			artifacts.append((f"{OUTPUT_DIR_NAME}/{relative_name}", description))
+	node_ids = set()
+	for node in graph_data["nodes"]:
+		if not isinstance(node, dict):
+			raise RuntimeError(f"Graphify nodes must be JSON objects: {graph_path}")
+		if not isinstance(node.get("id"), str) or not isinstance(node.get("label"), str):
+			raise RuntimeError(f"Graphify nodes require string id and label values: {graph_path}")
+		node_ids.add(node["id"])
 
-	for artifact_path in visible_output_children(output_dir):
-		if artifact_path.name in known_top_level_names:
-			continue
-		relative_path = artifact_path.relative_to(repo_root)
-		description = describe_unknown_artifact(artifact_path)
-		artifacts.append((relative_path.as_posix(), description))
+	for link in graph_data["links"]:
+		if not isinstance(link, dict):
+			raise RuntimeError(f"Graphify links must be JSON objects: {graph_path}")
+		if not isinstance(link.get("source"), str) or not isinstance(link.get("target"), str):
+			raise RuntimeError(f"Graphify links require string endpoints: {graph_path}")
+		if link["source"] not in node_ids or link["target"] not in node_ids:
+			raise RuntimeError(f"Graphify links must reference known nodes: {graph_path}")
 
-	if not artifacts:
-		raise RuntimeError(f"No user-facing Graphify artifacts found in {output_dir}")
-	return artifacts
+	built_at_commit = graph_data.get("built_at_commit")
+	if built_at_commit is not None and not isinstance(built_at_commit, str):
+		raise RuntimeError(f"Graphify built_at_commit must be text: {graph_path}")
+	return graph_data
 
 
 #============================================
 
 
-def read_authored_area_exclusions(repo_root: pathlib.Path) -> list[str]:
-	"""Return authored repository areas excluded by the local Graphify policy."""
-	ignore_path = repo_root / ".graphifyignore"
-	if not ignore_path.is_file():
+def load_analysis_data(repo_root: pathlib.Path) -> dict | None:
+	"""Load Graphify's optional structured analysis sidecar."""
+	analysis_path = repo_root / OUTPUT_DIR_NAME / ANALYSIS_FILE_NAME
+	if not analysis_path.is_file():
+		return None
+	analysis_data = read_json_object(analysis_path)
+	communities = analysis_data.get("communities")
+	if not isinstance(communities, dict):
+		raise RuntimeError(f"Graphify analysis has no communities object: {analysis_path}")
+	for community_id, node_ids in communities.items():
+		if not isinstance(community_id, str) or not isinstance(node_ids, list):
+			raise RuntimeError(f"Graphify analysis communities are invalid: {analysis_path}")
+		if not all(isinstance(node_id, str) for node_id in node_ids):
+			raise RuntimeError(f"Graphify analysis node ids must be text: {analysis_path}")
+	for field_name in ("questions", "surprises", "gods"):
+		field_value = analysis_data.get(field_name, [])
+		if not isinstance(field_value, list):
+			raise RuntimeError(f"Graphify analysis {field_name} must be a list: {analysis_path}")
+		if not all(isinstance(item, dict) for item in field_value):
+			raise RuntimeError(f"Graphify analysis {field_name} entries are invalid: {analysis_path}")
+	return analysis_data
+
+
+#============================================
+
+
+def load_labels_data(repo_root: pathlib.Path) -> dict | None:
+	"""Load Graphify's optional stable community-label sidecar."""
+	labels_path = repo_root / OUTPUT_DIR_NAME / LABELS_FILE_NAME
+	if not labels_path.is_file():
+		return None
+	labels_data = read_json_object(labels_path)
+	if not all(isinstance(key, str) and isinstance(value, str)
+			for key, value in labels_data.items()):
+		raise RuntimeError(f"Graphify labels must map text ids to names: {labels_path}")
+	return labels_data
+
+
+#============================================
+
+
+def graph_community_name(node: dict, labels_data: dict | None) -> str | None:
+	"""Return one node's stable community name when available."""
+	community_name = node.get("community_name")
+	if isinstance(community_name, str) and community_name.strip():
+		return clean_graph_text(community_name)
+	community_id = node.get("community")
+	if isinstance(community_id, (str, int)):
+		community_key = str(community_id)
+		if labels_data is not None and community_key in labels_data:
+			return clean_graph_text(labels_data[community_key])
+		return f"Community {community_key}"
+	return None
+
+
+#============================================
+
+
+def analysis_bridge_questions(analysis_data: dict | None) -> list[tuple[str, tuple[str, ...]]]:
+	"""Return structured bridge-node evidence in Graphify's deterministic order."""
+	if analysis_data is None:
 		return []
-
-	patterns = []
-	for raw_line in ignore_path.read_text(encoding="utf-8").splitlines():
-		pattern = raw_line.strip()
-		if not pattern or pattern.startswith("#"):
+	bridges = []
+	for item in analysis_data.get("questions", []):
+		if item.get("type") != "bridge_node":
 			continue
-		if pattern in AUTHORED_AREA_PATTERNS:
-			patterns.append(pattern)
-	return patterns
+		question = item.get("question")
+		if not isinstance(question, str):
+			continue
+		quoted_values = [clean_graph_text(value) for value in re.findall(r"`([^`]+)`", question)]
+		if len(quoted_values) < 3:
+			continue
+		bridges.append((quoted_values[0], tuple(sorted(set(quoted_values[1:])))))
+	return bridges
 
 
 #============================================
 
 
-def graph_output_is_ignored(repo_root: pathlib.Path) -> bool:
-	"""Return whether Git ignores the canonical generated graph output."""
-	# ASVS 1.2.5: use a fixed path and argv list without a shell interpreter.
-	result = subprocess.run(
-		["git", "check-ignore", "--quiet", f"{OUTPUT_DIR_NAME}/graph.json"],
-		cwd=repo_root,
-	)
-	is_ignored = result.returncode == 0
-	return is_ignored
+def report_fallback_data(repo_root: pathlib.Path) -> dict | None:
+	"""Extract bounded structural facts from the report when sidecars are unavailable."""
+	report_path = repo_root / OUTPUT_DIR_NAME / REPORT_FILE_NAME
+	if not report_path.is_file():
+		return None
+	lines = report_path.read_text(encoding="utf-8").splitlines()
+	commit = None
+	community_hubs = []
+	community_headings = []
+	bridges = []
+	relationships = []
+	in_hubs = False
+	for line in lines:
+		commit_match = re.match(r"^- Built from commit: `([^`]+)`$", line)
+		if commit_match is not None:
+			commit = clean_graph_text(commit_match.group(1))
+		if line == "## Community Hubs (Navigation)":
+			in_hubs = True
+			continue
+		if in_hubs and line.startswith("## "):
+			in_hubs = False
+		if in_hubs and line.startswith("- "):
+			community_hubs.append(clean_graph_text(line[2:]))
+		community_match = re.match(r'^### Community \S+ - "(.+)"$', line)
+		if community_match is not None:
+			community_headings.append(clean_graph_text(community_match.group(1)))
+		if line.startswith("- **Why does ") and " connect " in line:
+			quoted_values = [
+				clean_graph_text(value) for value in re.findall(r"`([^`]+)`", line)
+			]
+			if len(quoted_values) >= 3:
+				bridges.append((quoted_values[0], tuple(sorted(set(quoted_values[1:])))))
+		relationship_match = re.match(
+			r"^- `([^`]+)` --([a-zA-Z_]+)--> `([^`]+)`", line
+		)
+		if relationship_match is not None:
+			source, relation, target = relationship_match.groups()
+			relationships.append(
+				f"{clean_graph_text(source)} {clean_graph_text(relation)} "
+				f"{clean_graph_text(target)}."
+			)
+	communities = community_hubs if community_hubs else community_headings
+	communities = list(dict.fromkeys(communities))
+	if commit is None and not communities and not bridges and not relationships:
+		return None
+	return {
+		"commit": commit,
+		"communities": communities,
+		"bridges": bridges,
+		"relationships": relationships,
+	}
+
+
+#============================================
+
+
+def human_join(values: tuple[str, ...]) -> str:
+	"""Join a short tuple of names for one factual manager-context line."""
+	if len(values) == 2:
+		return f"{values[0]} and {values[1]}"
+	return f"{', '.join(values[:-1])}, and {values[-1]}"
+
+
+#============================================
+
+
+def analysis_community_names(
+	analysis_data: dict,
+	labels_data: dict | None,
+	graph_data: dict | None,
+	report_data: dict | None,
+) -> list[str]:
+	"""Extract Graphify's community order and resolve its generated labels."""
+	graph_nodes = {} if graph_data is None else {
+		node["id"]: node for node in graph_data["nodes"]
+	}
+	report_names = [] if report_data is None else report_data["communities"]
+	community_names = []
+	for index, (community_id, node_ids) in enumerate(analysis_data["communities"].items()):
+		community_name = None
+		if labels_data is not None and community_id in labels_data:
+			community_name = clean_graph_text(labels_data[community_id])
+		if community_name is None:
+			for node_id in node_ids:
+				if node_id in graph_nodes:
+					community_name = graph_community_name(graph_nodes[node_id], labels_data)
+					if community_name is not None:
+						break
+		if community_name is None and index < len(report_names):
+			community_name = report_names[index]
+		if community_name is None:
+			community_name = f"Community {clean_graph_text(community_id)}"
+		if community_name not in community_names:
+			community_names.append(community_name)
+	return community_names[:MAX_COMMUNITIES]
+
+
+#============================================
+
+
+def graph_community_names(
+	graph_data: dict | None,
+	labels_data: dict | None,
+) -> list[str]:
+	"""Extract unique community names in Graphify's graph order as a minimal fallback."""
+	if graph_data is None:
+		return []
+	community_names = []
+	for node in graph_data["nodes"]:
+		community_name = graph_community_name(node, labels_data)
+		if community_name is not None and community_name not in community_names:
+			community_names.append(community_name)
+	return community_names[:MAX_COMMUNITIES]
+
+
+#============================================
+
+
+def analysis_relationships(analysis_data: dict | None) -> list[str]:
+	"""Format Graphify's own surprising-connection records without rescoring them."""
+	if analysis_data is None:
+		return []
+	relationships = []
+	for surprise in analysis_data.get("surprises", []):
+		source = surprise.get("source")
+		target = surprise.get("target")
+		relation = surprise.get("relation")
+		if not all(isinstance(value, str) for value in (source, target, relation)):
+			continue
+		relationships.append(
+			f"{clean_graph_text(source)} {clean_graph_text(relation)} "
+			f"{clean_graph_text(target)}."
+		)
+		if len(relationships) == MAX_RELATIONSHIPS:
+			break
+	return relationships
 
 
 #============================================
 
 
 def format_orientation(
-	artifacts: list[tuple[str, str]],
-	exclusions: list[str],
-	output_ignored: bool,
+	repo_root: pathlib.Path,
+	graph_data: dict | None,
+	analysis_data: dict | None = None,
+	labels_data: dict | None = None,
+	report_data: dict | None = None,
 ) -> str:
-	"""Return the concise Graphify orientation for managers and subagents."""
-	lines = [
-		"GRAPHIFY CONTEXT",
-		"",
-		f"Graphify mapped this checkout into {OUTPUT_DIR_NAME}/.",
-		"",
-		"Available artifacts:",
-	]
-	for artifact_path, description in artifacts:
-		lines.append(f"- {artifact_path} - {description}")
+	"""Return concise repository-specific Graphify context for agent managers."""
+	if analysis_data is not None:
+		major_areas = analysis_community_names(
+			analysis_data, labels_data, graph_data, report_data
+		)
+		bridges = analysis_bridge_questions(analysis_data)[:MAX_BRIDGE_SYMBOLS]
+		relationships = analysis_relationships(analysis_data)
+	elif report_data is not None:
+		major_areas = report_data["communities"][:MAX_COMMUNITIES]
+		bridges = report_data["bridges"][:MAX_BRIDGE_SYMBOLS]
+		relationships = report_data["relationships"][:MAX_RELATIONSHIPS]
+	else:
+		major_areas = graph_community_names(graph_data, labels_data)
+		bridges = []
+		relationships = []
+	if not major_areas:
+		major_areas = graph_community_names(graph_data, labels_data)
+	commit = None
+	if graph_data is not None:
+		built_at_commit = graph_data.get("built_at_commit")
+		if isinstance(built_at_commit, str) and built_at_commit:
+			commit = clean_graph_text(built_at_commit)
+	if commit is None and report_data is not None:
+		commit = report_data["commit"]
 
+	lines = ["GRAPHIFY CONTEXT"]
+	if commit is not None:
+		lines.append(f"Graph mapped at commit {commit[:12]}.")
+	else:
+		lines.append(f"Graph mapped for {clean_graph_text(repo_root.name)}.")
+	if major_areas:
+		lines.append("Major repository areas:")
+		lines.extend(f"- {community_name}" for community_name in major_areas)
+	if bridges:
+		lines.append("Cross-area connectors:")
+		for label, community_names in bridges:
+			lines.append(f"- {label} - connects {human_join(community_names)}")
+	if relationships:
+		lines.append("Notable relationships:")
+		lines.extend(f"- {relationship}" for relationship in relationships)
 	lines.extend(
 		[
-			"",
-			"Use these artifacts before broad repository searches. Use GRAPH_REPORT.md for broad",
-			"orientation. For task-specific detail, use as needed:",
-			"",
+			"For task-specific investigation:",
 			'  graphify query "<question>" --budget 1500',
 			'  graphify explain "<symbol_or_path>"',
 			'  graphify affected "<symbol_or_path>" --depth 2',
-			'  graphify path "<symbol A>" "<symbol B>"',
-			"",
-			"Managers use the map to identify logical work slices. Subagents start with the",
-			"provided orientation and run focused queries when useful.",
+			'  graphify path "<A>" "<B>"',
+			"Use Graphify before broad repository exploration. "
+			"Verify conclusions in current source and tests.",
 		]
 	)
-	if exclusions:
-		excluded_text = ", ".join(exclusions)
-		lines.extend(
-			[
-				"",
-				f"Graph scope excludes authored areas: {excluded_text}",
-				"Search excluded areas directly when they matter to the task.",
-			]
-		)
-	if not output_ignored:
-		lines.extend(
-			[
-				"",
-				"Graphify output is visible to Git in this checkout.",
-				"Review repository ignore policy before committing generated graph files.",
-			]
-		)
-	lines.extend(
-		[
-			"",
-			"Graphify guides investigation; current source, configuration, tests, and runtime",
-			"behavior determine what is true.",
-		]
-	)
-	orientation = "\n".join(lines)
-	return orientation
+	return "\n".join(lines)
 
 
 #============================================
 
 
 def validate_core_artifacts(repo_root: pathlib.Path) -> None:
-	"""Require the two artifacts needed for reports and targeted graph queries."""
-	required_paths = (
-		repo_root / OUTPUT_DIR_NAME / "GRAPH_REPORT.md",
-		repo_root / OUTPUT_DIR_NAME / "graph.json",
+	"""Require the graph needed for targeted Graphify traversal after a build."""
+	graph_path = repo_root / OUTPUT_DIR_NAME / GRAPH_FILE_NAME
+	if not graph_path.is_file():
+		raise RuntimeError(f"Graphify did not create required artifact: {graph_path}")
+
+
+#============================================
+
+
+def load_orientation_data(
+	repo_root: pathlib.Path,
+) -> tuple[dict | None, dict | None, dict | None, dict | None]:
+	"""Load preferred structured inputs and the last-resort report fallback."""
+	output_dir = repo_root / OUTPUT_DIR_NAME
+	analysis_data = load_analysis_data(repo_root)
+	labels_data = load_labels_data(repo_root)
+	graph_data = None
+	if (output_dir / GRAPH_FILE_NAME).is_file():
+		graph_data = load_graph_data(repo_root)
+	report_data = None
+	if analysis_data is None or labels_data is None:
+		report_data = report_fallback_data(repo_root)
+	return graph_data, analysis_data, labels_data, report_data
+
+
+#============================================
+
+
+def manager_context(repo_root: pathlib.Path) -> str | None:
+	"""Return existing manager context, or None when no usable map exists."""
+	graph_data, analysis_data, labels_data, report_data = load_orientation_data(repo_root)
+	if graph_data is None and analysis_data is None and report_data is None:
+		return None
+	context = format_orientation(
+		repo_root,
+		graph_data,
+		analysis_data=analysis_data,
+		labels_data=labels_data,
+		report_data=report_data,
 	)
-	missing_paths = [path for path in required_paths if not path.is_file()]
-	if missing_paths:
-		missing_text = ", ".join(str(path) for path in missing_paths)
-		raise RuntimeError(f"Graphify did not create required artifacts: {missing_text}")
+	return context
+
+
+#============================================
+
+
+def write_manager_context(repo_root: pathlib.Path, context: str) -> pathlib.Path:
+	"""Write the deterministic manager summary beside Graphify's own artifacts."""
+	# ASVS 5.3.2: write only to the fixed generated-output path for this checkout.
+	context_path = repo_root / OUTPUT_DIR_NAME / MANAGER_CONTEXT_FILE_NAME
+	context_path.write_text(f"{context}\n", encoding="utf-8")
+	return context_path
+
+
+#============================================
+
+
+def print_context(repo_root: pathlib.Path) -> None:
+	"""Print existing-map orientation or CLI help before the first build."""
+	context = manager_context(repo_root)
+	if context is None:
+		print(f"No Graphify map exists in {OUTPUT_DIR_NAME}/ yet.")
+		print("Run without a mode, with --fresh, or with --update to build the first map.")
+		print()
+		build_parser().print_help()
+		return
+	print(context)
 
 
 #============================================
 
 
 def main() -> None:
-	"""Build or update Graphify, then print artifact-driven agent orientation."""
-	parse_args()
+	"""Run the selected Graphify lifecycle or print artifact-driven orientation."""
+	args = parse_args()
 	repo_root = get_repo_root()
 	require_repo_root(repo_root)
-	graphify_executable = require_command("graphify")
-	ollama_executable = require_command("ollama")
-	require_ollama_model(ollama_executable)
+	if args.mode == MODE_CONTEXT:
+		print_context(repo_root)
+		return
 
-	operation, build_command = graph_build_command(graphify_executable, repo_root)
+	graphify_executable = prepare_build_tools(repo_root)
+
+	operation, build_command = graph_build_command(graphify_executable, repo_root, args.mode)
 	print_step(operation)
 	run_command(build_command, repo_root)
 
@@ -336,16 +650,19 @@ def main() -> None:
 	run_command([graphify_executable, "benchmark"], repo_root)
 
 	validate_core_artifacts(repo_root)
-	artifacts = discover_artifacts(repo_root)
-	exclusions = read_authored_area_exclusions(repo_root)
-	output_ignored = graph_output_is_ignored(repo_root)
+	context = manager_context(repo_root)
+	if context is None:
+		raise RuntimeError("Graphify output did not contain usable manager context data")
+	context_path = write_manager_context(repo_root, context)
 
 	print()
 	print("======================================================================")
 	print("GRAPHIFY READY")
 	print("======================================================================")
 	print()
-	print(format_orientation(artifacts, exclusions, output_ignored))
+	print(context)
+	print()
+	print(f"Manager context written to {context_path.relative_to(repo_root)}")
 
 
 if __name__ == "__main__":

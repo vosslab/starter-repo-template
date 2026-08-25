@@ -8,17 +8,23 @@
   `tools/graphify_map_repo.py`. It automatically extracts a missing graph or runs the real
   `graphify update .` path for an existing graph, then labels communities and benchmarks the
   current result.
-- Replaced the long generic manager manual with a concise artifact-driven orientation. The tool
-  lists only supported user-facing outputs that exist, omits internal manifests and backup
-  directories, recommends targeted Graphify commands when needed, reports authored areas excluded
-  by `.graphifyignore`, warns when generated output is visible to Git, and keeps source,
-  configuration, tests, and runtime behavior authoritative.
+- Restored explicit Graphify lifecycle controls as `-F`/`--fresh`, `-U`/`--update`, and
+  `-C`/`--context` while retaining automatic fresh-or-update selection with no flag. Update mode
+  prominently announces and performs a fresh extraction when no graph exists; context prints CLI
+  help before the first map exists. Expanded `-h`/`--help` with the complete pipeline,
+  requirements, output location, and runnable examples.
+- Restored per-build `graphifyy[ollama,sql,terraform]` upgrades and Ollama model pulls for automatic,
+  fresh, and update runs. Context mode performs neither setup operation.
+- Replaced generic artifact and policy output with repository-specific manager orientation derived
+  from `graphify-out/graph.json`. Context now names the repository, map size, primary domain
+  subsystems, highly connected code with source locations, cross-subsystem bridges, and copyable
+  queries grounded in the active map. It omits `Corpus Check`, `.graphifyignore` exclusions, and
+  generated-file hygiene; the complete Graphify diagnostics remain in `GRAPH_REPORT.md`.
 
 ### Removals and Deprecations
 
-- Removed per-run Graphify package upgrades, automatic Ollama model downloads, and the old
-  `fresh`, `update`, and `context` mode arguments. Setup is now explicit and normal execution is
-  free of package-install and model-download side effects.
+- Removed the shell tool's positional mode syntax. The Python tool exposes the same lifecycle
+  choices as mutually exclusive flags.
 - Added `meta/propagation/deprecated_paths.txt` so propagation removes the retired
   `tools/graphify_map_repo.sh` path from consumer repositories after shipping the Python tool.
 
@@ -39,9 +45,15 @@
   updates in `peptidyle-learning-engine` and `ferrum-chemical-forge`. Final maps ranged from 371
   nodes in this template to 19,047 nodes in Ferrum; every run produced the required report and
   graph artifacts and reached the concise orientation.
-- The complete `pytest tests/` suite passes with 1,751 tests. Focused pyflakes, typing,
-  indentation, shebang, ASCII, import-requirement, Bandit, source-size, CLI-help, rejected-mode,
-  and `git diff --check` validation also pass.
+- An earlier pre-mode validation snapshot passed all 1,751 collected tests plus focused pyflakes,
+  typing, indentation, shebang, ASCII, import-requirement, Bandit, source-size, CLI-help,
+  rejected-mode, and `git diff --check` validation.
+- After the repository-specific context revision, all 18 focused Graphify behavior cases, direct
+  `--context` runs against this template and `attack-on-cancer`, `git diff --check`, and the
+  complete 1,778-test suite pass.
+- A fresh six-pass independent audit of the mode and help revision identified and corrected the
+  incomplete-output context boundary, stale documentation wording, and missing alias/fallback
+  coverage before final validation.
 
 ## 2026-08-21
 

@@ -47,15 +47,20 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 
 ## Graphify orientation
 
-- Keep the Graphify manager and subagent orientation short and artifact-driven.
-- List only user-facing files that actually exist under `graphify-out/`.
-- Use existing artifacts before broad repository searches and focused Graphify commands when
-  the artifacts do not provide enough task detail.
+- Keep the Graphify manager and subagent orientation short and repository-specific.
+- Derive manager context from `graphify-out/graph.json`: identify the repository, primary
+  subsystems, highly connected code with source paths, cross-subsystem bridges, and targeted
+  starting queries.
+- Keep `Corpus Check`, ignore/exclusion policy, generated-file hygiene, and generic artifact
+  descriptions out of manager context. Preserve Graphify's full diagnostics in `GRAPH_REPORT.md`.
 - Treat Graphify as structural navigation. Verify conclusions against current source,
   configuration, tests, and runtime behavior.
-- Report authored areas excluded by `.graphifyignore` so agents search them directly when needed.
 - The propagated Python tool automatically extracts a missing graph or updates an existing graph.
-  Dependency installation and Ollama model downloads remain explicit setup operations.
+  Before every build, it upgrades `graphifyy[ollama,sql,terraform]` with pip and pulls the
+  configured Ollama model. Context mode performs neither setup operation.
+- Use `-F`/`--fresh` to force extraction and `-U`/`--update` to update with a fresh-extraction
+  fallback. Use `-C`/`--context` to print existing-map orientation without running Graphify or
+  Ollama; before the first graph exists, context prints the CLI help.
 
 ## Propagation routing model
 
