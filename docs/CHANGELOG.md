@@ -1,3 +1,22 @@
+## 2026-08-25
+
+### Behavior or Interface Changes
+
+- `devel/rotate_changelog.py` now begins automatic rotation only after the active changelog
+  exceeds 800 lines. It partitions older day blocks into 800-900-line target archives, keeps
+  every archive strictly below 1000 lines, and refuses an oversized day block before writing.
+- Added a vendored-file notice to every root `docs/*.md` file that propagation overwrites in
+  consumer repositories. Changelogs and noexist documentation remain consumer-owned.
+
+### Developer Tests and Notes
+
+- `source source_me.sh && python3 -m pytest tests/meta/test_rotate_changelog.py
+  tests/test_source_file_line_limit.py` passed: 157 tests. The existing archive files contain
+  610, 895, and 914 lines, respectively.
+- `source source_me.sh && python3 -m pytest tests/` passed: 1,792 tests.
+- `source source_me.sh && python3 -m pytest tests/meta/test_vendored_docs.py
+  tests/test_markdown_links.py tests/test_ascii_compliance.py` passed: 204 tests.
+
 ## 2026-08-24
 
 ### Behavior or Interface Changes
