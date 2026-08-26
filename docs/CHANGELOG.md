@@ -44,6 +44,16 @@
 - Synchronized the two existing universal local-directory rules across every eligible repository
   root. `/OTHER_REPOS/` and `/LOCAL_ONLY/` now each appear exactly once inside the managed
   `UNIVERSAL` section rather than depending on repository-local adoption.
+- Defined one generated-output directory policy in `docs/REPO_STYLE.md`: use stable root
+  `output/` or `output_<purpose>/` names under the universal `/output*/` rule, while leaving
+  legitimate nested paths such as `tests/output/` visible to Git.
+- Added the observed redundant `output/` and `output_smoke/` spellings and the broader unanchored
+  `output*/` family to the canonical negative-rule list. Propagation now removes those aliases
+  while retaining the root-scoped universal rule.
+- Added `meta/docs/GITIGNORE_SYSTEM.md` as the canonical reference for `.gitignore` source
+  ownership, pattern semantics, managed/local rendering, exact replacements, negative cleanup,
+  output-family policy, maintainer workflow, and validation. `HUMAN_GUIDANCE.md` now routes to it,
+  and `PROPAGATION_RULES.md` retains only the integration summary instead of a parallel policy.
 
 ### Decisions and Failures
 
@@ -56,9 +66,10 @@
 - Kept heading text out of permanent configuration-snapshot tests. Existing merge and idempotence
   tests cover the durable writer behavior; exact labels and the direct multi-repository migration
   remain one-time acceptance checks.
-- Seeded exact canonicalization with only the two requested directory spellings. Did not infer
-  replacements for `.env`, build, output, or generated paths because narrowing those rules could
-  expose intentionally ignored nested content in multi-project repositories.
+- Kept exact-replacement canonicalization limited to the two requested directory spellings and
+  did not infer replacements for `.env`, build, or generated paths. Output aliases moved to
+  negative cleanup only after the tracked-file survey established the root-only output contract;
+  the universal block supplies the retained `/output*/` rule.
 - Kept connected Claude CLI and Ollama semantic extraction outside permanent pytest. The
   permanent tests verify deterministic command and model selection; a real extraction remains
   one-time acceptance evidence because it invokes an LLM and produces model-derived artifacts.
@@ -66,9 +77,31 @@
   complete gitignore transformation sequence. Kept the existing generic helper tests and
   one-time multi-repository acceptance evidence instead, following the preference to omit
   permanent tests when their added value is uncertain.
+- Kept tool-specific output names separate from the general output-directory family.
+  `/graphify-out/` remains universal, while `*.out`, logs, and tool-mandated directories such as
+  `/out/` remain exact local or tool-owned rules rather than aliases for `/output*/`.
 
 ### Developer Tests and Notes
 
+- Direct validation of the new 233-line `meta/docs/GITIGNORE_SYSTEM.md` passed its
+  ASCII/ISO-8859-1, whitespace, final-newline, and local-link checks. The focused policy and
+  tracked-file style selection passes: 502 tests.
+- The ordinary pre-staging suite passed 1,819 tests and reported only the two expected tracked-link
+  failures from existing meta docs to the new untracked document. A disposable info-only Git index
+  then included the new document without changing the real index or object database; the complete
+  intended-tree suite passes: 1,826 tests. `git diff --check` passes.
+- One-time output-rule survey reproduced the supplied Mac Studio census before alignment:
+  13 `.gitignore` files used unanchored `output*/`, four used `/output*/`, and five used
+  `/graphify-out/`. Tracked-file inspection found legitimate nested output paths in
+  `track-runner-virtual-dolly-cam/tests/output/` and
+  `ferrum-chemical-forge/packages/ferrum-chem-qt.app/tests/output_smoke/`, confirming that the
+  universal output rule must remain root-scoped.
+- Direct `git check-ignore --no-index` probes confirm root `output_smoke/` and `graphify-out/`
+  paths are ignored, while `tests/output/` and `out/` remain visible for tracked content or an
+  explicit local policy.
+- Permanent focused propagation-policy, Markdown-link, ASCII, line-limit, and whitespace tests
+  pass: 545 tests. The complete `source source_me.sh && python3 -m pytest tests/ -q` suite passes:
+  1,821 tests. `git diff --check` passes.
 - One-time implementation survey: inspected 76 live `.gitignore` files under
   `/Users/vosslab/nsh` at depth three after excluding paths containing
   `/OTHER_REPOS` or `/OLD`: 70 are tracked repository-root files and six are untracked

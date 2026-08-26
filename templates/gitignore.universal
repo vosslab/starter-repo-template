@@ -10,7 +10,7 @@
 # pytest reports
 /report_*.txt
 
-# Generated release/build outputs
+# Root generated outputs; nested output directories may be tracked project content
 /output*/
 /generated/
 

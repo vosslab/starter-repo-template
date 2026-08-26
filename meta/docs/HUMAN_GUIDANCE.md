@@ -17,6 +17,8 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 
 - [REPO_TYPE.md](REPO_TYPE.md) owns marker format, names, inheritance, and
   multi-type behavior.
+- [GITIGNORE_SYSTEM.md](GITIGNORE_SYSTEM.md) owns `.gitignore` sources, rendered ownership,
+  canonicalization, cleanup, pattern semantics, and validation.
 - [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) owns repository conventions.
   Keep type-marker rules out of it; the shared `REPO_` prefix does not make the
   two documents interchangeable.

@@ -150,28 +150,12 @@ added by folder location (`templates/swift/<path>`) with no code change.
   full name is matched whole first, so `all` and `other` are never split even
   though `a` and `o` are aliases too. This is prompt input only; the marker file
   is still written in the canonical form above.
-- **`.gitignore` emission is additive per declared type.**
-  `repolib.files.merge_gitignore_blocks` writes `# === UNIVERSAL ===` always,
-  then one `# === <TYPE> ===` block per declared type with a non-empty gitignore
-  template, in declaration order. Nothing is pruned when a type leaves a marker,
-  so narrowing `python,rust` to `python` leaves the `# === RUST ===` block in
-  place until someone deletes it. Blocks are delimited, so removal is one edit.
-- **`.gitignore` ownership is visible in the rendered file.**
-  Every consumer has a `# === LOCAL REPOSITORY RULES === [ADD CUSTOM IGNORES HERE]`
-  section that propagation preserves. The legacy `# === LOCAL ===` marker is renamed
-  in place. `UNIVERSAL` and active type headings carry
-  `[PROPAGATED - LOCAL EDITS OVERWRITTEN]` so ownership is clear at the section boundary.
-- **`.gitignore` exact replacements canonicalize broader spellings.**
-  `meta/propagation/gitignore_replacements.txt` maps exact source lines to preferred
-  spellings, such as `node_modules/ -> /node_modules/`. Propagation applies replacements
-  after managed blocks and before deduplication, so an existing canonical line absorbs the
-  converted duplicate. This is positive canonicalization, separate from negative-rule deletion.
-- **`.gitignore` negative rules are permanent exact-line policy.**
-  `meta/propagation/deprecated_gitignore.txt` is the canonical negative-rule
-  list. After managed blocks are merged and deduplicated, propagation strips
-  every listed spelling from every consumer `.gitignore`. Entries are exact
-  literals rather than expanded filesystem paths or globs; list both anchored
-  and unanchored spellings when both must be forbidden.
+- **`.gitignore` composition uses managed and local ownership.** Universal and declared-type
+  blocks are propagated; the clearly labeled local block is consumer-owned. Composition is
+  additive, so an obsolete type block is removed explicitly after a marker narrows.
+- **`.gitignore` policy has one dedicated reference.** See
+  [GITIGNORE_SYSTEM.md](GITIGNORE_SYSTEM.md) for canonical sources, exact replacements, negative
+  cleanup, pattern semantics, the ordered processing pipeline, and validation commands.
 
 ## Shared overlays (templates/shared/)
 

@@ -3,6 +3,7 @@
 /node_modules/
 /.env
 report_*.txt
+/output*/
 _temp*.?*
 /graphify-out/
 /OTHER_REPOS/

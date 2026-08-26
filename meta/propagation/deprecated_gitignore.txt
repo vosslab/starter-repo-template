@@ -26,6 +26,14 @@ __pycache__/
 /.codex/agents/
 .codex/agents/
 
+# Root output is owned by the universal /output*/ rule. Remove redundant
+# root spellings and broader unanchored rules that can hide tracked nested paths.
+output*/
+output/
+output_smoke/
+/output/
+/output_smoke/
+
 shebang_report.txt
 pyflakes.txt
 bandit.txt
