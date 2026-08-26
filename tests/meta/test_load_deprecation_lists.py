@@ -1,7 +1,7 @@
-"""Tests for load_deprecation_list() and the meta/propagation/ files.
+"""Tests for exact policy-file loading and application behavior.
 
-Covers loader round-trip, real-file loads, entry-shape sanity, and
-propagation-plan exclusion (meta/propagation/ must never ship to consumers).
+Covers loader round-trip, exact gitignore transformations, entry-shape sanity,
+and propagation-plan exclusion (meta/propagation/ must never ship to consumers).
 """
 
 import os
@@ -39,17 +39,40 @@ def test_load_deprecation_list_skips_indented_comments(tmp_path: pathlib.Path) -
 	assert result == ['foo', 'bar']
 
 
-# ============================================
-# Real-file loads
-# ============================================
-def test_deprecated_test_scripts_loaded() -> None:
-	"""Real file loads as a non-empty list."""
-	assert len(repolib.files.DEPRECATED_TEST_SCRIPTS) > 0
+def test_remove_gitignore_entries_removes_exact_lines(tmp_path: pathlib.Path) -> None:
+	"""Exact removal preserves neighboring rules and one trailing newline."""
+	gitignore = tmp_path / '.gitignore'
+	gitignore.write_text('discard/\n/keep/\n', encoding='utf-8')
+
+	repolib.files.remove_gitignore_entries(
+		str(gitignore),
+		['discard/'],
+		dry_run=False,
+	)
+
+	assert gitignore.read_text(encoding='utf-8') == '/keep/\n'
 
 
-def test_deprecated_gitignore_entries_loaded() -> None:
-	"""Real file loads as a non-empty list."""
-	assert len(repolib.files.DEPRECATED_GITIGNORE_ENTRIES) > 0
+def test_gitignore_replacements_convert_only_exact_lines(tmp_path: pathlib.Path) -> None:
+	"""Replacement loading and application preserve neighboring non-exact rules."""
+	policy = tmp_path / 'replacements.txt'
+	policy.write_text('# exact map\nold/ -> /new/\n', encoding='utf-8')
+	gitignore = tmp_path / '.gitignore'
+	gitignore.write_text('old/\n/new/\nold/cache/\n', encoding='utf-8')
+	replacements = repolib.files.load_gitignore_replacements(
+		str(policy),
+		str(tmp_path),
+	)
+
+	converted = repolib.files.replace_gitignore_entries(
+		str(gitignore),
+		replacements,
+		dry_run=False,
+	)
+	repolib.files.deduplicate_gitignore(str(gitignore), dry_run=False)
+
+	assert converted == 1
+	assert gitignore.read_text(encoding='utf-8') == '/new/\nold/cache/\n'
 
 
 def test_deprecated_paths_names_replaced_graphify_tool() -> None:

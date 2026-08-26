@@ -1,12 +1,30 @@
-# WARNING: Every line below is stripped from every consumer .gitignore
-# on each propagation, without per-line origin check. Do NOT add a
-# pattern any consumer might legitimately want to keep.
+# CANONICAL NEGATIVE RULES: Every line below is stripped from every
+# consumer .gitignore on each propagation, without per-line origin check.
+# Do NOT add a pattern any consumer might legitimately want to keep.
+# Entries are trusted exact literals, never expanded as paths or globs
+# (ASVS 5.3.2).
 #
 # Each addition to this file must be justified in docs/CHANGELOG.md
 # naming the originating cleanup (e.g. "added after build_*.sh purge").
 #
 # To retire a .gitignore pattern across all repos, add it as a line below;
 # the next propagation strips that line from every consumer .gitignore.
+
+# Python caches stay visible for explicit cleanup.
+__pycache__/
+/__pycache__/
+
+# Agent configuration directories stay visible whenever they exist.
+/.claude/
+/.claude
+.claude/
+.claude
+/.codex/
+/.codex
+.codex/
+.codex
+/.codex/agents/
+.codex/agents/
 
 shebang_report.txt
 pyflakes.txt

@@ -48,4 +48,9 @@ META rules still win: `assert_not_meta()` runs at plan-append time and at dispat
 ## Precedent
 
 - `CLAUDE.md` previously used a fenced-region merge with HTML comment markers (`<!-- === TEMPLATE-MANAGED START === -->` / `END`). Migrated to set-union after fences proved to be bureaucracy with no payoff on a flat `@`-import list: every existing consumer would have needed a one-time hand edit before the propagator would touch their file. Strip list seeded with the two fence comment lines so existing consumers get cleaned on next sync.
-- `.gitignore` uses a managed-block merge with its own fence markers (`# === UNIVERSAL ===` ... `# === END UNIVERSAL ===`) via a separate code path (`gitignore_block` plan key, not `merge_files`). Kept separate because it composes multiple template sources (universal + typed overlay) into one consumer file.
+- `.gitignore` uses adjacent named sections through a separate code path (`gitignore_block`,
+  not `merge_files`). `# === UNIVERSAL ===` and active type sections are propagation-owned;
+  each ends at the next `# === ... ===` heading and carries a propagated-ownership label.
+  `# === LOCAL REPOSITORY RULES === [ADD CUSTOM IGNORES HERE]` is repository-owned.
+  This remains separate because it composes the universal source and typed overlays into
+  one consumer file.

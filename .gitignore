@@ -1,13 +1,16 @@
-# === UNIVERSAL ===
+# === UNIVERSAL === [PROPAGATED - LOCAL EDITS OVERWRITTEN]
 .DS_Store
+/node_modules/
+/.env
 report_*.txt
 _temp*.?*
 /graphify-out/
-# === LOCAL ===
-# Template-only ignores.
 /OTHER_REPOS/
 /LOCAL_ONLY/
-# === PYTHON ===
+# === LOCAL REPOSITORY RULES === [ADD CUSTOM IGNORES HERE]
+# Propagation preserves this section.
+# Template-only ignores.
+# === PYTHON === [PROPAGATED - LOCAL EDITS OVERWRITTEN]
 build/
 dist/
 sdist/

@@ -449,16 +449,35 @@ def process_repo(repo_dir: str, context: repolib.model.PropagateContext, counter
 	repo_copies += copies
 	repo_skips += skips
 
-	# Process gitignore blocks, then dedupe across blocks (e.g., dist/ in
-	# both python and typescript would otherwise duplicate).
-	repolib.files.merge_gitignore_blocks(repo_dir, repo_type, context.source_dir, context, counters=counters)
-	gitignore_path = os.path.join(repo_dir, '.gitignore')
-	repolib.files.deduplicate_gitignore(gitignore_path, context.dry_run, counters=counters)
-	deprecated_tests = repolib.files.load_deprecation_list(
+	# Load exact gitignore policies before the managed-block writer changes the consumer.
+	gitignore_replacements = repolib.files.load_gitignore_replacements(
+		'meta/propagation/gitignore_replacements.txt',
+		context.source_dir,
+	)
+	forbidden_gitignore_entries = repolib.files.load_deprecation_list(
 		'meta/propagation/deprecated_gitignore.txt',
 		context.source_dir
 	)
-	removed_deprecated = repolib.files.remove_gitignore_entries(gitignore_path, deprecated_tests, context.dry_run)
+
+	# Process managed blocks, canonicalize broader spellings, dedupe any converted
+	# aliases, and finally remove forbidden exact lines.
+	repolib.files.merge_gitignore_blocks(
+		repo_dir, repo_type, context.source_dir, context, counters=counters
+	)
+	gitignore_path = os.path.join(repo_dir, '.gitignore')
+	converted_gitignore_entries = repolib.files.replace_gitignore_entries(
+		gitignore_path,
+		gitignore_replacements,
+		context.dry_run,
+	)
+	if not context.dry_run and converted_gitignore_entries > 0:
+		counters['merged_count'] += 1
+	repolib.files.deduplicate_gitignore(gitignore_path, context.dry_run, counters=counters)
+	removed_deprecated = repolib.files.remove_gitignore_entries(
+		gitignore_path,
+		forbidden_gitignore_entries,
+		context.dry_run,
+	)
 	if not context.dry_run and removed_deprecated > 0:
 		counters['merged_count'] += 1
 

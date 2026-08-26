@@ -13,19 +13,104 @@
 
 ### Fixes and Maintenance
 
+- Promoted root `/node_modules/` and `/.env` ignores to the universal propagation template and
+  the template repository's own `.gitignore` because Node tooling and secret-bearing local
+  environment files cross repository types. Removed the redundant TypeScript-only
+  `node_modules/` entry.
+- Defined `meta/propagation/deprecated_gitignore.txt` as the canonical negative-rule list and
+  added both `__pycache__/` spellings so propagation keeps Python cache directories visible for
+  explicit cleanup. Removed the stale `_bundle.js` template entry that contradicted the existing
+  negative rule. Exact-line cleanup now leaves one trailing newline instead of adding an extra
+  blank line, covered by one generic behavior test.
+- Added the anchored and unanchored `.claude` and `.codex` directory spellings to the negative
+  rule list so repository-local agent configuration is always visible. Included the observed
+  `.codex/agents/` spelling used by one surveyed repository.
+- Clarified `.gitignore` ownership in rendered files. Repository managers now get an explicit
+  `LOCAL REPOSITORY RULES` heading labeled `ADD CUSTOM IGNORES HERE`, while propagated universal
+  and active type headings state `LOCAL EDITS OVERWRITTEN`. Legacy `LOCAL` headings are renamed
+  in place so ignore-rule ordering stays unchanged.
+- Added a separate exact-replacement policy for canonical `.gitignore` spellings. Propagation now
+  converts `node_modules/` to `/node_modules/` and `OTHER_REPOS/` to `/OTHER_REPOS/` before
+  deduplication. Replacement is distinct from the negative list because the rule remains present
+  in a narrower root-scoped form rather than being deleted. Deduplication now leaves one trailing
+  newline when it collapses a converted alias instead of adding a trailing blank line.
 - Restored the focused Graphify command-selection suite after the semantic-scope parameters
   changed, and made extraction and benchmark phase labels describe semantic maps accurately.
 - Kept `.graphifyignore` authoritative for repository-specific scope. The new option includes
   semantic inputs that each repository has not excluded.
+- Six-pass audit cleanup removed two permanent tests that only asserted policy lists were
+  nonempty, corrected the exact-replacement test description, wrapped the changed propagation
+  call, and clarified that one-off repository scans exclude paths containing `/OLD`.
+- Synchronized the two existing universal local-directory rules across every eligible repository
+  root. `/OTHER_REPOS/` and `/LOCAL_ONLY/` now each appear exactly once inside the managed
+  `UNIVERSAL` section rather than depending on repository-local adoption.
 
 ### Decisions and Failures
 
+- Kept the universal gitignore block small after reviewing the complete low-frequency survey
+  tail. OS/editor cruft, generic backup and log names, and repository-specific data/media paths
+  remain local instead of consuming space in every repository.
+- Retained `blob-report/` in the TypeScript block. No surveyed repository currently selects
+  Playwright's blob reporter, but it is a legitimate optional Playwright artifact rather than a
+  universal path or a forbidden rule.
+- Kept heading text out of permanent configuration-snapshot tests. Existing merge and idempotence
+  tests cover the durable writer behavior; exact labels and the direct multi-repository migration
+  remain one-time acceptance checks.
+- Seeded exact canonicalization with only the two requested directory spellings. Did not infer
+  replacements for `.env`, build, output, or generated paths because narrowing those rules could
+  expose intentionally ignored nested content in multi-project repositories.
 - Kept connected Claude CLI and Ollama semantic extraction outside permanent pytest. The
   permanent tests verify deterministic command and model selection; a real extraction remains
   one-time acceptance evidence because it invokes an LLM and produces model-derived artifacts.
+- Two independent reviewers recommended a permanent `process_repo()` integration test for the
+  complete gitignore transformation sequence. Kept the existing generic helper tests and
+  one-time multi-repository acceptance evidence instead, following the preference to omit
+  permanent tests when their added value is uncertain.
 
 ### Developer Tests and Notes
 
+- One-time implementation survey: inspected 76 live `.gitignore` files under
+  `/Users/vosslab/nsh` at depth three after excluding paths containing
+  `/OTHER_REPOS` or `/OLD`: 70 are tracked repository-root files and six are untracked
+  `.pytest_cache` internals. Root `node_modules/` rules span 27 repositories and several
+  non-TypeScript types; eight repository roots carried forbidden `__pycache__/` rules. No root
+  `.env` file is tracked, two repositories ignore `.claude/`, one ignores `.codex/agents/`, and
+  no repository configures Playwright's optional blob reporter. Direct `git check-ignore`
+  probes confirmed the template repository now ignores root `node_modules/` and `.env`.
+- Permanent tests: focused exact-removal behavior, gitignore-routing, and multi-type coverage
+  pass: 45 tests. The complete `source source_me.sh && python3 -m pytest tests/ -q` suite passes:
+  1,819 tests. The style, typing, indentation, ASCII, line-limit, and Markdown-link selection
+  passes: 632 tests.
+- One-time final checks: `git diff --check` passes; direct policy inspection confirms every
+  requested cache and agent-directory spelling is present in the negative list and absent from
+  positive gitignore templates.
+- One-time heading migration: updated 70 of 71 validated Git roots under `/Users/vosslab/nsh`,
+  excluding paths containing `/OTHER_REPOS` or `/OLD`. The template root was already current.
+  Verification confirmed every root has one repository-owned section, every active managed block
+  has its ownership label, the ordered non-comment ignore rules did not change, root
+  `node_modules` and `.env` remain ignored by Git, and a second dry run proposed zero changes.
+- Permanent tests after the heading change: the focused merge, deprecation, typing, indentation,
+  whitespace, and lint selections pass: 504 tests. The complete
+  `source source_me.sh && python3 -m pytest tests/ -q` suite passes: 1,819 tests.
+- One-time exact-spelling migration: converted 25 `node_modules/` lines and 38 `OTHER_REPOS/`
+  lines across 46 of 71 validated Git roots. Verification found zero broader source spellings,
+  exactly one canonical target per relevant repository, the expected ordered rule sequence with
+  target-only deduplication, preserved Git ignore behavior, and zero changes on a second dry run.
+- Permanent tests after exact replacement: the focused policy, merge, typing, indentation,
+  whitespace, and lint selections pass: 505 tests. The complete
+  `source source_me.sh && python3 -m pytest tests/ -q` suite passes: 1,820 tests.
+- Permanent tests after the six-pass audit cleanup: the focused policy, merge, typing,
+  indentation, whitespace, lint, and Markdown-link selection passes: 546 tests. The complete
+  `source source_me.sh && python3 -m pytest tests/ -q` suite passes: 1,818 tests.
+- One-time universal-rule migration: validated 71 Git roots beneath `/Users/vosslab/nsh` after
+  excluding paths containing `/OTHER_REPOS` or `/OLD`; changed 57 `.gitignore` files and left 14
+  already compliant. Added 17 missing `/OTHER_REPOS/` rules and 55 missing `/LOCAL_ONLY/` rules,
+  moved or deduplicated four existing rules, and initialized 13 missing `UNIVERSAL` headings.
+  Verification preserved every unrelated line and its order, confirmed Git ignores both root
+  directories in every repository, and produced zero changes on a second dry run.
+- Permanent tests after the universal-rule migration: the focused propagation, policy,
+  whitespace, and Markdown-link selection passes: 273 tests. The complete
+  `source source_me.sh && python3 -m pytest tests/ -q` suite passes: 1,818 tests.
 - Permanent tests: `source source_me.sh && python3 -m pytest
   tests/meta/test_graphify_map_repo.py -q` passed: 30 tests.
 - Permanent style and wrapper tests: `source source_me.sh && python3 -m pytest

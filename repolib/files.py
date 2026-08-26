@@ -13,6 +13,12 @@ import repolib.model
 import repolib.repo
 
 
+GITIGNORE_LOCAL_HEADER_PREFIX = '# === LOCAL REPOSITORY RULES ==='
+GITIGNORE_LOCAL_HEADER = f'{GITIGNORE_LOCAL_HEADER_PREFIX} [ADD CUSTOM IGNORES HERE]'
+GITIGNORE_LOCAL_NOTICE = '# Propagation preserves this section.'
+GITIGNORE_LEGACY_LOCAL_HEADER = '# === LOCAL ==='
+
+
 #============================================
 # META leak guard
 #============================================
@@ -291,6 +297,40 @@ def load_gitignore_block(path: str) -> list[str]:
 
 
 #============================================
+def load_gitignore_replacements(rel_path: str, template_root: str) -> dict[str, str]:
+	"""Load exact gitignore spelling replacements from a trusted policy file.
+
+	Each non-comment line uses ``source -> destination``. Malformed, duplicate,
+	or no-op mappings fail loudly rather than partially canonicalizing consumers.
+
+	Args:
+		rel_path (str): Template-root-relative replacement policy path.
+		template_root (str): Trusted starter-template root.
+
+	Returns:
+		dict[str, str]: Exact source spellings mapped to canonical replacements.
+	"""
+	# ASVS 5.3.2: the policy path comes from code and the file's entries are
+	# exact literals. Never expand gitignore syntax into filesystem paths or globs.
+	full_path = os.path.join(template_root, rel_path)
+	replacements: dict[str, str] = {}
+	with open(full_path, encoding='utf-8') as handle:
+		for line_number, line in enumerate(handle, start=1):
+			stripped = line.strip()
+			if not stripped or stripped.startswith('#'):
+				continue
+			source, separator, destination = stripped.partition(' -> ')
+			if not separator or not source or not destination or ' -> ' in destination:
+				raise ValueError(f'Invalid gitignore replacement at line {line_number}: {stripped!r}')
+			if source == destination:
+				raise ValueError(f'No-op gitignore replacement at line {line_number}: {source!r}')
+			if source in replacements:
+				raise ValueError(f'Duplicate gitignore replacement source at line {line_number}: {source!r}')
+			replacements[source] = destination
+	return replacements
+
+
+#============================================
 def normalize_path(path: str) -> str:
 	"""
 	Normalize a path for stable filesystem comparisons.
@@ -301,7 +341,7 @@ def normalize_path(path: str) -> str:
 #============================================
 def remove_gitignore_entries(gitignore_path: str, entries: list[str], dry_run: bool) -> int:
 	"""
-	Remove deprecated entries from .gitignore file.
+	Remove forbidden entries from a .gitignore file.
 
 	Args:
 		gitignore_path (str): Path to .gitignore file.
@@ -315,8 +355,10 @@ def remove_gitignore_entries(gitignore_path: str, entries: list[str], dry_run: b
 		return 0
 
 	content = read_text(gitignore_path)
-	lines = [line.rstrip('\n') for line in content.split('\n')]
+	lines = content.splitlines()
 
+	# ASVS 5.3.2: treat the trusted manifest as exact literal lines. Never
+	# expand its gitignore syntax into filesystem paths or globs.
 	entries_set = set(entry.strip() for entry in entries)
 	filtered_lines = []
 	removed_count = 0
@@ -331,6 +373,8 @@ def remove_gitignore_entries(gitignore_path: str, entries: list[str], dry_run: b
 	if removed_count == 0:
 		return 0
 
+	while filtered_lines and filtered_lines[-1] == '':
+		filtered_lines.pop()
 	new_content = '\n'.join(filtered_lines) + '\n' if filtered_lines else ''
 	write_text(gitignore_path, new_content, dry_run)
 
@@ -338,10 +382,49 @@ def remove_gitignore_entries(gitignore_path: str, entries: list[str], dry_run: b
 
 
 #============================================
+def replace_gitignore_entries(
+	gitignore_path: str,
+	replacements: dict[str, str],
+	dry_run: bool,
+) -> int:
+	"""Replace exact gitignore spellings with their canonical forms.
+
+	Args:
+		gitignore_path (str): Path to the consumer .gitignore file.
+		replacements (dict[str, str]): Exact source-to-destination spelling map.
+		dry_run (bool): If True, report without writing changes.
+
+	Returns:
+		int: Number of lines converted.
+	"""
+	if not os.path.isfile(gitignore_path):
+		return 0
+
+	content = read_text(gitignore_path)
+	lines = content.splitlines()
+	rewritten_lines = []
+	converted_count = 0
+	for line in lines:
+		stripped = line.strip()
+		if stripped in replacements:
+			rewritten_lines.append(replacements[stripped])
+			converted_count += 1
+		else:
+			rewritten_lines.append(line.rstrip())
+
+	if converted_count == 0:
+		return 0
+
+	new_content = '\n'.join(rewritten_lines) + '\n' if rewritten_lines else ''
+	write_text(gitignore_path, new_content, dry_run)
+	return converted_count
+
+
+#============================================
 def deduplicate_gitignore(gitignore_path: str, dry_run: bool, counters: dict | None = None) -> None:
 	"""
-	Remove duplicate lines and trailing whitespace from .gitignore file.
-	Preserves all empty lines and comments for visual grouping.
+	Remove duplicate lines and trailing whitespace from a .gitignore file.
+	Preserves internal empty lines and comments, with one trailing newline.
 
 	Updates counters dict in-place if provided: increments 'merged_count' when changes
 	are made (duplicates removed and/or whitespace cleaned).
@@ -355,7 +438,7 @@ def deduplicate_gitignore(gitignore_path: str, dry_run: bool, counters: dict | N
 		return
 
 	content = read_text(gitignore_path)
-	original_lines = [line.rstrip('\n') for line in content.split('\n')]
+	original_lines = content.splitlines()
 
 	stripped_lines = [line.rstrip() for line in original_lines]
 
@@ -374,6 +457,8 @@ def deduplicate_gitignore(gitignore_path: str, dry_run: bool, counters: dict | N
 	if duplicates_removed == 0 and not whitespace_cleaned:
 		return
 
+	while unique_lines and unique_lines[-1] == '':
+		unique_lines.pop()
 	new_content = '\n'.join(unique_lines) + '\n' if unique_lines else ''
 	write_text(gitignore_path, new_content, dry_run)
 
@@ -408,7 +493,54 @@ def spaced_block(block_lines: list[str]) -> list[str]:
 
 
 #============================================
-def replace_managed_block(lines: list[str], header: str, block_lines: list[str]) -> list[str]:
+def ensure_gitignore_local_section(lines: list[str]) -> list[str]:
+	"""Return lines with one clearly labeled repository-owned section.
+
+	The legacy ``# === LOCAL ===`` marker is renamed in place so rule ordering
+	stays unchanged. When no local marker exists, the heading is prepended above
+	the consumer's existing content, which places those existing rules inside the
+	repository-owned section without moving them relative to one another.
+
+	Args:
+		lines (list[str]): Existing .gitignore lines.
+
+	Returns:
+		list[str]: Lines carrying the local heading and preservation notice.
+	"""
+	local_index = None
+	for index, line in enumerate(lines):
+		stripped = line.strip()
+		if stripped == GITIGNORE_LEGACY_LOCAL_HEADER or stripped.startswith(
+			GITIGNORE_LOCAL_HEADER_PREFIX
+		):
+			local_index = index
+			break
+
+	if local_index is None:
+		local_block = [GITIGNORE_LOCAL_HEADER, GITIGNORE_LOCAL_NOTICE, '']
+		return local_block + list(lines)
+
+	result = list(lines)
+	result[local_index] = GITIGNORE_LOCAL_HEADER
+	if local_index + 1 >= len(result) or result[local_index + 1].strip() != GITIGNORE_LOCAL_NOTICE:
+		result.insert(local_index + 1, GITIGNORE_LOCAL_NOTICE)
+	return result
+
+
+#============================================
+def managed_gitignore_header(block_name: str) -> str:
+	"""Return a managed heading that states its propagation ownership."""
+	header = f'# === {block_name} === [PROPAGATED - LOCAL EDITS OVERWRITTEN]'
+	return header
+
+
+#============================================
+def replace_managed_block(
+	lines: list[str],
+	header: str,
+	block_lines: list[str],
+	rendered_header: str | None = None,
+) -> list[str]:
 	"""
 	Replace or append a named managed block in a line list.
 
@@ -417,12 +549,14 @@ def replace_managed_block(lines: list[str], header: str, block_lines: list[str])
 
 	Args:
 		lines (list[str]): Existing lines.
-		header (str): Block header to search for (e.g., '# === UNIVERSAL ===').
+		header (str): Stable block-header prefix to search for.
 		block_lines (list[str]): New block content (without header).
+		rendered_header (str | None): Clear output heading; defaults to header.
 
 	Returns:
 		list[str]: New line list with the block replaced or appended.
 	"""
+	output_header = rendered_header if rendered_header is not None else header
 	start_idx = -1
 	for i, line in enumerate(lines):
 		if line.startswith(header):
@@ -432,7 +566,7 @@ def replace_managed_block(lines: list[str], header: str, block_lines: list[str])
 	if start_idx == -1:
 		# Block not found: append
 		result = list(lines)
-		result.append(header)
+		result.append(output_header)
 		result.extend(block_lines)
 		return result
 
@@ -445,7 +579,7 @@ def replace_managed_block(lines: list[str], header: str, block_lines: list[str])
 	else:
 		end_idx = len(lines)
 
-	result = lines[:start_idx] + [header] + block_lines + lines[end_idx:]
+	result = lines[:start_idx] + [output_header] + block_lines + lines[end_idx:]
 	return result
 
 
@@ -658,7 +792,8 @@ def merge_gitignore_blocks(repo_dir: str, repo_type: str, template_root: str, co
 	Blocks: UNIVERSAL (always), then one <TYPE_UPPERCASE> block per declared type
 	whose gitignore template is non-empty, in declaration order.
 	If block header exists, replace just that block. If not, append at end.
-	User-added lines OUTSIDE any managed block stay untouched.
+	The clearly labeled LOCAL REPOSITORY RULES section is repository-owned.
+	User-added lines outside managed blocks stay untouched.
 
 	Updates counters dict in-place if provided: increments 'created_count' or 'merged_count'
 	depending on whether .gitignore was newly created or updated.
@@ -671,6 +806,8 @@ def merge_gitignore_blocks(repo_dir: str, repo_type: str, template_root: str, co
 		context (PropagateContext): Context with dry_run and path formatting info.
 		counters (dict | None): Optional counter dict to update with created/merged counts.
 	"""
+	# ASVS 5.3.2: the destination uses the orchestrator's repository root and a
+	# fixed basename; .gitignore content never controls the output path.
 	gitignore_path = os.path.join(repo_dir, '.gitignore')
 
 	file_exists = os.path.isfile(gitignore_path)
@@ -686,9 +823,14 @@ def merge_gitignore_blocks(repo_dir: str, repo_type: str, template_root: str, co
 
 	universal_header = '# === UNIVERSAL ==='
 
-	# Build new content
-	new_lines = list(existing_lines)
-	new_lines = replace_managed_block(new_lines, universal_header, spaced_block(universal_lines))
+	# Make repository ownership visible before adding or replacing managed blocks.
+	new_lines = ensure_gitignore_local_section(existing_lines)
+	new_lines = replace_managed_block(
+		new_lines,
+		universal_header,
+		spaced_block(universal_lines),
+		managed_gitignore_header('UNIVERSAL'),
+	)
 
 	# One managed block per declared type that has a non-empty source, in
 	# declaration order. 'all' expands to every type here, so an 'all' repo
@@ -702,8 +844,14 @@ def merge_gitignore_blocks(repo_dir: str, repo_type: str, template_root: str, co
 		type_lines = load_gitignore_block(gitignore_typed_path)
 		if not type_lines:
 			continue
-		type_header = f"# === {declared_type.upper()} ==="
-		new_lines = replace_managed_block(new_lines, type_header, spaced_block(type_lines))
+		block_name = declared_type.upper()
+		type_header = f"# === {block_name} ==="
+		new_lines = replace_managed_block(
+			new_lines,
+			type_header,
+			spaced_block(type_lines),
+			managed_gitignore_header(block_name),
+		)
 
 	# Build content with proper trailing newline
 	content = '\n'.join(new_lines)

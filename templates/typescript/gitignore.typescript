@@ -1,12 +1,8 @@
-# Node
-node_modules/
-
 # Build outputs
 dist/
 dist_*/
 _site/
 *.tsbuildinfo
-_bundle.js
 
 # Lint / format caches
 .eslintcache
