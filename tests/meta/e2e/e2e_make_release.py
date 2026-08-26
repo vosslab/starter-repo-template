@@ -6,7 +6,7 @@ Drives templates/shared/devel/make_release.py through its full release flow in a
 self-built temporary git repo, using REAL git subprocess (git init, git commit,
 git archive, git tag). PYTEST_STYLE.md forbids real subprocess CLI round-trips in
 pytest, so this closes the one seam the fast pytest tier cannot reach: building
-real archives from a committed HEAD and verifying their bundled LICENSE
+real archives from a committed HEAD and verifying their bundled license files
 byte-for-byte. The pure and stdlib-only units live in tests/meta/test_make_release.py.
 
 What this harness builds and exercises, independent of the main repo's state:
@@ -14,10 +14,10 @@ What this harness builds and exercises, independent of the main repo's state:
   - A temp git repo carrying sibling devel/ helpers (changelog_lib.py,
     commit_changelog.py, make_release.py copied from the local checkout), a
     VERSION file pinned to 26.07 (NOT the live VERSION, to dodge the
-    duplicate-version guard on real seeds), a COMMITTED LICENSE, and committed
-    docs/RELEASE_HISTORY.md + docs/NEWS.md seeds.
+    duplicate-version guard on real seeds), committed LICENSE.<SPDX> files,
+    and committed docs/RELEASE_HISTORY.md + docs/NEWS.md seeds.
   - ensure_tag_free passes on the clean repo and raises once a v26.07 tag exists.
-  - ensure_committed_license passes here and raises in a second repo lacking it.
+  - ensure_committed_license passes here and raises in a second repo lacking licenses.
   - The no-notes path prints the LLM prompt and builds nothing.
   - --write builds output_release/{repo}-v26.07.{zip,tgz} via real git archive,
     and verify_archive_license passes against the REAL built archives.
@@ -68,9 +68,12 @@ DEVEL_SOURCES = {
 # with a real seeded entry and the duplicate-version guard stays dormant.
 RELEASE_VERSION = "26.07"
 
-# Fixed LICENSE bytes committed into the repo; the archive check compares these
-# byte-for-byte against what git archive bundles.
-LICENSE_TEXT = "MIT License\n\nCopyright 2026 E2E Test\n"
+# Fixed license bytes committed into the repo; archive checks compare every
+# body byte-for-byte against what git archive bundles.
+LICENSE_TEXTS = {
+	"LICENSE.MIT": "MIT License\n\nCopyright 2026 E2E Test\n",
+	"LICENSE.CC-BY-4.0": "Creative Commons Attribution 4.0 International\n",
+}
 
 
 #============================================
@@ -90,12 +93,12 @@ def git_run(repo_dir: str, args: list[str]) -> None:
 def build_release_repo(repo_dir: str, with_license: bool) -> None:
 	"""Build a committed git repo that make_release.py can operate on.
 
-	Creates the devel/ helper trio, a VERSION file, optional committed LICENSE,
+	Creates the devel/ helper trio, a VERSION file, optional committed licenses,
 	and docs seeds, then commits the whole tree so HEAD is non-empty.
 
 	Args:
 		repo_dir (str): Destination repo directory (created fresh).
-		with_license (bool): When True, commit a LICENSE at the repo root.
+		with_license (bool): When True, commit policy-named licenses at the repo root.
 	"""
 	# Start from a clean directory so a failed earlier run cannot poison this one.
 	shutil.rmtree(repo_dir, ignore_errors=True)
@@ -116,10 +119,12 @@ def build_release_repo(repo_dir: str, with_license: bool) -> None:
 	with open(os.path.join(repo_dir, "docs", "NEWS.md"), "w", encoding="utf-8") as news:
 		news.write("# News\n\n## v26.05 - 2026-05-01\n\nOlder news.\n")
 
-	# Optionally commit a LICENSE so the snapshot can ship it inside the archives.
+	# Optionally commit licenses so the snapshot can ship them inside the archives.
 	if with_license:
-		with open(os.path.join(repo_dir, "LICENSE"), "w", encoding="utf-8") as license_file:
-			license_file.write(LICENSE_TEXT)
+		for license_name, license_text in LICENSE_TEXTS.items():
+			license_path = os.path.join(repo_dir, license_name)
+			with open(license_path, "w", encoding="utf-8") as license_file:
+				license_file.write(license_text)
 
 	# Initialize, set a local identity, and commit the tree so HEAD exists.
 	git_run(repo_dir, ["init", "--quiet"])
@@ -194,8 +199,9 @@ def check_preconditions_pass(make_release: object, label: str) -> None:
 	"""ensure_tag_free and ensure_committed_license pass on the clean repo."""
 	# No tag yet, so the tag-free guard must not raise.
 	make_release.ensure_tag_free(RELEASE_VERSION)
-	# LICENSE is committed, so the committed-license guard must not raise.
-	make_release.ensure_committed_license()
+	# Both licenses are committed, so the guard returns both policy names.
+	license_paths = make_release.ensure_committed_license()
+	assert license_paths == sorted(LICENSE_TEXTS)
 	print(f"  PASS [{label}]: ensure_tag_free and ensure_committed_license pass on clean repo")
 
 
@@ -234,12 +240,13 @@ def check_write_builds_and_verifies_archives(
 	tgz_path = os.path.join(output_dir, f"{repo_name}-v{RELEASE_VERSION}.tgz")
 	assert os.path.isfile(zip_path), f"--write did not build {zip_path}"
 	assert os.path.isfile(tgz_path), f"--write did not build {tgz_path}"
-	# verify_archive_license raises on mismatch; pass means the bundled LICENSE
-	# matches HEAD byte-for-byte in BOTH real archives.
-	expected_bytes = make_release.read_head_license_bytes()
-	license_member = f"{prefix}LICENSE"
-	make_release.verify_archive_license(zip_path, license_member, expected_bytes)
-	make_release.verify_archive_license(tgz_path, license_member, expected_bytes)
+	# A pass means every bundled license matches HEAD byte-for-byte in both
+	# real archives.
+	for license_path in sorted(LICENSE_TEXTS):
+		expected_bytes = make_release.read_head_license_bytes(license_path)
+		license_member = f"{prefix}{license_path}"
+		make_release.verify_archive_license(zip_path, license_member, expected_bytes)
+		make_release.verify_archive_license(tgz_path, license_member, expected_bytes)
 	# The release and tag steps must surface only as printed command strings.
 	assert "git tag" in out, "--write output missing the git tag command"
 	assert "gh release create" in out, "--write output missing the gh release create command"
@@ -269,7 +276,7 @@ def check_tag_guard_raises_when_tag_exists(
 def check_license_guard_raises_without_license(
 	make_release: object, no_license_dir: str, label: str,
 ) -> None:
-	"""ensure_committed_license raises in a committed repo lacking a LICENSE."""
+	"""ensure_committed_license raises in a committed repo lacking licenses."""
 	build_release_repo(no_license_dir, with_license=False)
 	saved_cwd = os.getcwd()
 	os.chdir(no_license_dir)
@@ -280,8 +287,8 @@ def check_license_guard_raises_without_license(
 		raised = True
 	finally:
 		os.chdir(saved_cwd)
-	assert raised, "ensure_committed_license did not raise without a committed LICENSE"
-	print(f"  PASS [{label}]: ensure_committed_license raises when HEAD has no LICENSE")
+	assert raised, "ensure_committed_license did not raise without committed licenses"
+	print(f"  PASS [{label}]: ensure_committed_license raises without LICENSE.<SPDX>")
 
 
 #============================================

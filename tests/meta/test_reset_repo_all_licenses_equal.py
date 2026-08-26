@@ -31,8 +31,8 @@ INSTALLABLE_LICENSES = repolib.reset_answers.CODE_LICENSES + [
 
 @pytest.mark.parametrize("spdx", INSTALLABLE_LICENSES)
 def test_offered_license_has_source_file(spdx: str) -> None:
-	"""Each selectable license must have a LICENSES/LICENSE.<spdx>.md to install."""
-	source = REPO_ROOT / "LICENSES" / f"LICENSE.{spdx}.md"
+	"""Each selectable license must have a LICENSES/LICENSE.<spdx> to install."""
+	source = REPO_ROOT / "LICENSES" / f"LICENSE.{spdx}"
 	assert source.is_file()
 
 
@@ -43,8 +43,53 @@ def test_offered_license_has_source_file(spdx: str) -> None:
 @pytest.mark.parametrize("spdx", INSTALLABLE_LICENSES)
 def test_copy_license_installs_each_license(spdx: str, tmp_path: pathlib.Path) -> None:
 	"""copy_license reproduces every license body byte-for-byte, no exceptions."""
-	source = REPO_ROOT / "LICENSES" / f"LICENSE.{spdx}.md"
-	target_filename = f"LICENSE.{spdx}.md"
+	source = REPO_ROOT / "LICENSES" / f"LICENSE.{spdx}"
+	target_filename = f"LICENSE.{spdx}"
 	repolib.reset.copy_license(str(tmp_path), str(source), target_filename, dry_run=False)
 	installed = (tmp_path / target_filename).read_text(encoding="utf-8")
 	assert installed == source.read_text(encoding="utf-8")
+
+
+#============================================
+# Catalog bodies stay portable plain text
+#============================================
+
+@pytest.mark.parametrize("spdx", INSTALLABLE_LICENSES)
+def test_offered_license_body_is_ascii(spdx: str) -> None:
+	"""Every catalog body uses portable ASCII bytes, including CC legal code."""
+	source = REPO_ROOT / "LICENSES" / f"LICENSE.{spdx}"
+	source.read_bytes().decode("ascii")
+
+
+#============================================
+# Fresh READMEs state the selected license scope
+#============================================
+
+def test_write_readme_license_scope_maps_code_and_docs(tmp_path: pathlib.Path) -> None:
+	"""A two-license reset maps each license to its covered material."""
+	readme_path = tmp_path / "README.md"
+	readme_path.write_text("template boilerplate\n", encoding="ascii")
+	repolib.reset.write_readme_license_scope(
+		str(tmp_path), "GPL-3.0", "CC-BY-SA-4.0", dry_run=False,
+	)
+	content = readme_path.read_text(encoding="ascii")
+	assert content.startswith(f"# {tmp_path.name}\n\n## License\n")
+	assert "Source code: [LICENSE.GPL-3.0](LICENSE.GPL-3.0)." in content
+	assert (
+		"Documentation and other non-code materials: "
+		"[LICENSE.CC-BY-SA-4.0](LICENSE.CC-BY-SA-4.0)."
+	) in content
+
+
+def test_write_readme_license_scope_omits_unselected_docs_license(
+	tmp_path: pathlib.Path,
+) -> None:
+	"""A code-only reset does not invent a documentation-license scope."""
+	readme_path = tmp_path / "README.md"
+	readme_path.write_text("template boilerplate\n", encoding="ascii")
+	repolib.reset.write_readme_license_scope(
+		str(tmp_path), "MIT", "none", dry_run=False,
+	)
+	content = readme_path.read_text(encoding="ascii")
+	assert "Source code: [LICENSE.MIT](LICENSE.MIT)." in content
+	assert "Documentation and other non-code materials" not in content

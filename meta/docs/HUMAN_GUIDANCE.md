@@ -19,6 +19,8 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
   multi-type behavior.
 - [GITIGNORE_SYSTEM.md](GITIGNORE_SYSTEM.md) owns `.gitignore` sources, rendered ownership,
   canonicalization, cleanup, pattern semantics, and validation.
+- [LICENSE_POLICY.md](LICENSE_POLICY.md) owns license filenames, canonical body sources,
+  GitHub detection guidance, reset installation, and release verification.
 - [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) owns repository conventions.
   Keep type-marker rules out of it; the shared `REPO_` prefix does not make the
   two documents interchangeable.
@@ -142,6 +144,8 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 ## reset_repo.py design
 
 - `reset_repo.py` is the bootstrap entry point for new consumer repos.
+- Selected licenses install as real root files named `LICENSE.<SPDX>` from complete plain-text
+  catalog bodies with the same names. Do not add rendering extensions or license aliases.
 - Interactive interview is the human default: the script asks project type, license,
   PyPI intent, stage, and commit choices at the terminal.
 - CLI surface is minimal: `-h`, `--dry-run`, and `--config <file>`. The `--force` and

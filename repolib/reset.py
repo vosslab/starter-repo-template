@@ -62,11 +62,11 @@ def preflight_check(repo_root: str, code_license: str, docs_license: str) -> Non
 		code_license (str): Selected code-license identifier.
 		docs_license (str): Selected documentation-license identifier.
 	"""
-	code_path = os.path.join(repo_root, f"LICENSES/LICENSE.{code_license}.md")
+	code_path = os.path.join(repo_root, f"LICENSES/LICENSE.{code_license}")
 	if not os.path.isfile(code_path):
 		sys.exit(f"license file missing: {code_path}")
 	if docs_license != "none":
-		docs_path = os.path.join(repo_root, f"LICENSES/LICENSE.{docs_license}.md")
+		docs_path = os.path.join(repo_root, f"LICENSES/LICENSE.{docs_license}")
 		if not os.path.isfile(docs_path):
 			sys.exit(f"license file missing: {docs_path}")
 
@@ -147,7 +147,7 @@ def copy_license(
 ) -> int:
 	"""Copy a license file to the repo root under the given target_filename.
 
-	The caller chooses target_filename (the reset uses LICENSE.<spdx>.md). The
+	The caller chooses target_filename (the reset uses LICENSE.<spdx>). The
 	source file is guaranteed to exist by preflight_check, and a failed read or
 	write raises loudly on its own, so no post-copy verification gate is needed.
 
@@ -521,6 +521,42 @@ def truncate_file(path: str, repo_root: str, dry_run: bool) -> int:
 
 
 #============================================
+def write_readme_license_scope(
+	repo_root: str, code_license: str, docs_license: str, dry_run: bool,
+) -> int:
+	"""Replace the template README with the selected license scope.
+
+	The license identifiers have already been resolved through the reset
+	allow-list. A generated scope statement gives a fresh multi-license repo an
+	unambiguous mapping without modifying the publisher's legal text.
+
+	Args:
+		repo_root (str): Repository root containing README.md.
+		code_license (str): Selected code-license identifier.
+		docs_license (str): Selected documentation-license identifier or ``none``.
+		dry_run (bool): Whether to preview the write.
+
+	Returns:
+		int: Number of actions taken or announced.
+	"""
+	readme_path = os.path.join(repo_root, "README.md")
+	project_name = os.path.basename(os.path.normpath(repo_root))
+	content = f"# {project_name}\n\n## License\n\n"
+	content += f"Source code: [LICENSE.{code_license}](LICENSE.{code_license}).\n"
+	if docs_license != "none":
+		content += (
+			"\nDocumentation and other non-code materials: "
+			f"[LICENSE.{docs_license}](LICENSE.{docs_license}).\n"
+		)
+	if dry_run:
+		dry_run_print("replace README.md with selected license scope", dry_run)
+	else:
+		with open(readme_path, "w", encoding="ascii") as readme_file:
+			readme_file.write(content)
+	return 1
+
+
+#============================================
 def is_template_source_dir(repo_root: str) -> bool:
 	"""Return True when repo_root is the template source checkout.
 
@@ -863,12 +899,12 @@ def main() -> None:
 	action_count += write_marker(repo_root, project_type, args.dry_run)
 
 	# === phase: license install ===
-	code_source = os.path.join(repo_root, f"LICENSES/LICENSE.{code_license}.md")
-	action_count += copy_license(repo_root, code_source, f"LICENSE.{code_license}.md", args.dry_run)
+	code_source = os.path.join(repo_root, f"LICENSES/LICENSE.{code_license}")
+	action_count += copy_license(repo_root, code_source, f"LICENSE.{code_license}", args.dry_run)
 
 	if docs_license != "none":
-		docs_source = os.path.join(repo_root, f"LICENSES/LICENSE.{docs_license}.md")
-		action_count += copy_license(repo_root, docs_source, f"LICENSE.{docs_license}.md", args.dry_run)
+		docs_source = os.path.join(repo_root, f"LICENSES/LICENSE.{docs_license}")
+		action_count += copy_license(repo_root, docs_source, f"LICENSE.{docs_license}", args.dry_run)
 
 	# === phase: cleanup LICENSES/ ===
 	action_count += git_rm_recursive("LICENSES/", repo_root, args.dry_run)
@@ -893,8 +929,10 @@ def main() -> None:
 	if project_type == "typescript":
 		action_count += substitute_typescript_package_json(repo_root, args.dry_run)
 
-	# === phase: truncate boilerplate ===
-	action_count += truncate_file("README.md", repo_root, args.dry_run)
+	# === phase: replace boilerplate ===
+	action_count += write_readme_license_scope(
+		repo_root, code_license, docs_license, args.dry_run,
+	)
 	action_count += truncate_file("docs/CHANGELOG.md", repo_root, args.dry_run)
 
 	# === phase: cleanup template-only files ===

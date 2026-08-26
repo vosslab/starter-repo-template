@@ -154,6 +154,7 @@ def case_matrix() -> list[dict]:
 			"config": {
 				"project_type": "o",
 				"code_license": "g",
+				"docs_license": "cs",
 				"stage": True,
 				"commit": False,
 			},
@@ -350,13 +351,27 @@ def assert_marker(clone_dir: str, expected_type: str, label: str) -> None:
 	print(f"  PASS [{label}]: REPO_TYPE marker is {token!r}")
 
 
-def assert_license(clone_dir: str, code_license: str, label: str) -> None:
-	"""Assert the installed code-license file exists at the clone root."""
-	license_path = os.path.join(clone_dir, f"LICENSE.{code_license}.md")
-	if not os.path.isfile(license_path):
-		print(f"FAIL [{label}]: code license file missing: LICENSE.{code_license}.md")
-		sys.exit(1)
-	print(f"  PASS [{label}]: code license installed (LICENSE.{code_license}.md)")
+def assert_license_scope(
+	clone_dir: str, code_license: str, docs_license: str, label: str,
+) -> None:
+	"""Assert installed license files and the generated README scope map."""
+	license_names = [f"LICENSE.{code_license}"]
+	if docs_license != "none":
+		license_names.append(f"LICENSE.{docs_license}")
+	for license_name in license_names:
+		license_path = os.path.join(clone_dir, license_name)
+		if not os.path.isfile(license_path):
+			print(f"FAIL [{label}]: license file missing: {license_name}")
+			sys.exit(1)
+	readme_path = os.path.join(clone_dir, "README.md")
+	with open(readme_path, "r", encoding="ascii") as readme_file:
+		readme_content = readme_file.read()
+	for license_name in license_names:
+		link = f"[{license_name}]({license_name})"
+		if link not in readme_content:
+			print(f"FAIL [{label}]: README license scope missing {link}")
+			sys.exit(1)
+	print(f"  PASS [{label}]: installed licenses mapped in README ({', '.join(license_names)})")
 
 
 def assert_pyproject(clone_dir: str, pypi: bool, label: str) -> None:
@@ -531,6 +546,9 @@ def run_case(mode: str, case: dict) -> None:
 	if pypi:
 		repo_type = repolib.reset_answers.promote_pypi_type(repo_type)
 	code_license = resolve_case_code_license(config["code_license"])
+	docs_license = repolib.reset_answers.resolve_docs_license(
+		config.get("docs_license", ""),
+	)
 	stage = config.get("stage", True)
 	commit = config.get("commit", False)
 
@@ -540,7 +558,7 @@ def run_case(mode: str, case: dict) -> None:
 	assert_template_meta_removed(clone_dir, label)
 	assert_no_changelog_archives(clone_dir, label)
 	assert_marker(clone_dir, repo_type, label)
-	assert_license(clone_dir, code_license, label)
+	assert_license_scope(clone_dir, code_license, docs_license, label)
 	assert_pyproject(clone_dir, pypi, label)
 	assert_submit_to_pypi(clone_dir, pypi, label)
 	assert_stage_state(clone_dir, stage, commit, label)

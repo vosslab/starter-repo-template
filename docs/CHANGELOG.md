@@ -2,6 +2,12 @@
 
 ### Behavior or Interface Changes
 
+- Changed reset-installed license names from `LICENSE.<SPDX>.md` to real plain-text
+  `LICENSE.<SPDX>` files so the license identifier remains visible while the current Licensee
+  filename matcher can recognize the file. Release preparation now requires this convention,
+  rejects unsupported names, executable files, and symlinks, and verifies every license in
+  multi-license source archives. Fresh resets also seed a README scope map for the selected
+  code and documentation licenses.
 - Added `-D`/`--include-docs` to fresh and explicit update Graphify builds. It includes
   nonignored document, paper, and image inputs through the selected Claude CLI or Ollama
   backend while ordinary fresh builds remain code-only.
@@ -13,6 +19,11 @@
 
 ### Fixes and Maintenance
 
+- Replaced all eight abbreviated license summaries in `LICENSES/` with complete publisher legal
+  text, stored as ASCII. Added `meta/docs/LICENSE_POLICY.md` as the canonical policy for root
+  filenames, multi-license scope, GitHub detection, upstream body sources, reset behavior, and
+  release validation; it also classifies the supplied action, community discussion, and gist as
+  supporting rather than normative sources.
 - Promoted root `/node_modules/` and `/.env` ignores to the universal propagation template and
   the template repository's own `.gitignore` because Node tooling and secret-bearing local
   environment files cross repository types. Removed the redundant TypeScript-only

@@ -151,10 +151,10 @@ Preferred structure:
 - Reference: [PyPA version specifiers](https://packaging.python.org/en/latest/specifications/version-specifiers/).
 - When `devel/make_release.py` is present, use it to
   prepare GitHub source releases: it checks CalVer freshness, ensures the version tag is free,
-  verifies the committed LICENSE, builds and spot-checks zip and tgz archives, generates an
-  LLM-drafted release description, and optionally writes `docs/RELEASE_HISTORY.md` and
-  `docs/NEWS.md` before printing the tag and `gh release create` commands. Run with `--dry-run`
-  to preview all steps without mutating the repo, or `--write` to update the doc files.
+  verifies every committed `LICENSE.<SPDX>` in the built zip and tgz archives, prints an LLM
+  prompt for drafting the release description, and optionally writes `docs/RELEASE_HISTORY.md`
+  and `docs/NEWS.md` before printing the tag and `gh release create` commands. Run with
+  `--dry-run` to preview all steps without mutating the repo, or `--write` to update the doc files.
 
 ## Scripts and executables
 - Keep scripts self-contained and single-purpose.
@@ -241,7 +241,8 @@ Preferred structure:
 ### Recommended common docs
 - `AGENTS.md`: agent instructions, tool constraints, and repo-specific workflow guardrails.
 - `README.md`: project purpose, quick start, and links to deeper documentation.
-- `LICENSE`: legal terms for using and redistributing the project; keep exact license text.
+- `LICENSE.<SPDX>`: legal terms for using and redistributing the project; keep the complete
+  plain-text license body and make the license identifier visible in the filename.
 - `docs/CHANGELOG.md`: chronological, user facing record of changes, grouped by date. Timeline of what changed and when.
 - `docs/CHANGELOG.md` entries should also note important failures and key implementation choices so the log remains a useful learning record for later debugging and decision review.
 - `docs/CODE_ARCHITECTURE.md`: high-level system design, major components, and data flow.
@@ -293,6 +294,13 @@ Possible examples:
 
 ## Licensing
 Check the license file to match these criteria.
+
+- Store each license as a real root file named `LICENSE.<SPDX>`, such as `LICENSE.GPL-3.0` or
+  `LICENSE.CC-BY-SA-4.0`. Do not add a rendering extension, generic alias, wrapper, or symlink.
+- When code and non-code material use different licenses, keep one real file per license and map
+  each license to its covered material in `README.md`.
+- Keep complete legal text in each license file. Put project explanations in `README.md`, not in
+  the legal body.
 
 - Most source code is licensed under **GPLv3**, unless stated otherwise.
 - Libraries intended for use by proprietary or mixed-source software are licensed under **LGPLv3**.

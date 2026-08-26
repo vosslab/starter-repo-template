@@ -9,7 +9,7 @@ changelog_lib.run_git so no real git process ever runs.
 
 Covered here:
  - check_calver_freshness: well-formed passes, malformed raises (pure string logic)
- - ensure_tag_free / ensure_committed_license: raise vs pass (run_git faked)
+ - ensure_tag_free / ensure_committed_license: missing, unsupported-name, mode, and pass cases
  - compute_change_range: initial-release fallback (run_git faked)
  - build_llm_prompt: version token and notes guidance present (compute faked)
  - build_tag_command / build_gh_release_command / build_archive_arg_lists: builders
@@ -26,6 +26,7 @@ import tarfile
 import pathlib
 import subprocess
 import importlib.util
+import collections.abc
 
 # PIP3 modules
 import pytest
@@ -33,6 +34,7 @@ import pytest
 # local repo modules
 import changelog_lib
 import file_utils
+import repolib.reset_answers
 
 REPO_ROOT = file_utils.get_repo_root()
 
@@ -63,10 +65,27 @@ def _fake_run_git_tag_exists(args: list[str]) -> subprocess.CompletedProcess:
 
 
 def _fake_run_git_license_missing(args: list[str]) -> subprocess.CompletedProcess:
-	"""Simulate git cat-file -e HEAD:LICENSE returning non-zero (blob absent)."""
-	if "cat-file" in args:
-		return subprocess.CompletedProcess(args, 1, stdout="", stderr="not found")
+	"""Simulate a committed root tree with no policy-named license."""
 	return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+
+
+def _fake_run_git_license_present(args: list[str]) -> subprocess.CompletedProcess:
+	"""Simulate two regular policy-named licenses in the committed root tree."""
+	stdout = (
+		"100644 blob 1111111\tLICENSE.CC-BY-4.0\n"
+		"100644 blob 2222222\tLICENSE.MIT\n"
+	)
+	return subprocess.CompletedProcess(args, 0, stdout=stdout, stderr="")
+
+
+def _fake_run_git_license_entry(
+	path: str, mode: str = "100644",
+) -> collections.abc.Callable[[list[str]], subprocess.CompletedProcess]:
+	"""Build a run_git fake with one committed root license entry."""
+	def fake_run_git(args: list[str]) -> subprocess.CompletedProcess:
+		stdout = f"{mode} blob 1111111\t{path}\n"
+		return subprocess.CompletedProcess(args, 0, stdout=stdout, stderr="")
+	return fake_run_git
 
 
 def _fake_compute_no_prior_tag() -> dict:
@@ -112,21 +131,74 @@ def test_ensure_tag_free_passes_when_tag_absent(monkeypatch: pytest.MonkeyPatch)
 #============================================
 # Committed-LICENSE-present check (run_git faked)
 
+def test_release_license_allow_list_matches_reset_catalog() -> None:
+	"""The propagated release contract stays synchronized with reset choices."""
+	identifiers = repolib.reset_answers.CODE_LICENSES + [
+		spdx for spdx in repolib.reset_answers.DOCS_LICENSES if spdx != "none"
+	]
+	expected_filenames = frozenset(f"LICENSE.{spdx}" for spdx in identifiers)
+	assert make_release.SUPPORTED_LICENSE_FILENAMES == expected_filenames
+
 def test_ensure_committed_license_raises_when_missing(
 	monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-	"""ensure_committed_license raises RuntimeError when HEAD has no committed LICENSE."""
+	"""ensure_committed_license raises when HEAD has no LICENSE.<SPDX> file."""
 	monkeypatch.setattr(changelog_lib, "run_git", _fake_run_git_license_missing)
-	with pytest.raises(RuntimeError, match="No committed LICENSE"):
+	with pytest.raises(RuntimeError, match=r"No committed LICENSE\.<SPDX>"):
 		make_release.ensure_committed_license()
 
 def test_ensure_committed_license_passes_when_present(
 	monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-	"""ensure_committed_license does not raise when HEAD:LICENSE exists (exit 0)."""
-	monkeypatch.setattr(changelog_lib, "run_git", _fake_run_git_empty)
-	# No exception means the committed-license check passed.
-	make_release.ensure_committed_license()
+	"""ensure_committed_license returns every regular LICENSE.<SPDX> file."""
+	monkeypatch.setattr(changelog_lib, "run_git", _fake_run_git_license_present)
+	paths = make_release.ensure_committed_license()
+	assert paths == ["LICENSE.CC-BY-4.0", "LICENSE.MIT"]
+
+
+def test_ensure_committed_license_rejects_markdown_alias(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""A compound LICENSE.MIT.md alias fails the release filename contract."""
+	monkeypatch.setattr(
+		changelog_lib, "run_git", _fake_run_git_license_entry("LICENSE.MIT.md"),
+	)
+	with pytest.raises(RuntimeError, match="Unsupported root license filename"):
+		make_release.ensure_committed_license()
+
+
+@pytest.mark.parametrize("filename", ["LICENSE", "LICENSE.MIT.adoc"])
+def test_ensure_committed_license_rejects_other_unsupported_names(
+	monkeypatch: pytest.MonkeyPatch, filename: str,
+) -> None:
+	"""Generic and unlisted-rendering names fail the release contract."""
+	monkeypatch.setattr(
+		changelog_lib, "run_git", _fake_run_git_license_entry(filename),
+	)
+	with pytest.raises(RuntimeError, match="Unsupported root license filename"):
+		make_release.ensure_committed_license()
+
+
+def test_ensure_committed_license_rejects_symlink(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""A committed symlink cannot stand in for the real license body."""
+	monkeypatch.setattr(
+		changelog_lib, "run_git", _fake_run_git_license_entry("LICENSE.MIT", "120000"),
+	)
+	with pytest.raises(RuntimeError, match="symlinks are not releasable"):
+		make_release.ensure_committed_license()
+
+
+def test_ensure_committed_license_rejects_executable_file(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""An executable regular file cannot stand in for a license body."""
+	monkeypatch.setattr(
+		changelog_lib, "run_git", _fake_run_git_license_entry("LICENSE.MIT", "100755"),
+	)
+	with pytest.raises(RuntimeError, match="regular, non-executable"):
+		make_release.ensure_committed_license()
 
 
 #============================================
@@ -223,43 +295,43 @@ def test_build_archive_arg_lists_select_zip_and_targz_formats() -> None:
 # verify_archive_license (stdlib zip/tgz built in tmp_path; no git)
 
 def test_verify_archive_license_zip_passes_on_match(tmp_path: pathlib.Path) -> None:
-	"""verify_archive_license does not raise when the zip LICENSE matches expected bytes."""
+	"""verify_archive_license accepts a matching zip LICENSE.MIT member."""
 	license_bytes = b"MIT License\n"
 	zip_path = str(tmp_path / "test.zip")
 	with zipfile.ZipFile(zip_path, "w") as zf:
-		zf.writestr("prefix/LICENSE", license_bytes)
+		zf.writestr("prefix/LICENSE.MIT", license_bytes)
 	# No exception means the byte-match passed.
-	make_release.verify_archive_license(zip_path, "prefix/LICENSE", license_bytes)
+	make_release.verify_archive_license(zip_path, "prefix/LICENSE.MIT", license_bytes)
 
 def test_verify_archive_license_zip_raises_on_mismatch(tmp_path: pathlib.Path) -> None:
 	"""verify_archive_license raises RuntimeError when zip LICENSE differs from expected."""
 	zip_path = str(tmp_path / "test.zip")
 	with zipfile.ZipFile(zip_path, "w") as zf:
-		zf.writestr("prefix/LICENSE", b"Different content\n")
+		zf.writestr("prefix/LICENSE.MIT", b"Different content\n")
 	with pytest.raises(RuntimeError, match="does not match"):
-		make_release.verify_archive_license(zip_path, "prefix/LICENSE", b"MIT License\n")
+		make_release.verify_archive_license(zip_path, "prefix/LICENSE.MIT", b"MIT License\n")
 
 def test_verify_archive_license_tgz_passes_on_match(tmp_path: pathlib.Path) -> None:
-	"""verify_archive_license does not raise when the tgz LICENSE matches expected bytes."""
+	"""verify_archive_license accepts a matching tgz LICENSE.MIT member."""
 	license_bytes = b"MIT License\n"
 	tgz_path = str(tmp_path / "test.tgz")
 	with tarfile.open(tgz_path, "w:gz") as tf:
-		info = tarfile.TarInfo(name="prefix/LICENSE")
+		info = tarfile.TarInfo(name="prefix/LICENSE.MIT")
 		info.size = len(license_bytes)
 		tf.addfile(info, io.BytesIO(license_bytes))
 	# No exception means the byte-match passed.
-	make_release.verify_archive_license(tgz_path, "prefix/LICENSE", license_bytes)
+	make_release.verify_archive_license(tgz_path, "prefix/LICENSE.MIT", license_bytes)
 
 def test_verify_archive_license_tgz_raises_on_mismatch(tmp_path: pathlib.Path) -> None:
 	"""verify_archive_license raises RuntimeError when tgz LICENSE differs from expected."""
 	wrong_bytes = b"GPL content\n"
 	tgz_path = str(tmp_path / "test.tgz")
 	with tarfile.open(tgz_path, "w:gz") as tf:
-		info = tarfile.TarInfo(name="prefix/LICENSE")
+		info = tarfile.TarInfo(name="prefix/LICENSE.MIT")
 		info.size = len(wrong_bytes)
 		tf.addfile(info, io.BytesIO(wrong_bytes))
 	with pytest.raises(RuntimeError, match="does not match"):
-		make_release.verify_archive_license(tgz_path, "prefix/LICENSE", b"MIT License\n")
+		make_release.verify_archive_license(tgz_path, "prefix/LICENSE.MIT", b"MIT License\n")
 
 
 #============================================
