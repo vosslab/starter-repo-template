@@ -1,3 +1,44 @@
+## 2026-08-26
+
+### Behavior or Interface Changes
+
+- Added `-D`/`--include-docs` to fresh and explicit update Graphify builds. It includes
+  nonignored document, paper, and image inputs through the selected Claude CLI or Ollama
+  backend while ordinary fresh builds remain code-only.
+- `--update --include-docs` now runs Graphify's incremental semantic extraction without
+  `--force`, refreshes all community labels, validates artifacts, and regenerates manager
+  context. When no graph exists, it falls back to the complete fresh semantic lifecycle.
+- Pinned Claude CLI semantic extraction to Sonnet and retained the configured Ollama model for
+  local semantic extraction.
+
+### Fixes and Maintenance
+
+- Restored the focused Graphify command-selection suite after the semantic-scope parameters
+  changed, and made extraction and benchmark phase labels describe semantic maps accurately.
+- Kept `.graphifyignore` authoritative for repository-specific scope. The new option includes
+  semantic inputs that each repository has not excluded.
+
+### Decisions and Failures
+
+- Kept connected Claude CLI and Ollama semantic extraction outside permanent pytest. The
+  permanent tests verify deterministic command and model selection; a real extraction remains
+  one-time acceptance evidence because it invokes an LLM and produces model-derived artifacts.
+
+### Developer Tests and Notes
+
+- Permanent tests: `source source_me.sh && python3 -m pytest
+  tests/meta/test_graphify_map_repo.py -q` passed: 30 tests.
+- Permanent style and wrapper tests: `source source_me.sh && python3 -m pytest
+  tests/meta/test_graphify_map_repo.py tests/test_pyflakes_code_lint.py
+  tests/test_function_typing.py tests/test_indentation.py tests/test_shebangs.py
+  tests/test_ascii_compliance.py tests/test_source_file_line_limit.py
+  tests/test_markdown_links.py -q` passed: 837 tests.
+- Permanent tests: `source source_me.sh && python3 -m pytest tests/ -q` passed: 1,818 tests.
+- One-time checks: CLI help rendered the documented `--include-docs` scope, and invoking
+  `--include-docs` without an explicit `--fresh` or `--update` exited 2 with the documented
+  validation error. Inspection of installed Graphify 0.9.50 confirmed that incremental
+  `extract` uses its manifest and cache, and stops before community labeling and reports.
+
 ## 2026-08-25
 
 ### Behavior or Interface Changes

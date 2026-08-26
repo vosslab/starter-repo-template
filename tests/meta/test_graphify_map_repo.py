@@ -124,7 +124,11 @@ def test_existing_graph_selects_real_update(tmp_path: pathlib.Path) -> None:
 	output_dir.mkdir()
 	(output_dir / "graph.json").write_text("{}", encoding="utf-8")
 	operation, command, is_fresh = tools.graphify_map_repo.graph_build_command(
-		"graphify", tmp_path, tools.graphify_map_repo.MODE_AUTO
+		"graphify",
+		tmp_path,
+		tools.graphify_map_repo.MODE_AUTO,
+		False,
+		tools.graphify_map_repo.LABEL_BACKEND,
 	)
 	assert (operation, command) == ("UPDATING GRAPHIFY CODE MAP", ["graphify", "update", "."])
 	assert is_fresh is False
@@ -136,7 +140,11 @@ def test_existing_graph_selects_real_update(tmp_path: pathlib.Path) -> None:
 def test_missing_graph_selects_code_extraction(tmp_path: pathlib.Path) -> None:
 	"""A missing graph performs a fresh code-only extraction."""
 	operation, command, is_fresh = tools.graphify_map_repo.graph_build_command(
-		"graphify", tmp_path, tools.graphify_map_repo.MODE_AUTO
+		"graphify",
+		tmp_path,
+		tools.graphify_map_repo.MODE_AUTO,
+		False,
+		tools.graphify_map_repo.LABEL_BACKEND,
 	)
 	expected = ("EXTRACTING GRAPHIFY CODE MAP", ["graphify", "extract", ".", "--code-only"])
 	assert (operation, command) == expected
@@ -152,7 +160,11 @@ def test_fresh_mode_forces_code_extraction(tmp_path: pathlib.Path) -> None:
 	output_dir.mkdir()
 	(output_dir / "graph.json").write_text("{}", encoding="utf-8")
 	operation, command, is_fresh = tools.graphify_map_repo.graph_build_command(
-		"graphify", tmp_path, tools.graphify_map_repo.MODE_FRESH
+		"graphify",
+		tmp_path,
+		tools.graphify_map_repo.MODE_FRESH,
+		False,
+		tools.graphify_map_repo.LABEL_BACKEND,
 	)
 	expected = ("EXTRACTING GRAPHIFY CODE MAP", ["graphify", "extract", ".", "--code-only"])
 	assert (operation, command) == expected
@@ -165,7 +177,11 @@ def test_fresh_mode_forces_code_extraction(tmp_path: pathlib.Path) -> None:
 def test_update_mode_extracts_when_graph_is_missing(tmp_path: pathlib.Path) -> None:
 	"""Update mode announces the fresh-extraction fallback from the retired tool."""
 	operation, command, is_fresh = tools.graphify_map_repo.graph_build_command(
-		"graphify", tmp_path, tools.graphify_map_repo.MODE_UPDATE
+		"graphify",
+		tmp_path,
+		tools.graphify_map_repo.MODE_UPDATE,
+		False,
+		tools.graphify_map_repo.LABEL_BACKEND,
 	)
 	expected = (
 		"NO EXISTING GRAPH; EXTRACTING FRESH GRAPHIFY CODE MAP",
@@ -173,6 +189,80 @@ def test_update_mode_extracts_when_graph_is_missing(tmp_path: pathlib.Path) -> N
 	)
 	assert (operation, command) == expected
 	assert is_fresh is True
+
+
+#============================================
+
+
+@pytest.mark.parametrize(
+	("label_backend", "expected_model"),
+	[
+		(tools.graphify_map_repo.LABEL_BACKEND, tools.graphify_map_repo.CLAUDE_LABEL_MODEL),
+		(tools.graphify_map_repo.OLLAMA_BACKEND, tools.graphify_map_repo.OLLAMA_MODEL),
+	],
+)
+def test_include_docs_selects_semantic_extraction(
+	tmp_path: pathlib.Path,
+	label_backend: str,
+	expected_model: str,
+) -> None:
+	"""Document scope selects the requested semantic backend and configured model."""
+	operation, command, is_fresh = tools.graphify_map_repo.graph_build_command(
+		"graphify",
+		tmp_path,
+		tools.graphify_map_repo.MODE_FRESH,
+		True,
+		label_backend,
+	)
+	expected_command = [
+		"graphify",
+		"extract",
+		".",
+		f"--backend={label_backend}",
+		f"--model={expected_model}",
+		"--force",
+	]
+	assert (operation, is_fresh) == ("EXTRACTING GRAPHIFY CODE AND SEMANTIC MAP", True)
+	assert command == expected_command
+
+
+#============================================
+
+
+def test_update_docs_selects_incremental_semantic_extraction(tmp_path: pathlib.Path) -> None:
+	"""Document-aware update omits force so Graphify reuses its semantic cache."""
+	output_dir = tmp_path / "graphify-out"
+	output_dir.mkdir()
+	(output_dir / "graph.json").write_text("{}", encoding="utf-8")
+	operation, command, is_fresh = tools.graphify_map_repo.graph_build_command(
+		"graphify",
+		tmp_path,
+		tools.graphify_map_repo.MODE_UPDATE,
+		True,
+		tools.graphify_map_repo.LABEL_BACKEND,
+	)
+	expected_command = [
+		"graphify",
+		"extract",
+		".",
+		f"--backend={tools.graphify_map_repo.LABEL_BACKEND}",
+		f"--model={tools.graphify_map_repo.CLAUDE_LABEL_MODEL}",
+	]
+	assert (operation, is_fresh) == ("UPDATING GRAPHIFY CODE AND SEMANTIC MAP", False)
+	assert command == expected_command
+
+
+#============================================
+
+
+def test_docs_claude_environment_pins_configured_model() -> None:
+	"""Claude semantic extraction receives the maintained model selection."""
+	environment = tools.graphify_map_repo.graph_build_environment(
+		True,
+		tools.graphify_map_repo.LABEL_BACKEND,
+	)
+	assert environment is not None
+	assert environment["GRAPHIFY_CLAUDE_CLI_MODEL"] == tools.graphify_map_repo.CLAUDE_LABEL_MODEL
 
 
 #============================================
