@@ -2,6 +2,11 @@
 
 ### Behavior or Interface Changes
 
+- Propagation now migrates recognized legacy root licenses to the current `LICENSE.<SPDX>` system.
+  It handles prior typed Markdown names, observed underscore-era names, grep-detectable generic
+  `LICENSE`/`LICENSE.md` bodies, and safe generic symlink aliases. Complete or customized bodies
+  are preserved; only fingerprinted old summaries receive the complete local catalog text.
+  Conflicting, custom, and ambiguous legal files are warned about and left untouched.
 - Changed reset-installed license names from `LICENSE.<SPDX>.md` to real plain-text
   `LICENSE.<SPDX>` files so the license identifier remains visible while the current Licensee
   filename matcher can recognize the file. Release preparation now requires this convention,
@@ -19,6 +24,16 @@
 
 ### Fixes and Maintenance
 
+- Surveyed 92 root license candidates across local `~/nsh` Git repositories before defining the
+  migration. The observed set included 36 typed Markdown files, 26 recognized underscore-era
+  names, 28 generic files or links, 16 known abbreviated template bodies, and 5 unrecognized or
+  custom-license files. Added focused migration coverage for full-text replacement, customized
+  body preservation, generic body detection, symlink cleanup, conflicts, and dry-run behavior,
+  plus a disposable real-CLI propagation E2E.
+- Six-pass audit fixes restricted body replacement to exact known summary fingerprints, required
+  completion markers before promoting any other recognized generic or typed body, retained generic
+  aliases when canonical-content conflicts preserve their legacy targets, and replaced fixed-depth
+  test-root derivation with the repository's Git-root conventions.
 - Replaced all eight abbreviated license summaries in `LICENSES/` with complete publisher legal
   text, stored as ASCII. Added `meta/docs/LICENSE_POLICY.md` as the canonical policy for root
   filenames, multi-license scope, GitHub detection, upstream body sources, reset behavior, and

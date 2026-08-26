@@ -8,7 +8,7 @@ Only `README.md` and `docs/CHANGELOG.md` are intentionally repository-specific; 
 - [meta/docs/REPO_TYPE.md](meta/docs/REPO_TYPE.md): Repository type marker format, available
   types, inheritance, and multi-type behavior.
 - [meta/docs/LICENSE_POLICY.md](meta/docs/LICENSE_POLICY.md): Canonical license filenames,
-  complete-text sources, GitHub detection behavior, and release verification.
+  complete-text sources, GitHub detection behavior, legacy propagation, and release verification.
 - [docs/REPO_STYLE.md](docs/REPO_STYLE.md): Repository structure, naming, versioning, dependency manifest, and licensing conventions.
 - [docs/PYTHON_STYLE.md](docs/PYTHON_STYLE.md): Python implementation rules for formatting, structure, imports, argparse, and testing.
 - [docs/PYTEST_STYLE.md](docs/PYTEST_STYLE.md): Pytest test-writing rules, commands, and failure triage.
@@ -33,6 +33,16 @@ python3 reset_repo.py
 The interview asks for repo types, licenses, PyPI packaging, staging, and commit choices.
 Repo types accept names, comma-separated lists, or letter runs (`python`, `python,rust`, or `pr`).
 `--dry-run` previews the reset; `--config <file>` loads answers from JSON.
+
+Preview and then update an existing consumer repository:
+
+```bash
+source source_me.sh && python3 propagate_style_guides.py -n -R ../consumer-repo
+source source_me.sh && python3 propagate_style_guides.py -R ../consumer-repo
+```
+
+Propagation includes the conservative legacy-license migration described in
+[meta/docs/LICENSE_POLICY.md](meta/docs/LICENSE_POLICY.md#legacy-migration-during-propagation).
 
 Run the fast test suite:
 

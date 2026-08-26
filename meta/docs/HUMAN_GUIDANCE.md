@@ -20,7 +20,7 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 - [GITIGNORE_SYSTEM.md](GITIGNORE_SYSTEM.md) owns `.gitignore` sources, rendered ownership,
   canonicalization, cleanup, pattern semantics, and validation.
 - [LICENSE_POLICY.md](LICENSE_POLICY.md) owns license filenames, canonical body sources,
-  GitHub detection guidance, reset installation, and release verification.
+  GitHub detection guidance, reset installation, legacy propagation, and release verification.
 - [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) owns repository conventions.
   Keep type-marker rules out of it; the shared `REPO_` prefix does not make the
   two documents interchangeable.
@@ -101,6 +101,10 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
   (`templates/python/noexist/pip_requirements.txt`).
 - `.graphifyignore` ships universally as a noexist seed. Its shared defaults exclude
   `tests/`, `devel/`, `tools/`, and `docs/`; each consumer may add local exclusions afterward.
+- Every propagation run invokes the conservative root-license migration in
+  `repolib/license_migration.py`. It uses exact known names and grep-like body markers, preserves
+  customized text and conflicts, and obtains full replacements only from the local `LICENSES/`
+  catalog. Keep its detailed contract in `LICENSE_POLICY.md`, not in parallel guidance here.
 
 ## ROUTING_OVERRIDES holds only exclude_repos
 
@@ -166,6 +170,9 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 
 ## E2E harness design
 
+- `tests/meta/e2e/e2e_license_migration.py` creates a disposable Git consumer and runs the real
+  propagation CLI to verify typed-name migration, complete catalog replacement, and generic
+  symlink removal together.
 - `tests/meta/e2e/e2e_reset_routing.py` clones the template into consumer-named `/tmp` dirs
   (e.g. `/tmp/my_project_python/`) so each test case is isolated and ephemeral.
   Template-meta: lives under `tests/meta/e2e/`; never propagates to consumers; removed by reset.

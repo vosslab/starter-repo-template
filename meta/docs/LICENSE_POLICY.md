@@ -99,6 +99,57 @@ code license and, when chosen, the documentation license.
 rendering-extension, executable, and symlink forms. For a multi-license repository, it verifies
 every committed license byte-for-byte in both source archives.
 
+## Legacy migration during propagation
+
+`propagate_style_guides.py` runs a content-aware root-license migration on each consumer repository.
+The migration operates only on an exact filename allow-list and reads replacement legal text only
+from this template's local `LICENSES/` catalog; it performs no network requests.
+
+The migration recognizes:
+
+- Former reset names such as `LICENSE.MIT.md` and `LICENSE.LGPL-3.0.md`.
+- Older Vosslab spellings such as `LICENSE.LGPL_v3`, `LICENSE.AGPL_v3`, and
+  `LICENSE.CC_BY_4_0`.
+- Generic `LICENSE` and `LICENSE.md` regular files when grep-like body markers identify exactly
+  one catalog license. Markers include the license title and version or an exact
+  `SPDX-License-Identifier: <SPDX>` line.
+- Generic `LICENSE` or `LICENSE.md` symbolic links whose root-local target is a recognized typed
+  license file.
+- A known abbreviated template body that has already been manually renamed to the canonical
+  `LICENSE.<SPDX>` form.
+
+For an unambiguous legacy file, propagation moves the file to `LICENSE.<SPDX>`. Complete and
+customized legal text moves byte-for-byte, including a project-specific MIT copyright notice.
+Known abbreviated starter-template summaries are replaced with the complete current catalog body.
+One additional five-line CC BY summary found under `LICENSE.md` is also fingerprinted exactly and
+replaced. The old MIT body is not treated as abbreviated because its 21 lines are the complete MIT
+application template.
+
+The migration is deliberately conservative:
+
+- If generic content identifies zero licenses or several licenses, propagation warns and leaves
+  it untouched.
+- If grep-like markers identify a license but the body lacks that license's completion markers,
+  propagation warns and leaves it untouched unless the exact body is a known summary fingerprint.
+- If a canonical target already exists with different bytes, propagation warns and preserves both
+  files.
+- Custom typed licenses outside the catalog, including OPL and CC BY-NC-SA variants, remain
+  untouched.
+- A symbolic link is removed only after its recognized legacy target migrates successfully and
+  its canonical regular target exists. A link remains when a content conflict preserves the legacy
+  target. Absolute, nested, unknown, or otherwise unsafe link targets also remain untouched.
+- Dry-run reports the same planned migrations without changing the working tree.
+
+Migration examines recognized root files present in the working tree, whether tracked or
+untracked. Review the resulting delete/add pairs with Git before committing. This behavior updates
+the storage convention; it does not decide license scope, compatibility, or ownership.
+
+Template maintainers can exercise the complete migration path with:
+
+```bash
+source source_me.sh && python3 tests/meta/e2e/e2e_license_migration.py
+```
+
 Git records a hard-linked regular file as an ordinary blob, so release tooling cannot distinguish
 one from an independently created file. Avoid hard links as a maintainer convention; the release
 gate enforces supported filenames and Git object modes.
@@ -123,6 +174,23 @@ The current Vosslab repositories reproduce the filename distinction:
 
 The new reset convention keeps the useful extensionless behavior while replacing the legacy
 underscore spellings with the catalog's consistent hyphenated identifiers.
+
+### Local legacy census
+
+A root-file survey of Git repositories under `~/nsh` on 2026-08-26 found 92 license candidates:
+
+- 36 typed Markdown names: 18 MIT, 8 LGPL, 7 CC BY, 2 AGPL, and 1 GPL.
+- 26 recognized underscore-era names: 14 LGPL, 9 CC BY, and 3 AGPL. One CC BY file was
+  present but untracked.
+- 28 generic names: 25 named `LICENSE` and 3 named `LICENSE.md`. Eight of the `LICENSE` entries
+  were symbolic links; grep-like body markers identified 17 of the 20 regular files as one
+  catalog license.
+- 2 additional typed custom-license names: OPL and CC BY-NC-SA 3.0.
+
+Sixteen typed Markdown files matched a known abbreviated starter-template body: 7 CC BY, 7 LGPL,
+1 GPL, and 1 AGPL. The remaining typed Markdown bodies included complete MIT text, complete GNU
+text, and customized or composite text. This variation is why propagation fingerprints only known
+old summaries and does not replace files merely because their names end in `.md`.
 
 ## Body sources
 

@@ -10,6 +10,7 @@ import os
 
 import repolib.console
 import repolib.files
+import repolib.license_migration
 import repolib.plan
 import repolib.model
 import repolib.repo
@@ -321,8 +322,9 @@ def process_repo(repo_dir: str, context: repolib.model.PropagateContext, counter
 	"""
 	Process a single repository: read type, discover files, and perform propagation.
 
-	Handles all per-repo logic: type detection, directory creation, file propagation
-	across four buckets (overwrite, noexist, devel, test), gitignore management,
+	Handles all per-repo logic: type detection, legacy license migration, directory
+	creation, file propagation across four buckets (overwrite, noexist, devel, test),
+	gitignore management,
 	and optionally per-repo summary output. Updates counters in-place.
 
 	Return contract (single source of truth):
@@ -413,6 +415,9 @@ def process_repo(repo_dir: str, context: repolib.model.PropagateContext, counter
 
 	remove_deprecated_tests(tests_dir, context.dry_run)
 	remove_deprecated_paths(repo_dir, context.dry_run)
+	repo_updates += repolib.license_migration.migrate_legacy_licenses(
+		repo_dir, context.template_root, context.dry_run, counters,
+	)
 
 	devel_dir = os.path.join(repo_dir, 'devel')
 	if not os.path.isdir(devel_dir):

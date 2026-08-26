@@ -29,6 +29,22 @@ The cleaner principle:
 
 Do not try to eliminate all hardcoding. Root has mixed semantics; explicit lists are correct there.
 
+## Root license migration
+
+Each `repolib.process.process_repo` run calls `repolib.license_migration` after exact deprecated-path
+cleanup and before normal file buckets. This is a special root migration, not a propagation bucket:
+`LICENSES/` remains template metadata and never ships to consumers.
+
+The migration converts recognized former reset names, older Vosslab underscore spellings, and
+unambiguous generic `LICENSE`/`LICENSE.md` files to `LICENSE.<SPDX>`. Generic files are detected by
+license title/version markers or an exact SPDX identifier line. Complete or customized bodies move
+unchanged; only exact known summary fingerprints receive the complete body from the local catalog.
+Identified but incomplete bodies, conflicting canonical files, and custom or ambiguous licenses are
+preserved with a warning. Safe generic symlink aliases are removed only after their legacy target
+migrates successfully and the canonical regular file exists. See
+[LICENSE_POLICY.md](LICENSE_POLICY.md) for the exact supported names, conflict rules,
+local-repository census, body sources, and maintainer policy.
+
 ## Folder convention
 
 | Want to ... | Put the file under | Ships to |
