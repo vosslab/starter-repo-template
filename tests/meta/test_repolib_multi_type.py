@@ -120,6 +120,25 @@ class TestGitignoreBlockUnion:
 class TestMergeGitignoreBlocksMultiType:
 	"""merge_gitignore_blocks() writes one managed block per declared type, stably."""
 
+	def _run_gitignore_pipeline(
+			self, repo_dir: pathlib.Path, context: repolib.model.PropagateContext,
+			counters: dict,
+			) -> None:
+		"""Run the same gitignore normalization sequence as process_repo()."""
+		template_root = file_utils.get_repo_root()
+		repolib.files.merge_gitignore_blocks(
+			str(repo_dir), 'python', template_root, context, counters=counters,
+		)
+		replacements = repolib.files.load_gitignore_replacements(
+			'meta/propagation/gitignore_replacements.txt', template_root,
+		)
+		repolib.files.replace_gitignore_entries(
+			str(repo_dir / '.gitignore'), replacements, dry_run=False,
+		)
+		repolib.files.deduplicate_gitignore(
+			str(repo_dir / '.gitignore'), dry_run=False, counters=counters,
+		)
+
 	def test_writes_both_blocks_and_is_idempotent(self, tmp_path: pathlib.Path) -> None:
 		"""A 'python,rust' merge yields both headers, and a second run changes nothing."""
 		template_root = file_utils.get_repo_root()
@@ -165,6 +184,33 @@ class TestMergeGitignoreBlocksMultiType:
 
 		assert b'# === PYTHON ===' in first_content and b'# === RUST ===' not in first_content
 		assert first_content == second_content
+
+	def test_local_alias_does_not_report_repeat_churn(self, tmp_path: pathlib.Path) -> None:
+		"""A local alias converges into the managed block and stays unchanged."""
+		template_root = file_utils.get_repo_root()
+		repo_dir = tmp_path / "repo"
+		repo_dir.mkdir()
+		(repo_dir / '.gitignore').write_text('node_modules/\n', encoding='utf-8')
+		context = repolib.model.PropagateContext(
+			source_dir=str(repo_dir),
+			template_root=template_root,
+			repo_name=None,
+			dry_run=False,
+			initial_setup=False,
+			auto_discover=False,
+			write_marker=False,
+		)
+
+		first_counters = {'created_count': 0, 'merged_count': 0}
+		self._run_gitignore_pipeline(repo_dir, context, first_counters)
+		first_content = (repo_dir / '.gitignore').read_text(encoding='utf-8')
+		managed_header = repolib.files.managed_gitignore_header('UNIVERSAL')
+		local_content, managed_content = first_content.split(managed_header, maxsplit=1)
+		second_counters = {'merged_count': 0}
+		self._run_gitignore_pipeline(repo_dir, context, second_counters)
+
+		assert '/node_modules/' not in local_content and '/node_modules/' in managed_content
+		assert second_counters['merged_count'] == 0
 
 
 class TestSpacedBlock:

@@ -36,7 +36,9 @@ if str(TEMPLATE_ROOT) not in sys.path:
 	sys.path.insert(0, str(TEMPLATE_ROOT))
 
 # local repo modules (sys.path insert above ensures this resolves to the local checkout)
+import devel.changelog_lib
 import repolib.header_sync
+import propagate_style_guides
 
 GUIDANCE_REL = "docs/HUMAN_GUIDANCE.md"
 DECISIONS_REL = "docs/DESIGN_DECISIONS.md"
@@ -190,6 +192,21 @@ def check_content_preserved(before_text: str, after_text: str, file_rel: str) ->
 
 
 #============================================
+def check_changelog_compatible(repo_root: pathlib.Path) -> None:
+	"""Verify the generated entry parses cleanly through changelog_lib."""
+	changelog_path = repo_root / "docs" / "CHANGELOG.md"
+	_blocks, entries, warnings = devel.changelog_lib.parse_file(
+		str(changelog_path), strict=True, duplicate_policy="raise",
+	)
+	matching_entries = [
+		entry for entry in entries
+		if entry.title == propagate_style_guides.CHANGELOG_TITLE
+	]
+	assert warnings == [], f"generated changelog warnings: {warnings}"
+	assert len(matching_entries) == 1, "expected exactly one propagation changelog entry"
+
+
+#============================================
 def check_populated_repo(parent: pathlib.Path) -> None:
 	"""A repo with existing guidance keeps its entries and gains a header."""
 	repo_root = parent / "populated"
@@ -200,8 +217,10 @@ def check_populated_repo(parent: pathlib.Path) -> None:
 		after_text = (repo_root / file_rel).read_text(encoding="utf-8")
 		check_header_refreshed(repo_root, file_rel)
 		check_content_preserved(before_text, after_text, file_rel)
+	check_changelog_compatible(repo_root)
 	second_pass_before = {
-		file_rel: (repo_root / file_rel).read_text(encoding="utf-8") for file_rel in seed
+		file_rel: (repo_root / file_rel).read_text(encoding="utf-8")
+		for file_rel in (*seed, "docs/CHANGELOG.md", ".gitignore")
 	}
 	run_propagation(repo_root)
 	for file_rel, expected_text in second_pass_before.items():

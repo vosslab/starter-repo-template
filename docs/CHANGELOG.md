@@ -18,11 +18,23 @@
 
 ### Behavior or Interface Changes
 
+- `propagate_style_guides.py` now adds a `Fixes and Maintenance` entry to the target repository's
+  `docs/CHANGELOG.md` after a successful, non-dry-run propagation makes real changes. No-op,
+  dry-run, and failed propagation runs leave the changelog alone. The writer is part of
+  `devel/changelog_lib.py`, inserts into an existing current-day category or creates a canonical new
+  day block, and refuses unsafe rewrites when date headings are invalid or duplicated.
 - An ambiguous vendored-marker structure (unpaired, duplicated, or reversed markers) is reported as
   an error and leaves the file untouched, rather than guessing which region to rewrite.
 
 ### Fixes and Maintenance
 
+- Follow-up six-pass review documented the consumer-changelog side effect in `README.md`, removed
+  dead index state from the changelog insertion helper, and added intent comments around its
+  section-boundary preservation logic.
+- Stopped `.gitignore` from reporting two changes on every propagation when a repository-owned
+  unanchored rule canonicalized to the same rule in a propagated block. Deduplication now retains
+  the propagated canonical copy and removes the equivalent local alias, so later runs are byte-stable
+  and do not trigger a spurious changelog entry.
 - Fixed a false positive in the shipped prose rule found by review: a blank line no longer closes a
   bullet, so a bullet written with a blank-line-separated continuation is read as one bullet instead
   of a stray prose paragraph. The bug would have failed CI in every consumer repo the first time
@@ -79,6 +91,10 @@
 
 ### Developer Tests and Notes
 
+- Added focused tests that parse the generated consumer entry in strict mode through
+  `devel/changelog_lib.py`, verify canonical category placement, reproduce the local-versus-managed
+  `.gitignore` churn, prove its first run moves the canonical rule into the managed block, and prove
+  a second real CLI run changes neither `.gitignore` nor the generated changelog.
 - Added two shipped hygiene tests, split by concern. `tests/test_vendored_headers.py` checks the
   header region in any file carrying the markers: it discovers by marker rather than by filename, so
   a file added to the HEADER bucket later is covered with no edit, and a doc that quotes the markers

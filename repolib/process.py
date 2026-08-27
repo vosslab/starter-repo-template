@@ -356,7 +356,8 @@ def process_repo(repo_dir: str, context: repolib.model.PropagateContext, counter
 
 	Return contract (single source of truth):
 	  - None   = intentionally skipped (not a git repo, or self-skip guard fired)
-	  - dict   = propagation applied; keys 'name' and 'type' identify the repo
+	  - dict   = propagation applied; 'name' and 'type' identify the repo, while
+	             'changed' reports whether any filesystem change was applied or planned
 	  - raises = failure; caller is responsible for catching and counting
 
 	Args:
@@ -367,7 +368,7 @@ def process_repo(repo_dir: str, context: repolib.model.PropagateContext, counter
 			(used in single-repo mode where summary is printed at end).
 
 	Returns:
-		dict | None: {'name': repo_basename, 'type': repo_type} or None if skipped.
+		dict | None: Repository name, type, and changed flag, or None if skipped.
 	"""
 	if not repolib.repo.is_repo_dir(repo_dir):
 		return None
@@ -380,6 +381,8 @@ def process_repo(repo_dir: str, context: repolib.model.PropagateContext, counter
 		return None
 
 	single_repo_mode = context.repo_name is not None
+	marker_path = os.path.join(repo_dir, 'REPO_TYPE')
+	marker_existed = os.path.isfile(marker_path)
 	# skip_confirm field removed from context; always False in single-repo interactive mode
 	repo_type = repolib.repo.read_repo_type(
 		repo_dir,
@@ -398,6 +401,8 @@ def process_repo(repo_dir: str, context: repolib.model.PropagateContext, counter
 	baseline_skipped_policy = counters['skipped_policy']
 	baseline_merged_count = counters['merged_count']
 	baseline_created_count = counters['created_count']
+	if not marker_existed and os.path.isfile(marker_path):
+		counters['created_count'] += 1
 
 	# Per-repo counters for summary line
 	repo_updates = 0
@@ -440,8 +445,11 @@ def process_repo(repo_dir: str, context: repolib.model.PropagateContext, counter
 					repolib.console.log_action("create", conftest_path, counters=counters)
 					counters['created_count'] += 1
 
-	remove_deprecated_tests(tests_dir, context.dry_run)
-	remove_deprecated_paths(repo_dir, context.dry_run)
+	removed_tests = remove_deprecated_tests(tests_dir, context.dry_run)
+	removed_paths = remove_deprecated_paths(repo_dir, context.dry_run)
+	removed_count = removed_tests + removed_paths
+	repo_updates += removed_count
+	counters['updated_count'] += removed_count
 	repo_updates += repolib.license_migration.migrate_legacy_licenses(
 		repo_dir, context.template_root, context.dry_run, counters,
 	)
@@ -557,8 +565,11 @@ def process_repo(repo_dir: str, context: repolib.model.PropagateContext, counter
 			else:
 				repolib.console.CONSOLE.print(f"  {name.ljust(col_width)}{value}")
 
-	# Return repo info for summary aggregation
-	return {'name': repo_basename, 'type': repo_type}
+	# Return repo info and whether this repository received any real or planned
+	# filesystem change. The single-repo CLI uses this to decide whether its
+	# consumer-owned changelog needs a propagation entry.
+	change_count = repo_updates + repo_copies + repo_merged + repo_created
+	return {'name': repo_basename, 'type': repo_type, 'changed': change_count > 0}
 
 
 #============================================

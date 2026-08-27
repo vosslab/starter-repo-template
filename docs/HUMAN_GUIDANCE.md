@@ -13,3 +13,6 @@ origin belongs there too. Rules: [REPO_STYLE.md](REPO_STYLE.md).
 ## Review expectations
 
 ## Working style
+
+- Have single-repository propagation add a `devel/changelog_lib.py`-compatible changelog entry only
+  when it makes real changes; recurring `.gitignore` churn must not create one.

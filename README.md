@@ -43,6 +43,8 @@ source source_me.sh && python3 propagate_style_guides.py -R ../consumer-repo
 
 Propagation includes the conservative legacy-license migration described in
 [meta/docs/LICENSE_POLICY.md](meta/docs/LICENSE_POLICY.md#legacy-migration-during-propagation).
+A successful non-dry-run that changes repository files also records the maintenance in the
+consumer's `docs/CHANGELOG.md`; previews and no-op runs leave that changelog unchanged.
 
 Run the fast test suite:
 

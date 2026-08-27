@@ -24,6 +24,20 @@ authoritative code or contract document, rather than a person.
 
 ## Software design
 
+### Propagation records consumer maintenance
+
+**Decision.** A successful, non-dry-run single-repository propagation that changes files adds one
+canonical maintenance entry to the consumer's active changelog through `devel/changelog_lib.py`.
+
+**Why.** Propagated maintenance belongs in the repository history, while no-op runs and failed runs
+must not manufacture history. Using the shared parser and serializer keeps the entry compatible with
+the changelog query, rotation, and commit tools.
+
+**Consequence.** Propagation change accounting and `.gitignore` normalization remain idempotent, and
+future changelog writes use the shared changelog library rather than assembling Markdown separately.
+
+**Owner.** `devel/changelog_lib.py` and the single-repository propagation contract.
+
 ## Dependencies
 
 ## Generated artifacts

@@ -441,12 +441,24 @@ def deduplicate_gitignore(gitignore_path: str, dry_run: bool, counters: dict | N
 	original_lines = content.splitlines()
 
 	stripped_lines = [line.rstrip() for line in original_lines]
+	managed_entries = set()
+	in_managed_block = False
+	for line in stripped_lines:
+		if line.startswith('# ==='):
+			in_managed_block = '[PROPAGATED - LOCAL EDITS OVERWRITTEN]' in line
+		elif in_managed_block and line and not line.startswith('#'):
+			managed_entries.add(line)
 
 	seen = set()
 	unique_lines = []
+	in_managed_block = False
 	for line in stripped_lines:
+		if line.startswith('# ==='):
+			in_managed_block = '[PROPAGATED - LOCAL EDITS OVERWRITTEN]' in line
 		if line == '':
 			unique_lines.append(line)
+		elif not in_managed_block and not line.startswith('#') and line in managed_entries:
+			continue
 		elif line not in seen:
 			seen.add(line)
 			unique_lines.append(line)
