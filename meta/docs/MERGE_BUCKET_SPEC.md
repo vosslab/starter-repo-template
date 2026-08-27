@@ -11,7 +11,9 @@ The propagator offers two basic file-copy policies:
 
 Neither fits a file that mixes template-shipped content with consumer-local content. `CLAUDE.md` is the canonical case: the template ships a small universal set of `@filename` imports (`@AGENTS.md`, `@docs/REPO_STYLE.md`, etc.), while each consumer typically adds repo-specific imports (`@docs/PRIMARY_DESIGN.md`, project-local notes) it wants preserved across syncs.
 
-MERGE is the fifth file-copy bucket alongside `overwrite_files`, `noexist_files`, `devel_files`, `test_files`. Today it is implemented by a single helper, `propagate.files.merge_at_imports_safe`, that performs set-union merge on `@`-import lines.
+MERGE is a file-copy bucket alongside `overwrite_files`, `noexist_files`, `devel_files`, `test_files`, and `header_files`. Today it is implemented by a single helper, `propagate.files.merge_at_imports_safe`, that performs set-union merge on `@`-import lines.
+
+MERGE and HEADER solve adjacent problems and stay separate: MERGE unions a flat `@`-import list with no fixed region, while HEADER rewrites one marked region inside a file whose remaining content the consumer owns. See [HEADER_BUCKET_SPEC.md](HEADER_BUCKET_SPEC.md).
 
 ## Set-union merge
 

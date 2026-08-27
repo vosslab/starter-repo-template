@@ -54,6 +54,8 @@ LANG_UNKNOWN = 'unknown'
 #   ROOT_PROPAGATE_ALLOWLIST: root files that MAY ship; UNIVERSAL_NOEXIST refines how.
 #   UNIVERSAL_NOEXIST: files that ship only when absent at the consumer.
 #   MERGE_FILES: files routed to the set-union @-import merge bucket.
+#   HEADER_FILES: consumer-owned files seeded whole when absent, then refreshed
+#     inside their vendored marker region. See meta/docs/HEADER_BUCKET_SPEC.md.
 #   META_FILES / META_DIRS: files and dirs that NEVER ship (template-meta).
 #   META_FILE_PATTERNS: glob patterns that never ship, e.g. changelog archives.
 #   SKIP_WALK_DIRS: dirs skipped during os.walk of the source template.
@@ -97,6 +99,7 @@ SHARED_OVERLAYS = _MANIFESTS['shared_overlays']
 ROOT_PROPAGATE_ALLOWLIST = _MANIFESTS['root_propagate_allowlist']
 UNIVERSAL_NOEXIST = _MANIFESTS['universal_noexist']
 MERGE_FILES = _MANIFESTS['merge_files']
+HEADER_FILES = _MANIFESTS['header_files']
 META_FILES = _MANIFESTS['meta_files']
 # Glob patterns (template-root-relative) that never ship, e.g. changelog archives.
 META_FILE_PATTERNS = _MANIFESTS['meta_file_patterns']

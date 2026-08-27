@@ -10,6 +10,7 @@ import os
 
 import repolib.console
 import repolib.files
+import repolib.header_sync
 import repolib.license_migration
 import repolib.plan
 import repolib.model
@@ -125,14 +126,15 @@ def remove_deprecated_paths(repo_dir: str, dry_run: bool) -> int:
 #============================================
 def apply_file_bucket(bucket_name: str, spec: dict, repo_dir: str, repo_type: str, context: repolib.model.PropagateContext, counters: dict) -> tuple[int, int, int]:
 	"""
-	Process one file bucket (overwrite_files, noexist_files, devel_files, test_files).
+	Process one file bucket by name.
 
 	Returns a tuple of (updates, copies, skips) for the per-repo summary line.
 	Updates counters in-place.
 
 	Args:
-		bucket_name: One of 'overwrite_files', 'noexist_files', 'devel_files', 'test_files'.
-		spec: The spec dict containing all four bucket lists.
+		bucket_name: A bucket key present in spec: 'overwrite_files', 'noexist_files',
+			'merge_files', 'header_files', 'devel_files', or 'test_files'.
+		spec: The spec dict containing every bucket list.
 		repo_dir: The repo directory path.
 		repo_type: The detected repo type.
 		context: The PropagateContext object.
@@ -282,6 +284,31 @@ def apply_file_bucket(bucket_name: str, spec: dict, repo_dir: str, repo_type: st
 			elif outcome == 'created':
 				bucket_copies += 1
 
+	elif bucket_name == 'header_files':
+		# ============ HEADER BUCKET ============
+		# Header: seed the whole file when the consumer lacks it, then refresh the
+		# vendored marker region while consumer entries stay untouched.
+		# See meta/docs/HEADER_BUCKET_SPEC.md.
+		for file_rel in spec['header_files']:
+			# Header sources live at template_root paths (same lookup shape as overwrite_files).
+			source_file = _source_for_bucket(file_rel, 'overwrite_files')
+			if source_file is None:
+				counters['errors'] += 1
+				repolib.console.log_action("error", f"source missing for header_files:{file_rel}")
+				continue
+
+			dest_file = os.path.join(repo_dir, file_rel)
+
+			if os.path.abspath(dest_file) == os.path.abspath(source_file):
+				repolib.console.log_action("skip", f"self: {dest_file}", counters)
+				continue
+
+			outcome = repolib.header_sync.sync_vendored_header(source_file, dest_file, context.dry_run, counters)
+			if outcome == 'merged':
+				bucket_updates += 1
+			elif outcome == 'created':
+				bucket_copies += 1
+
 	elif bucket_name == 'test_files':
 		# ============ TEST BUCKET ============
 		# Test: copy to tests/<file_rel> preserving tests/ prefix; auto-discovered files merge here.
@@ -323,7 +350,7 @@ def process_repo(repo_dir: str, context: repolib.model.PropagateContext, counter
 	Process a single repository: read type, discover files, and perform propagation.
 
 	Handles all per-repo logic: type detection, legacy license migration, directory
-	creation, file propagation across four buckets (overwrite, noexist, devel, test),
+	creation, file propagation across the buckets (overwrite, noexist, merge, header, devel, test),
 	gitignore management,
 	and optionally per-repo summary output. Updates counters in-place.
 
@@ -440,6 +467,11 @@ def process_repo(repo_dir: str, context: repolib.model.PropagateContext, counter
 	repo_skips += skips
 
 	updates, copies, skips = apply_file_bucket('merge_files', spec, repo_dir, repo_type, context, counters)
+	repo_updates += updates
+	repo_copies += copies
+	repo_skips += skips
+
+	updates, copies, skips = apply_file_bucket('header_files', spec, repo_dir, repo_type, context, counters)
 	repo_updates += updates
 	repo_copies += copies
 	repo_skips += skips

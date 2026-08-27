@@ -23,6 +23,7 @@ SET_MANIFEST_KEYS = (
 	'root_propagate_allowlist',
 	'universal_noexist',
 	'merge_files',
+	'header_files',
 	'meta_files',
 	'meta_file_patterns',
 	'meta_dirs',

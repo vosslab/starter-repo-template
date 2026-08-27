@@ -62,6 +62,7 @@ local-repository census, body sources, and maintainer policy.
 | Root-level file like AGENTS.md | template root + add to ROOT_PROPAGATE_ALLOWLIST | every repo, overwrite |
 | Universal gitignore blocks | templates/gitignore.universal | every repo, merged into .gitignore under `# === UNIVERSAL ===` |
 | MERGE bucket (set-union @-import merge with strip list) | template root + add to `MERGE_FILES` | every repo; template @-imports union-added to consumer; strip list at `meta/propagation/deprecated_claude_md.txt` removes retired entries (see [MERGE_BUCKET_SPEC.md](MERGE_BUCKET_SPEC.md)) |
+| HEADER bucket (consumer-owned file with a vendored header region) | docs/ (or another shipping location) + add to `header_files` | every repo; seeded whole when absent, then only the marked region is refreshed while consumer entries stay untouched (see [HEADER_BUCKET_SPEC.md](HEADER_BUCKET_SPEC.md)) |
 | Template-only tooling at ROOT | tools/<file> (repo-root tools/, e.g. tools/detect_repo_type.py) | never (template-meta); removed at reset |
 | Typed-overlay tooling | templates/<type>/tools/<file> (e.g. templates/typescript/tools/sync_typescript_package_pins.py) | that type only, ships at consumer tools/<file> |
 
@@ -230,11 +231,12 @@ the authoritative declaration.
 File routing honors a strict precedence order; earlier rules win on conflict:
 
 1. **META_FILES / META_DIRS** - Files in these block-lists never ship to any consumer, even if matched by other rules.
-2. **MERGE_FILES** - Files in this set route to the `merge_files` bucket regardless of where the walker would otherwise place them. Post-walker step 6 in `compute_propagation_plan` moves matching entries out of `overwrite_files` / `noexist_files` into `merge_files`. See [MERGE_BUCKET_SPEC.md](MERGE_BUCKET_SPEC.md).
-3. **ROUTING_OVERRIDES** - Per-file exceptions. Currently the only supported field is `exclude_repos` (blocks a file from shipping to its source repo). Language and requires_repo_file gates have been removed; use location-based routing or conditional overlays instead.
-4. **UNIVERSAL_NOEXIST** - Files in this list override the universal overwrite default; they move to noexist_files instead.
-5. **Typed noexist** - Templates/<type>/noexist/<path> overrides typed overlay overwrite; same path in noexist always wins.
-6. **Typed overlay shadows universal** - When both universal and typed overlay define the same consumer destination, the typed version ships. The propagator prints `[OVERLAY-OVERRIDE] <consumer-path>: typed overlay shadows universal source` to stdout for visibility.
+2. **MERGE_FILES** - Files in this set route to the `merge_files` bucket regardless of where the walker would otherwise place them. A post-walker routing step in `compute_propagation_plan` moves matching entries out of `overwrite_files` / `noexist_files` into `merge_files`. See [MERGE_BUCKET_SPEC.md](MERGE_BUCKET_SPEC.md).
+3. **HEADER_FILES** - Its own post-walker routing step, same shape: matching entries move out of `overwrite_files` / `noexist_files` into `header_files`, because seed-plus-refresh subsumes both policies. See [HEADER_BUCKET_SPEC.md](HEADER_BUCKET_SPEC.md).
+4. **ROUTING_OVERRIDES** - Per-file exceptions. Currently the only supported field is `exclude_repos` (blocks a file from shipping to its source repo). Language and requires_repo_file gates have been removed; use location-based routing or conditional overlays instead.
+5. **UNIVERSAL_NOEXIST** - Files in this list override the universal overwrite default; they move to noexist_files instead.
+6. **Typed noexist** - Templates/<type>/noexist/<path> overrides typed overlay overwrite; same path in noexist always wins.
+7. **Typed overlay shadows universal** - When both universal and typed overlay define the same consumer destination, the typed version ships. The propagator prints `[OVERLAY-OVERRIDE] <consumer-path>: typed overlay shadows universal source` to stdout for visibility.
 
 ## Classification criterion
 

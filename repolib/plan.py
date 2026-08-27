@@ -150,12 +150,14 @@ def _route_overlay_file(plan: dict, file_rel: str, name: str) -> None:
 #============================================
 def compute_propagation_plan(template_root: str, repo_type: str, counters: dict | None = None, repo_dir: str | None = None) -> dict:
 	"""
-	Compute the six-bucket propagation plan by walking the filesystem.
+	Compute the propagation plan by walking the filesystem.
 
 	Walks template_root and returns a dict with:
 	- 'overwrite_files': repo-root-relative paths that overwrite at consumer
 	- 'noexist_files': repo-root-relative paths that ship only when missing
 	- 'merge_files': paths routed to the set-union @-import merge bucket
+	- 'header_files': consumer-owned paths seeded whole when absent, then refreshed
+	  inside their vendored marker region
 	- 'devel_files': bare filenames under devel/ at consumer
 	- 'test_files': paths under tests/ at consumer
 	- 'gitignore_block': pattern lines for .gitignore
@@ -205,6 +207,7 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 		'overwrite_files': [],
 		'noexist_files': [],
 		'merge_files': [],
+		'header_files': [],
 		'devel_files': [],
 		'test_files': [],
 		'gitignore_block': [],
@@ -461,5 +464,18 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 		if path not in plan['merge_files']:
 			assert_not_meta(path)
 			plan['merge_files'].append(path)
+
+	# 7. Apply HEADER_FILES routing. HEADER wins over OVERWRITE and NOEXIST for the
+	# same path: the bucket seeds the file when absent and refreshes its vendored
+	# region afterward, which subsumes both of those policies.
+	# META still wins over HEADER, as it does over MERGE.
+	for path in repolib.model.HEADER_FILES:
+		if path in plan['overwrite_files']:
+			plan['overwrite_files'].remove(path)
+		if path in plan['noexist_files']:
+			plan['noexist_files'].remove(path)
+		if path not in plan['header_files']:
+			assert_not_meta(path)
+			plan['header_files'].append(path)
 
 	return plan

@@ -1,3 +1,89 @@
+## 2026-08-27
+
+### Additions and New Features
+
+- Added the HEADER propagation bucket: a consumer-owned file is seeded whole when absent, and on
+  every later sync only its marked vendored region is refreshed while the repository's own entries
+  stay byte-for-byte intact. `repolib/header_sync.py` holds the helper, `header_files` in
+  `meta/propagation/manifests.yaml` names its members, and `meta/docs/HEADER_BUCKET_SPEC.md` is the
+  specification. Routing runs after the MERGE step and removes a path from the overwrite and noexist
+  buckets, since seed-plus-refresh subsumes both.
+- Seeded `docs/HUMAN_GUIDANCE.md` and `docs/DESIGN_DECISIONS.md` through that bucket. The first
+  holds guidance the human states, in his own words at one to three lines per bullet; the second
+  holds settled decisions about how the code and repository are shaped, written as `Decision`,
+  `Why`, `Consequence`, and `Owner` fields.
+- `docs/REPO_STYLE.md` now carries the authoritative statement of that split, the vendored headers
+  restate it in three lines, and `AGENTS.md` points at both files in one line. Making REPO_STYLE the
+  single source keeps the same rule from drifting independently in three places.
+
+### Behavior or Interface Changes
+
+- An ambiguous vendored-marker structure (unpaired, duplicated, or reversed markers) is reported as
+  an error and leaves the file untouched, rather than guessing which region to rewrite.
+
+### Decisions and Failures
+
+- Surveyed the eleven local `docs/HUMAN_GUIDANCE.md` files before designing anything: 8 to 495
+  lines, 1,300 lines total. The largest files are large because of agent-authored sections
+  (`Security design decisions`, `Dependency versions`, `Generated artifacts`) carrying external
+  legal citations, while the healthy files run 2.0 to 3.0 lines per bullet. That measurement is
+  where the one-to-three-line entry target comes from.
+- `peptidyle-learning-engine` already had a 483-line `docs/DESIGN_DECISIONS.md` and still leaked
+  agent decisions into its human-guidance file. A parallel file alone therefore does not stop the
+  leak, which is why the routing rule ships as refreshable text rather than as a seed-once stub.
+  Its `Decision` / `Why` / `Consequence` / `Owner` entry shape was adopted as the seeded skeleton.
+- Reversed the earlier rejection of HTML-comment fences recorded in `meta/docs/MERGE_BUCKET_SPEC.md`.
+  That rejection was specifically about consumers needing a one-time hand edit; every surveyed file
+  carries a level-one heading on line 1, so a marker-free file gets its header inserted at that
+  anchor automatically and no repository is asked to prepare a file. The anchor keys on the heading
+  line rather than its text, because one surveyed file opens with an unrelated title.
+- Stated the file's ownership as three parts (region, separator, content) after an earlier draft
+  claimed both that content outside the region is preserved byte-for-byte and that adjacent blank
+  lines are normalized. Naming the separator as its own part removes the contradiction.
+- Entry threshold for `docs/DESIGN_DECISIONS.md`: material earns an entry by becoming settled
+  rationale, not by arriving from a reviewer. Without that threshold the new file would accumulate
+  review transcripts and reproduce the problem it was created to fix.
+
+### Developer Tests and Notes
+
+- Added two shipped hygiene tests, split by concern. `tests/test_vendored_headers.py` checks the
+  header region in any file carrying the markers: it discovers by marker rather than by filename, so
+  a file added to the HEADER bucket later is covered with no edit, and a doc that quotes the markers
+  inside a fence stays out of scope. `tests/test_guidance_doc_format.py` checks entry shape in the
+  two guidance docs, and uses formatting to keep the human file honest. Both follow the standard
+  hygiene shape (`discover_files` with a `test_key`, a `collect_report` autouse fixture, and a
+  `report_*.txt`), so a repository can scope either through `REPO_HYGIENE_FILTERS` while bringing
+  existing files into compliance.
+- Rules, each set from a corpus measurement rather than a guess: the vendored header region is
+  present, paired, and non-empty; `HUMAN_GUIDANCE.md` bullets stay within three lines; entries under
+  a section are bullets rather than prose paragraphs; and every `DESIGN_DECISIONS.md` entry carries
+  its `Decision` and `Why` fields. Ordered lists and table rows count as structure, and prose above
+  the first section heading is left alone.
+- Prose share is what makes the bullet rule a usable honesty signal: across the local corpus, files
+  that kept the human's terse statements run 0 to 7 percent prose (vosslab-skills 0, vossvolvox 2.2,
+  peptidyle 2.4, syllabus 5.6, bkchem 7.1), while files an agent expanded run 19 to 100 percent
+  (super-bowling 18.8, SwiftlyCodeEdit 73.1, mule-game 91.3, virtual-lab 100). The two shapes are
+  cleanly separated, so the rule catches narration without judging content.
+- Left section names unenforced. They legitimately differ per repository (`Audience and content`,
+  `Product identity`, `Device and viewport priorities`), so a required-name list would fight real
+  content instead of catching agent narration.
+- Validated the decision-entry rule against the only real example: peptidyle's 483-line
+  `docs/DESIGN_DECISIONS.md` passes with zero violations, so the required fields describe a shape
+  that already works at scale.
+- `tests/meta/test_repolib_header_sync.py` also checks every `header_files` manifest entry against
+  its template source, and that syncing a stub onto a copy of itself reports `unchanged`. A
+  manifest entry whose source lost its markers would otherwise error in every consumer at once.
+- `tests/meta/test_repolib_header_sync.py` covers replacement and insertion with distinctive
+  multiline content above and below the region, idempotence, each ambiguous marker structure, the
+  no-heading fallback, and a synthetic unrelated file that proves the helper carries no assumption
+  about the two documentation files.
+- `tests/meta/e2e/e2e_header_bucket.py` runs the real CLI against disposable consumers built from
+  captured file shapes rather than copies of live repositories, so the harness runs anywhere. It
+  checks refresh, seeding, consumer-content preservation, idempotence across two runs, and the
+  ambiguous-marker refusal.
+- Put the helper in its own module because `repolib/files.py` sits at 976 lines against the
+  1000-line source gate.
+
 ## 2026-08-26
 
 ### Behavior or Interface Changes

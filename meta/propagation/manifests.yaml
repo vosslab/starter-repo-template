@@ -101,6 +101,13 @@ universal_noexist:
 merge_files:
   - CLAUDE.md
 
+# Files routed to the HEADER bucket: seeded whole when the consumer lacks them,
+# then refreshed inside their vendored marker region on every later sync while
+# the repository's own entries stay untouched. See meta/docs/HEADER_BUCKET_SPEC.md.
+header_files:
+  - docs/HUMAN_GUIDANCE.md
+  - docs/DESIGN_DECISIONS.md
+
 # Files that NEVER ship (template-meta).
 meta_files:
   - pytest.ini

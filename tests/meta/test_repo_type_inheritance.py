@@ -196,6 +196,7 @@ shared_overlays: {}
 root_propagate_allowlist: []
 universal_noexist: []
 merge_files: []
+header_files: []
 meta_files: []
 meta_file_patterns: []
 meta_dirs: []
@@ -333,6 +334,7 @@ def _union_plan(repo_types: tuple) -> dict:
 		'overwrite_files': set(),
 		'noexist_files': set(),
 		'merge_files': set(),
+		'header_files': set(),
 		'devel_files': set(),
 		'test_files': set(),
 	}
