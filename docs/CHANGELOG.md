@@ -59,6 +59,11 @@
   a section are bullets rather than prose paragraphs; and every `DESIGN_DECISIONS.md` entry carries
   its `Decision` and `Why` fields. Ordered lists and table rows count as structure, and prose above
   the first section heading is left alone.
+- A HUMAN_GUIDANCE failure closes with the question the formatting rules stand in for: "are we sure
+  this guidance came from the human, and not from an agent or an LLM reviewer? Long prose usually
+  means it did not." The rules are a proxy for provenance, so the failure says so rather than
+  leaving an agent to treat it as a formatting chore. It rides on the last violation line so the
+  reported violation count stays accurate.
 - Prose share is what makes the bullet rule a usable honesty signal: across the local corpus, files
   that kept the human's terse statements run 0 to 7 percent prose (vosslab-skills 0, vossvolvox 2.2,
   peptidyle 2.4, syllabus 5.6, bkchem 7.1), while files an agent expanded run 19 to 100 percent
