@@ -93,8 +93,8 @@ flag, and the counters dict. It reads the header from the source file's own mark
 anchor by the first `# ` line. Nothing in the helper, the plan routing, or the dispatcher refers to
 particular filenames, to `docs/`, or to any section name, so a third file is a manifest entry plus a
 marked block with no code change.
-[../../tests/meta/test_repolib_header_sync.py](../../tests/meta/test_repolib_header_sync.py) proves
-that with a synthetic unrelated file rather than asserting it.
+[../../tests/meta/test_repolib_header_sync.py](../../tests/meta/test_repolib_header_sync.py)
+exercises that with a synthetic unrelated file rather than only asserting it in prose.
 
 ## Three tests, three scopes
 

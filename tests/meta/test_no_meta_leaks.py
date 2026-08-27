@@ -16,7 +16,7 @@ TEMPLATE_ROOT = file_utils.get_repo_root()
 REPO_TYPES = repolib.model.REPO_TYPE_ORDER + ('unknown',)
 
 # Buckets that store repo-relative paths verbatim.
-PATH_BUCKETS = ('overwrite_files', 'noexist_files', 'merge_files', 'test_files')
+PATH_BUCKETS = ('overwrite_files', 'noexist_files', 'merge_files', 'header_files', 'test_files')
 # devel_files stores flat basenames (devel/ prefix dropped).
 BASENAME_BUCKETS = ('devel_files',)
 

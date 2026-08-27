@@ -240,11 +240,12 @@ File routing honors a strict precedence order; earlier rules win on conflict:
 
 ## Classification criterion
 
-Every file the propagator ships is classified into one of four policy categories. The classification rule for new files:
+Every file the propagator ships is classified into one policy category. The classification rule for new files:
 
 - **OVERWRITE** -- template centrally owns the file; consumer divergence is a bug to erase on next sync. Use for style guides, shared lint tests, shared helper scripts, and the universal clean sweep.
 - **MERGE** -- template ships an `@`-import set; the propagator union-adds it to the consumer file and strips entries listed in `meta/propagation/deprecated_claude_md.txt`. Consumer-local `@`-imports and non-`@` content are preserved. Currently used by `CLAUDE.md` only. See [MERGE_BUCKET_SPEC.md](MERGE_BUCKET_SPEC.md).
 - **NOEXIST** -- starter seed; consumer owns the file thereafter. Use when the consumer reasonably extends the file with project-specific content the template cannot anticipate (e.g., `AGENTS.md`, `source_me.sh`, `tsconfig.json`, deploy scripts).
+- **HEADER** -- starter seed whose vendored marker region the template keeps current. The consumer owns every entry outside that region; the template rewrites the region on every sync. Use when the consumer owns the content but the template ships instructions that must stay correctable, rather than freezing at seed time. See [HEADER_BUCKET_SPEC.md](HEADER_BUCKET_SPEC.md).
 - **META** -- never ships, any bucket, any repo type. Use for template-only infrastructure (propagator itself, reset_repo, README, VERSION) and per-repo content the template cannot author (CHANGELOG, .gitignore, REPO_TYPE).
 
 ## Exceptions in the manifest
@@ -269,6 +270,11 @@ deprecation-strip list); consumer keeps any local `@`-imports and non-`@` conten
 - `MERGE_FILES` -- files routed to the MERGE bucket. Default: CLAUDE.md. Template `@`-imports are
   union-added to the consumer file; any consumer line matching `meta/propagation/deprecated_claude_md.txt`
   is stripped.
+- `HEADER_FILES` -- files routed to the HEADER bucket. Default: `docs/HUMAN_GUIDANCE.md` and
+  `docs/DESIGN_DECISIONS.md`. Each is seeded whole when the consumer lacks it, and thereafter only
+  its vendored marker region is rewritten while the consumer's own entries stay byte-for-byte
+  intact. Adding a file needs a manifest entry plus a marked block in the template source; the
+  helper carries no per-file knowledge. See [HEADER_BUCKET_SPEC.md](HEADER_BUCKET_SPEC.md).
 - `meta/propagation/deprecated_claude_md.txt` -- user-editable strip manifest for the CLAUDE.md
   set-union merge. Lines in this file are removed from every consumer CLAUDE.md on every sync (after
   comment/blank-line filtering). Add a line when retiring an `@`-import from the template.

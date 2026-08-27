@@ -87,6 +87,26 @@ def test_universal_noexist_overrides_overwrite(tmp_path: pathlib.Path) -> None:
 	assert 'AGENTS.md' in plan['noexist_files']
 
 
+def test_header_files_override_docs_overwrite(tmp_path: pathlib.Path) -> None:
+	"""HEADER entries claim the path from the universal docs OVERWRITE default."""
+	docs_dir = tmp_path / 'docs'
+	docs_dir.mkdir()
+	(docs_dir / 'HUMAN_GUIDANCE.md').write_text('test')
+	plan = repolib.plan.compute_propagation_plan(str(tmp_path), 'python')
+	assert 'docs/HUMAN_GUIDANCE.md' in plan['header_files']
+	assert 'docs/HUMAN_GUIDANCE.md' not in plan['overwrite_files']
+	assert 'docs/HUMAN_GUIDANCE.md' not in plan['noexist_files']
+
+
+def test_meta_file_never_routes_to_header_bucket(tmp_path: pathlib.Path) -> None:
+	"""META still wins over HEADER, as it does over every other bucket."""
+	docs_dir = tmp_path / 'docs'
+	docs_dir.mkdir()
+	(docs_dir / 'CHANGELOG.md').write_text('test')
+	plan = repolib.plan.compute_propagation_plan(str(tmp_path), 'python')
+	assert 'docs/CHANGELOG.md' not in plan['header_files']
+
+
 def test_allowlisted_root_dotfile_routes_to_noexist(tmp_path: pathlib.Path) -> None:
 	"""An allowlisted root dotfile can ship without overwriting consumer changes."""
 	(tmp_path / '.graphifyignore').write_text('tests/\n')

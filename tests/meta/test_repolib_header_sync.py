@@ -2,15 +2,19 @@
 
 Weighted toward the bucket's safety invariant: synchronization rewrites the
 vendored region and preserves arbitrary consumer content byte-for-byte. Test
-names carry the -k selectors used by the milestone gates: parse, replace,
-insert, malformed, generic, manifest.
+names double as -k selectors for running one behavior in isolation: parse,
+replace, insert, malformed, generic, manifest.
 """
 
+# Standard Library
+import importlib
 import os
 import pathlib
 
+# PIP3 modules
 import pytest
 
+# local repo modules
 import file_utils
 import repolib.console
 import repolib.header_sync
@@ -53,6 +57,7 @@ CONSUMER_BODY = (
 )
 
 
+#============================================
 def write_file(path: pathlib.Path, content: str) -> None:
 	"""Write content to path, creating parent directories as needed."""
 	path.parent.mkdir(parents=True, exist_ok=True)
@@ -60,6 +65,7 @@ def write_file(path: pathlib.Path, content: str) -> None:
 		file_handle.write(content)
 
 
+#============================================
 def run_sync(tmp_path: pathlib.Path, dest_text: str | None, source_text: str = TEMPLATE_SOURCE) -> tuple[str, pathlib.Path]:
 	"""Write a source and optional dest, run one sync, and return the outcome and dest path."""
 	source = tmp_path / "template.md"
@@ -72,6 +78,7 @@ def run_sync(tmp_path: pathlib.Path, dest_text: str | None, source_text: str = T
 	return outcome, dest
 
 
+#============================================
 def test_parse_locates_marker_pair() -> None:
 	"""find_marker_lines returns the marker indexes for a well-formed region."""
 	lines, _trailing = repolib.header_sync.split_lines(TEMPLATE_SOURCE)
@@ -79,18 +86,21 @@ def test_parse_locates_marker_pair() -> None:
 	assert (lines[start_index].strip(), lines[end_index].strip()) == (START, END)
 
 
+#============================================
 def test_parse_reports_no_markers_for_plain_file() -> None:
 	"""A marker-free file reports the sentinel rather than raising."""
 	lines, _trailing = repolib.header_sync.split_lines(CONSUMER_ABOVE + "\n" + CONSUMER_BODY)
 	assert repolib.header_sync.find_marker_lines(lines) == (-1, -1)
 
 
+#============================================
 def test_parse_anchor_follows_first_heading() -> None:
 	"""The anchor is the line after the first level-one heading, whatever its text."""
 	lines, _trailing = repolib.header_sync.split_lines(CONSUMER_ABOVE + "\n" + CONSUMER_BODY)
 	assert repolib.header_sync.anchor_index(lines) == 1
 
 
+#============================================
 def test_replace_preserves_consumer_content(tmp_path: pathlib.Path) -> None:
 	"""Replacing a stale region leaves every consumer byte outside it untouched."""
 	stale = (
@@ -108,6 +118,7 @@ def test_replace_preserves_consumer_content(tmp_path: pathlib.Path) -> None:
 	assert result == CONSUMER_ABOVE + "\n" + TEMPLATE_HEADER_TEXT + "\n" + CONSUMER_BODY
 
 
+#============================================
 def test_replace_is_idempotent(tmp_path: pathlib.Path) -> None:
 	"""A second sync over synced content reports unchanged and rewrites nothing."""
 	stale = CONSUMER_ABOVE + "\n" + f"{START}\n> Old.\n{END}\n" + "\n" + CONSUMER_BODY
@@ -119,6 +130,7 @@ def test_replace_is_idempotent(tmp_path: pathlib.Path) -> None:
 	assert (outcome, dest.read_text(encoding='utf-8')) == ('unchanged', first_pass)
 
 
+#============================================
 def test_insert_preserves_consumer_content(tmp_path: pathlib.Path) -> None:
 	"""A marker-free file gains the header at its anchor with the body intact."""
 	outcome, dest = run_sync(tmp_path, CONSUMER_ABOVE + "\n" + CONSUMER_BODY)
@@ -127,18 +139,21 @@ def test_insert_preserves_consumer_content(tmp_path: pathlib.Path) -> None:
 	assert result == CONSUMER_ABOVE + "\n" + TEMPLATE_HEADER_TEXT + "\n" + CONSUMER_BODY
 
 
+#============================================
 def test_insert_falls_back_to_top_without_heading(tmp_path: pathlib.Path) -> None:
 	"""A file with no level-one heading receives the header at the top."""
 	_outcome, dest = run_sync(tmp_path, CONSUMER_BODY)
 	assert dest.read_text(encoding='utf-8') == TEMPLATE_HEADER_TEXT + "\n" + CONSUMER_BODY
 
 
+#============================================
 def test_insert_creates_missing_file_from_template(tmp_path: pathlib.Path) -> None:
 	"""A consumer lacking the file receives the whole template stub."""
 	outcome, dest = run_sync(tmp_path, None)
 	assert (outcome, dest.read_text(encoding='utf-8')) == ('created', TEMPLATE_SOURCE)
 
 
+#============================================
 @pytest.mark.parametrize(
 	"broken_region",
 	[
@@ -156,6 +171,30 @@ def test_malformed_region_leaves_file_untouched(tmp_path: pathlib.Path, broken_r
 	assert (outcome, dest.read_text(encoding='utf-8')) == ('error', original)
 
 
+#============================================
+@pytest.mark.parametrize(
+	"shipped_module",
+	["test_vendored_headers", "test_guidance_doc_format"],
+)
+def test_manifest_shipped_markers_match_the_helper(shipped_module: str) -> None:
+	"""A shipped test's marker literals stay equal to the helper's constants.
+
+	The shipped tests cannot import repolib, which never propagates, so they carry
+	their own copies of the marker strings. Both discover the files they check by
+	matching those strings, so a drifted copy would not fail loudly: discovery
+	would return nothing and the test would pass having checked no files. This
+	guard fails here, in the template, before propagation carries the drift out.
+	"""
+	module = importlib.import_module(shipped_module)
+	shipped = (module.HEADER_START_MARKER, module.HEADER_END_MARKER)
+	canonical = (
+		repolib.header_sync.HEADER_START_MARKER,
+		repolib.header_sync.HEADER_END_MARKER,
+	)
+	assert shipped == canonical
+
+
+#============================================
 @pytest.mark.parametrize("file_rel", sorted(repolib.model.HEADER_FILES))
 def test_manifest_source_carries_a_parseable_header(file_rel: str) -> None:
 	"""Every header_files entry resolves to a template file with a usable region.
@@ -170,6 +209,7 @@ def test_manifest_source_carries_a_parseable_header(file_rel: str) -> None:
 	assert header_lines[0].strip() == START and header_lines[-1].strip() == END
 
 
+#============================================
 @pytest.mark.parametrize("file_rel", sorted(repolib.model.HEADER_FILES))
 def test_manifest_source_survives_its_own_sync(tmp_path: pathlib.Path, file_rel: str) -> None:
 	"""Syncing a template stub onto a copy of itself changes nothing.
@@ -185,6 +225,7 @@ def test_manifest_source_survives_its_own_sync(tmp_path: pathlib.Path, file_rel:
 	assert outcome == 'unchanged'
 
 
+#============================================
 def test_generic_file_carries_no_documentation_assumptions(tmp_path: pathlib.Path) -> None:
 	"""An unrelated file with unrelated sections syncs through the same helper."""
 	source_text = f"# Release checklist\n\n{START}\n> Vendored checklist header.\n{END}\n\n## Steps\n"

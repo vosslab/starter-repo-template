@@ -21,6 +21,39 @@
 - An ambiguous vendored-marker structure (unpaired, duplicated, or reversed markers) is reported as
   an error and leaves the file untouched, rather than guessing which region to rewrite.
 
+### Fixes and Maintenance
+
+- Fixed a false positive in the shipped prose rule found by review: a blank line no longer closes a
+  bullet, so a bullet written with a blank-line-separated continuation is read as one bullet instead
+  of a stray prose paragraph. The bug would have failed CI in every consumer repo the first time
+  someone wrote ordinary Markdown, without any code change on their side.
+- Guarded the marker strings the shipped tests carry. They cannot import `repolib`, which never
+  propagates, so both keep their own copies; a new template-meta case asserts those copies equal
+  `repolib.header_sync`'s constants. Drift there would be silent rather than loud, because both
+  tests discover the files they check by matching the markers: a stale copy yields an empty file
+  list and a green run that checked nothing.
+- Replaced the stale "one of four policy categories" count in `meta/docs/PROPAGATION_RULES.md` with
+  a count-free sentence and added the HEADER bullet, plus a `HEADER_FILES` entry in the manifest
+  section beside `MERGE_FILES`. Dropping the count rather than bumping it to five keeps the next
+  bucket from making the same line stale again.
+- Restored the import-group comments and `#===` function separators in
+  `tests/meta/test_repolib_header_sync.py`, the one file in the change that had drifted from the
+  convention its siblings follow.
+- Reworded a docstring that referenced "the milestone gates", planning scaffolding that does not
+  exist in the repo, to describe the test names as `-k` selectors instead.
+- Added `header_files` to the bucket tuples in `tests/meta/test_no_meta_leaks.py` and
+  `tests/meta/test_no_meta_content_leaks.py`. Both enumerate buckets explicitly, so the new bucket
+  was invisible to them: they passed without ever inspecting it, which made the META guard on
+  `header_files` look verified when nothing had exercised it. Checked that the guard now fires by
+  routing a META path into the bucket and watching the run fail; that shows the check is not
+  vacuous, which is a weaker claim than the bucket being correct.
+- Added HEADER cases to `tests/meta/test_repolib_plan_precedence.py`: one proving a HEADER path
+  leaves the overwrite and noexist buckets, one proving META still wins over HEADER.
+- Restored "or approves for preservation here" and "close paraphrase" to the vendored header in
+  `docs/HUMAN_GUIDANCE.md`. An earlier pass shortened the header and dropped both, which quietly
+  narrowed the provenance test the wording exists to state; `docs/REPO_STYLE.md` had kept the full
+  phrase, so the two had diverged.
+
 ### Decisions and Failures
 
 - Surveyed the eleven local `docs/HUMAN_GUIDANCE.md` files before designing anything: 8 to 495
@@ -64,6 +97,10 @@
   means it did not." The rules are a proxy for provenance, so the failure says so rather than
   leaving an agent to treat it as a formatting chore. It rides on the last violation line so the
   reported violation count stays accurate.
+- Added the tie-break rule in all three places the split is stated: rearrange aggressively, and when
+  an entry's origin is uncertain move it to `docs/DESIGN_DECISIONS.md`. The asymmetry is the reason
+  a default is safe to state at all: a design decision filed as human guidance misrepresents who
+  decided it, while the reverse only files a preference one document away.
 - Prose share is what makes the bullet rule a usable honesty signal: across the local corpus, files
   that kept the human's terse statements run 0 to 7 percent prose (vosslab-skills 0, vossvolvox 2.2,
   peptidyle 2.4, syllabus 5.6, bkchem 7.1), while files an agent expanded run 19 to 100 percent
@@ -80,8 +117,13 @@
   manifest entry whose source lost its markers would otherwise error in every consumer at once.
 - `tests/meta/test_repolib_header_sync.py` covers replacement and insertion with distinctive
   multiline content above and below the region, idempotence, each ambiguous marker structure, the
-  no-heading fallback, and a synthetic unrelated file that proves the helper carries no assumption
-  about the two documentation files.
+  no-heading fallback, and a synthetic unrelated file exercising the helper against content that
+  shares nothing with the two documentation files.
+- Added `tests/meta/test_guidance_format_rules.py`, adversarial-input tests for the vendored
+  guidance-format parsing helpers. The shipped rules run against real, varied Markdown in consumer
+  repos while the template holds near-empty stubs, so exercising them end-to-end here proved almost
+  nothing; that gap is how the blank-line continuation bug survived. The helpers are identical in
+  every repo that receives them, so the edge cases live once in template-meta.
 - `tests/meta/e2e/e2e_header_bucket.py` runs the real CLI against disposable consumers built from
   captured file shapes rather than copies of live repositories, so the harness runs anywhere. It
   checks refresh, seeding, consumer-content preservation, idempotence across two runs, and the

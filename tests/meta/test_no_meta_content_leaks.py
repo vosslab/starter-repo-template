@@ -52,7 +52,7 @@ TEMPLATE_ROOT = file_utils.get_repo_root()
 REPO_TYPES = repolib.model.REPO_TYPE_ORDER + ('unknown',)
 
 # Plan buckets whose entries name a shipped file.
-PLAN_BUCKETS = ('overwrite_files', 'noexist_files', 'merge_files', 'test_files', 'devel_files')
+PLAN_BUCKETS = ('overwrite_files', 'noexist_files', 'merge_files', 'header_files', 'test_files', 'devel_files')
 
 # META_DIRS entries that are generic or consumer-facing in prose (see module docstring).
 CONTENT_ALLOWED_META_DIRS = frozenset({
