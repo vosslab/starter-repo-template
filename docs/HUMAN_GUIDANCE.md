@@ -16,5 +16,3 @@ origin belongs there too. Rules: [REPO_STYLE.md](REPO_STYLE.md).
 
 - Have single-repository propagation add a `devel/changelog_lib.py`-compatible changelog entry only
   when it makes real changes; recurring `.gitignore` churn must not create one.
-- Have Graphify say when the graph was mapped, not which commit it recorded. The graph includes my
-  uncommitted and untracked working-tree code, so commit attribution confuses coders.

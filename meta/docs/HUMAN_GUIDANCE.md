@@ -60,6 +60,12 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 ## Graphify orientation
 
 - Keep the Graphify manager and subagent orientation short and repository-specific.
+- Ship `tools/graphify_map_repo.py` to every repository type and retain it during new-repository
+  reset; all repositories need the same Graphify navigation entry point.
+- Report when the graph was mapped rather than Graphify's `built_at_commit`. The map includes
+  uncommitted and untracked working-tree code, so commit attribution confuses coders.
+- Use the primary generated graph artifact's local modification time as mapping provenance. It
+  advances on rebuild and remains stable when `--context` only reads the existing map.
 - Derive manager context from `graphify-out/graph.json`: identify the repository, primary
   subsystems, highly connected code with source paths, cross-subsystem bridges, and targeted
   starting queries.

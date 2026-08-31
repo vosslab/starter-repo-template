@@ -63,16 +63,17 @@ local-repository census, body sources, and maintainer policy.
 | Universal gitignore blocks | templates/gitignore.universal | every repo, merged into .gitignore under `# === UNIVERSAL ===` |
 | MERGE bucket (set-union @-import merge with strip list) | template root + add to `MERGE_FILES` | every repo; template @-imports union-added to consumer; strip list at `meta/propagation/deprecated_claude_md.txt` removes retired entries (see [MERGE_BUCKET_SPEC.md](MERGE_BUCKET_SPEC.md)) |
 | HEADER bucket (consumer-owned file with a vendored header region) | docs/ (or another shipping location) + add to `header_files` | every repo; seeded whole when absent, then only the marked region is refreshed while consumer entries stay untouched (see [HEADER_BUCKET_SPEC.md](HEADER_BUCKET_SPEC.md)) |
-| Template-only tooling at ROOT | tools/<file> (repo-root tools/, e.g. tools/detect_repo_type.py) | never (template-meta); removed at reset |
+| Universal consumer tool | tools/<file> | every repo, overwrite; retained during reset |
+| Template-only tooling | meta/tools/<file> | never (template-meta); removed at reset |
 | Typed-overlay tooling | templates/<type>/tools/<file> (e.g. templates/typescript/tools/sync_typescript_package_pins.py) | that type only, ships at consumer tools/<file> |
 
 **Standard: every file under `templates/<type>/` ships** to consumers of that
 type, at its path relative to `templates/<type>/`. This includes `tools/`
 subpaths. The typed-overlay walker no longer filters subdirectories against
 META_DIRS; only the META_FILES basename guard still applies (so a stray
-`templates/<type>/README.md` cannot clobber a consumer README). The ROOT `tools/`
-directory is separate: it holds template infrastructure (e.g.
-`tools/detect_repo_type.py`), never ships, and is removed during reset.
+`templates/<type>/README.md` cannot clobber a consumer README). Root `tools/`
+is universal consumer-facing content. Template infrastructure belongs under
+`meta/tools/`, which never ships and is removed during reset.
 
 **Underscore folders (`_folder`) are conditional overlays.** Any folder whose
 name starts with `_` under `templates/<type>/` (e.g. `templates/python/_ci/`)
@@ -340,7 +341,19 @@ typed overlay, or `_folder` conditional overlay).
 
 ## What never propagates
 
-Listed in `META_FILES` / `META_DIRS` / `META_TEST_PREFIXES`. Includes the propagator entry script `propagate_style_guides.py`, reset_repo.py, README.md, VERSION, .gitignore, REPO_TYPE, pip_extras.txt, pip_requirements-meta.txt (root META_FILES; the latter is also git-rm'd from consumer clones by reset_repo.py); `repolib/` helper package, ROOT `tools/` (detect_repo_type.py and other root-level template infrastructure; note that `templates/<type>/tools/` is a separate path that DOES ship), `meta/` (this doc and other template-meta), `templates/` (every file under `templates/<type>/` ships at its relative path, including tools/ subpaths; `templates/shared/` files ship to the repo types named by their `shared_overlays` rule), `LICENSES/`, `docs/active_plans/`, `docs/archive/`, `experiment_reports/`, `__pycache__/`, `.git/` (META_DIRS). Tests are excluded via two mechanisms: `tests/meta/` is excluded as a whole via `SKIP_WALK_DIRS` containing `'meta'`, and tests starting with `test_repolib_`, `test_reset_repo_`, or `test_detect_repo_type` are also excluded via `META_TEST_PREFIXES`.
+Listed in `META_FILES` / `META_DIRS` / `META_TEST_PREFIXES`:
+
+- Root meta files: `propagate_style_guides.py`, `reset_repo.py`, `README.md`, `VERSION`,
+  `.gitignore`, `REPO_TYPE`, `pip_extras.txt`, and `pip_requirements-meta.txt`. Reset also removes
+  `pip_requirements-meta.txt` from consumer clones.
+- Template-only trees: `repolib/`, `meta/` (including `meta/tools/` and this documentation),
+  `templates/`, `LICENSES/`, `docs/active_plans/`, `docs/archive/`, `experiment_reports/`,
+  `__pycache__/`, and `.git/`. Files selected from `templates/<type>/` and `templates/shared/`
+  still ship through their overlay walkers.
+- Template-meta tests: the `tests/meta/` directory and test files beginning with `test_repolib_`,
+  `test_reset_repo_`, or `test_detect_repo_type`.
+
+Root `tools/` is deliberately absent from this list because it ships universally.
 
 ## Link bucket isolation
 

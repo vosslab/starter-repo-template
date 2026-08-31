@@ -396,10 +396,8 @@ def seed_pyproject(repo_root: str, dry_run: bool) -> int:
 # Template-owned root-level directories that must be absent after reset cleanup.
 # Only the specific template convention locations for "meta" are checked:
 # root meta/ and tests/meta/. Legitimate consumer meta/ elsewhere is not rejected.
-# Root tools/ is consumer-facing universal content and remains after reset.
-# Legacy template-owned tracked root tools may still be present in template
-# history (for example, tools/detect_repo_type.py), so cleanup removes tracked
-# root tools while allowing propagated untracked files to stay in place.
+# Root tools/ is consumer-facing universal content and remains after reset;
+# template-maintenance utilities belong under meta/tools/ instead.
 TEMPLATE_OWNED_PREFIXES = [
 	"templates/",
 	"repolib/",
@@ -657,30 +655,6 @@ def remove_templates_directory(repo_root: str, dry_run: bool) -> int:
 
 
 #============================================
-def remove_root_tools(repo_root: str, dry_run: bool) -> int:
-	"""Remove tracked root tools while retaining freshly propagated tools.
-
-	Args:
-		repo_root (str): Repository root containing the root tools directory.
-		dry_run (bool): When True, announce removal without changing files.
-
-	Returns:
-		int: Number of actions taken or announced.
-	"""
-	if dry_run:
-		dry_run_print("git rm -r tools/", dry_run)
-		return 1
-	ls_tools = subprocess.run(
-		["git", "ls-files", "tools/"],
-		check=True, capture_output=True, text=True, cwd=repo_root,
-	)
-	if ls_tools.stdout.strip():
-		return git_rm_recursive("tools/", repo_root, dry_run)
-	print("tools/ has no tracked files -- skipping git rm (any propagated files left on disk)")
-	return 0
-
-
-#============================================
 def find_tracked_meta_directories(repo_root: str) -> list[str]:
 	"""Return shallowest tracked directories named ``meta`` in the repository.
 
@@ -779,7 +753,6 @@ def clean_template_files(repo_root: str, project_type: str, dry_run: bool) -> in
 	action_count += git_rm("propagate_style_guides.py", repo_root, dry_run)
 	action_count += git_rm_recursive("repolib/", repo_root, dry_run)
 	action_count += git_rm("pip_requirements-meta.txt", repo_root, dry_run)
-	action_count += remove_root_tools(repo_root, dry_run)
 	action_count += remove_tracked_meta_directories(repo_root, dry_run)
 	action_count += remove_non_pypi_submitter(repo_root, project_type, dry_run)
 	action_count += git_rm("reset_repo.py", repo_root, dry_run)

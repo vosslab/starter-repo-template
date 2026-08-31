@@ -79,8 +79,8 @@ REMOTE_URL = "https://github.com/vosslab/starter-repo-template.git"
 TMP_PARENT = "/tmp"  # nosec B108
 
 # Template-meta paths that reset MUST remove from the consumer. The harness
-# asserts each is absent on disk after reset. (root tools/ is intentionally not
-# checked: typed overlays may ship a consumer tools/ subpath.)
+# asserts each is absent on disk after reset. Root tools/ is intentionally not
+# checked: universal and typed consumer tools survive bootstrap cleanup.
 TEMPLATE_META_PATHS = [
 	"repolib",
 	"meta",

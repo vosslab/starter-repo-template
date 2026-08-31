@@ -60,8 +60,9 @@ def test_root_tools_routes_universal(tmp_path: pathlib.Path) -> None:
 	tools_dir = tmp_path / 'tools'
 	tools_dir.mkdir()
 	(tools_dir / 'graphify_map_repo.py').write_text('test')
-	plan = repolib.plan.compute_propagation_plan(str(tmp_path), 'python')
-	assert 'tools/graphify_map_repo.py' in plan['overwrite_files']
+	for repo_type in repolib.model.REPO_TYPE_ORDER:
+		plan = repolib.plan.compute_propagation_plan(str(tmp_path), repo_type)
+		assert 'tools/graphify_map_repo.py' in plan['overwrite_files']
 
 
 def test_typescript_overlay_tools_ships(tmp_path: pathlib.Path) -> None:

@@ -41,16 +41,3 @@ future changelog writes use the shared changelog library rather than assembling 
 ## Dependencies
 
 ## Generated artifacts
-
-### Working-tree graph provenance
-
-**Decision.** Graphify manager context reports the local modification time of the primary graph
-artifact and does not present Graphify's `built_at_commit` value as mapping provenance.
-
-**Why.** The wrapper maps the current working tree, including uncommitted and untracked code. A
-commit hash therefore describes neither the complete input nor when that map was constructed.
-
-**Consequence.** Reading context preserves a stable mapping timestamp, and rebuilding the graph
-advances it when the primary artifact changes.
-
-**Owner.** `tools/graphify_map_repo.py` manager-context formatter.

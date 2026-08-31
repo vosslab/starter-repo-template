@@ -5,20 +5,41 @@
 - Graphify manager context now says `Graph mapped at <local time>` instead of attributing the map
   to Graphify's `built_at_commit`. The wrapper maps uncommitted and untracked working-tree code, so
   a commit hash was incomplete provenance and confused coders about the graph's actual inputs.
+- Root `tools/` is now retained through `reset_repo.py` cleanup, so the universally routed
+  `tools/graphify_map_repo.py` survives bootstrap in TypeScript and every other repository type.
 
 ### Decisions and Failures
 
 - The timestamp comes from the primary generated graph artifact rather than the current clock. It
   therefore advances when Graphify rebuilds the map and remains stable when `--context` only reads
   existing artifacts.
+- Corrected the documentation owner during review: this repository's Graphify preference and
+  rationale live in `meta/docs/HUMAN_GUIDANCE.md`. Putting them in the root guidance seeds would
+  copy starter-template-specific content into every new consumer created through the HEADER bucket.
+- Ordinary propagation already routed root `tools/` universally; a TypeScript dry run correctly
+  planned `tools/graphify_map_repo.py`. The loss occurred later because reset cleanup deleted the
+  template clone's tracked `tools/` directory after propagation. The routing test also checked only
+  Python, allowing its universal claim to remain narrower than its name.
+- Permanent-test review retained the fixed-input manager-context format contract and the pure,
+  offline universal-routing contract. It removed a test that merely compared the timestamp helper
+  with `Path.stat().st_mtime` and removed redundant timestamp assertions from the report-fallback
+  test; those implementation details did not earn additional permanent coverage.
+- The existing clone-based reset harness remains in the explicit E2E lane because full repository
+  bootstrap is durable behavior. No Graphify-specific E2E assertion was added; its engine-derived
+  expected-file check already covers universal tools after the reset fix is committed.
 
 ### Developer Tests and Notes
 
-- `source source_me.sh && python3 -m pytest tests/meta/test_graphify_map_repo.py -q` passes all 31
-  focused tests; `source source_me.sh && python3 -m pytest tests/ -q` passes all 1,983 tests.
-- A real default update rebuilt the current working-tree graph with 433 nodes and 616 edges, wrote
-  `graphify-out/MANAGER_CONTEXT.md`, and rendered `Graph mapped at 9:47 PM CDT Aug 30 2026` with no
-  commit attribution.
+- Permanent tests: `source source_me.sh && python3 -m pytest
+  tests/meta/test_graphify_map_repo.py -q` passes all 30 focused Graphify tests.
+- `source source_me.sh && python3 -m pytest tests/meta/test_repolib_folder_convention.py
+  tests/meta/test_no_meta_leaks.py tests/meta/test_no_meta_content_leaks.py -q` passes all 63 focused
+  propagation tests; `source source_me.sh && python3 -m pytest -q` passes all 1,988 tests.
+- One-time implementation checks: a disposable current-worktree TypeScript reset retained the
+  tracked `tools/graphify_map_repo.py`, and a TypeScript dry run planned the same universal tool.
+- One-time implementation check: a real default update rebuilt the current working-tree graph with
+  433 nodes and 616 edges, wrote `graphify-out/MANAGER_CONTEXT.md`, and rendered
+  `Graph mapped at 9:47 PM CDT Aug 30 2026` with no commit attribution.
 
 ## 2026-08-27
 

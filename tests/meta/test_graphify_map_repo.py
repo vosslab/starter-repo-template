@@ -414,20 +414,6 @@ def test_structured_orientation_uses_mapping_time_not_commit() -> None:
 #============================================
 
 
-def test_graph_mapped_at_uses_primary_graph_artifact(tmp_path: pathlib.Path) -> None:
-	"""Runtime provenance comes from the generated graph rather than Git metadata."""
-	output_dir = tmp_path / "graphify-out"
-	output_dir.mkdir()
-	graph_path = output_dir / "graph.json"
-	graph_path.write_text("{}", encoding="utf-8")
-	mapped_at = tools.graphify_map_repo.graph_mapped_at(tmp_path)
-	assert mapped_at is not None
-	assert mapped_at.timestamp() == pytest.approx(graph_path.stat().st_mtime)
-
-
-#============================================
-
-
 def test_bridge_is_cross_community_instead_of_high_degree() -> None:
 	"""Graphify's bridge result is used instead of its within-area god node."""
 	graph_data = {
@@ -584,8 +570,6 @@ Nodes (8): StateMap
 	(output_dir / "GRAPH_REPORT.md").write_text(report_text, encoding="utf-8")
 	orientation = tools.graphify_map_repo.manager_context(tmp_path)
 	assert orientation is not None
-	assert orientation.startswith("GRAPHIFY CONTEXT\nGraph mapped at ")
-	assert "commit" not in orientation
 	assert "Finding - connects Scene Linting and State Management" in orientation
 
 

@@ -16,13 +16,9 @@ deliberate; do not "helpfully" re-add an excluded entry.
 META_DIRS entries EXCLUDED from the content check:
   __pycache__, .git       Generic to every repo. A shipped doc explaining what a
                           clean-up script removes names them legitimately.
-  tools                   Ambiguous. ROOT tools/ is template infrastructure, but
-                          templates/<type>/tools/ ships to a consumer's tools/,
-                          so consumers DO have tools/ and may be told about it
-                          (test_no_meta_leaks.py documents the same nuance in
-                          TYPED_OVERLAY_ALLOWED_META_DIRS). Resolved by
-                          forbidding the specific this-repo-only file
-                          tools/detect_repo_type.py while allowing bare tools/.
+  tools                   Consumer-facing tools live at root tools/ universally
+                          or arrive from templates/<type>/tools/ for one family.
+                          Template-maintenance tools live under meta/tools/.
   docs/active_plans,      Meta for ROUTING only: this repo's own plan files must
   docs/archive            not ship. The FOLDER CONVENTION is consumer-facing and
                           is documented on purpose in docs/REPO_STYLE.md, so
