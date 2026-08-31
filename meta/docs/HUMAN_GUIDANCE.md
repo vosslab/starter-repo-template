@@ -15,6 +15,12 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 
 ## Documentation ownership
 
+- Keep the propagated `docs/HUMAN_GUIDANCE.md` and `docs/DESIGN_DECISIONS.md` seeds minimal.
+  Record starter-template-specific guidance in this file instead of shipping it to consumer repos.
+- Keep `docs/MARKDOWN_STYLE.md` high-level. Use GitHub Flavored Markdown as its syntax baseline and
+  link the official online specification instead of restating fine-grained parsing rules.
+- Support simple pipe tables in Markdown. Direct captions and complex accessible header
+  relationships to semantic HTML or an appropriate publishing pipeline.
 - [REPO_TYPE.md](REPO_TYPE.md) owns marker format, names, inheritance, and
   multi-type behavior.
 - [GITIGNORE_SYSTEM.md](GITIGNORE_SYSTEM.md) owns `.gitignore` sources, rendered ownership,

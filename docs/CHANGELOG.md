@@ -1,3 +1,31 @@
+## 2026-08-31
+
+### Behavior or Interface Changes
+
+- `docs/MARKDOWN_STYLE.md` now adopts GitHub Flavored Markdown as its syntax baseline and links its
+  official online specification.
+- The high-level guide restores pipe tables as the preferred form for tabular content, includes a
+  simple table example, and adds accessibility boundaries for captions and complex headers.
+
+### Decisions and Failures
+
+- Kept the propagated `docs/HUMAN_GUIDANCE.md` and `docs/DESIGN_DECISIONS.md` seeds unchanged and
+  recorded the starter-template-specific Markdown direction in `meta/docs/HUMAN_GUIDANCE.md`.
+- GitHub Flavored Markdown replaces core CommonMark because it specifies pipe tables while
+  retaining CommonMark as its foundation and matching the repository's GitHub rendering target.
+- GFM has no caption or complex header-association syntax. Those tables require semantic HTML or an
+  appropriate publishing pipeline; the guide links W3C accessible-table guidance rather than
+  duplicating it.
+
+### Developer Tests and Notes
+
+- `source source_me.sh && python3 -m pytest tests/test_markdown_links.py
+  tests/test_ascii_compliance.py tests/test_whitespace.py tests/test_source_file_line_limit.py -q`
+  passes all 535 focused documentation and hygiene tests.
+- `pandoc --from=gfm --to=html docs/MARKDOWN_STYLE.md -o /dev/null` parses and renders the guide
+  successfully with Pandoc's GFM reader.
+- `git diff --check` passes.
+
 ## 2026-08-30
 
 ### Behavior or Interface Changes
