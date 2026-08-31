@@ -1,3 +1,25 @@
+## 2026-08-30
+
+### Behavior or Interface Changes
+
+- Graphify manager context now says `Graph mapped at <local time>` instead of attributing the map
+  to Graphify's `built_at_commit`. The wrapper maps uncommitted and untracked working-tree code, so
+  a commit hash was incomplete provenance and confused coders about the graph's actual inputs.
+
+### Decisions and Failures
+
+- The timestamp comes from the primary generated graph artifact rather than the current clock. It
+  therefore advances when Graphify rebuilds the map and remains stable when `--context` only reads
+  existing artifacts.
+
+### Developer Tests and Notes
+
+- `source source_me.sh && python3 -m pytest tests/meta/test_graphify_map_repo.py -q` passes all 31
+  focused tests; `source source_me.sh && python3 -m pytest tests/ -q` passes all 1,983 tests.
+- A real default update rebuilt the current working-tree graph with 433 nodes and 616 edges, wrote
+  `graphify-out/MANAGER_CONTEXT.md`, and rendered `Graph mapped at 9:47 PM CDT Aug 30 2026` with no
+  commit attribution.
+
 ## 2026-08-27
 
 ### Additions and New Features

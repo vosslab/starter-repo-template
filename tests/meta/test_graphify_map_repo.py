@@ -3,6 +3,7 @@
 # Standard Library
 import json
 import pathlib
+import datetime
 
 # PIP3 modules
 import pytest
@@ -17,7 +18,6 @@ import tools.graphify_map_repo
 def sample_graph_data() -> dict:
 	"""Return a small multi-community graph for orientation behavior tests."""
 	graph_data = {
-		"built_at_commit": "d7792629abcdef",
 		"nodes": [
 			{
 				"id": "app",
@@ -66,6 +66,16 @@ def sample_graph_data() -> dict:
 		],
 	}
 	return graph_data
+
+
+#============================================
+
+
+def sample_mapped_at() -> datetime.datetime:
+	"""Return the human-requested mapping-time example with an explicit timezone."""
+	timezone = datetime.timezone(datetime.timedelta(hours=-5), name="CDT")
+	mapped_at = datetime.datetime(2026, 8, 30, 21, 41, tzinfo=timezone)
+	return mapped_at
 
 
 #============================================
@@ -389,22 +399,36 @@ def test_context_prints_help_for_incomplete_map(
 #============================================
 
 
-def test_structured_orientation_names_major_areas_and_commit(tmp_path: pathlib.Path) -> None:
-	"""Manager context leads with bounded repository facts from structured data."""
+def test_structured_orientation_uses_mapping_time_not_commit() -> None:
+	"""Manager context leads with the working-tree map's local timestamp."""
 	orientation = tools.graphify_map_repo.format_orientation(
-		tmp_path,
+		sample_mapped_at(),
 		sample_graph_data(),
 		analysis_data=sample_analysis_data(),
 		labels_data=sample_labels_data(),
 	)
-	assert orientation.startswith("GRAPHIFY CONTEXT\nGraph mapped at commit d7792629abcd.")
-	assert "Major repository areas:\n- Game Logic" in orientation
+	assert orientation.startswith("GRAPHIFY CONTEXT\nGraph mapped at 9:41 PM CDT Aug 30 2026")
+	assert "commit" not in orientation
 
 
 #============================================
 
 
-def test_bridge_is_cross_community_instead_of_high_degree(tmp_path: pathlib.Path) -> None:
+def test_graph_mapped_at_uses_primary_graph_artifact(tmp_path: pathlib.Path) -> None:
+	"""Runtime provenance comes from the generated graph rather than Git metadata."""
+	output_dir = tmp_path / "graphify-out"
+	output_dir.mkdir()
+	graph_path = output_dir / "graph.json"
+	graph_path.write_text("{}", encoding="utf-8")
+	mapped_at = tools.graphify_map_repo.graph_mapped_at(tmp_path)
+	assert mapped_at is not None
+	assert mapped_at.timestamp() == pytest.approx(graph_path.stat().st_mtime)
+
+
+#============================================
+
+
+def test_bridge_is_cross_community_instead_of_high_degree() -> None:
 	"""Graphify's bridge result is used instead of its within-area god node."""
 	graph_data = {
 		"nodes": [
@@ -448,7 +472,7 @@ def test_bridge_is_cross_community_instead_of_high_degree(tmp_path: pathlib.Path
 	}
 	labels_data = {"0": "Area A", "1": "Area B", "2": "Area C"}
 	orientation = tools.graphify_map_repo.format_orientation(
-		tmp_path,
+		sample_mapped_at(),
 		graph_data,
 		analysis_data=analysis_data,
 		labels_data=labels_data,
@@ -460,7 +484,7 @@ def test_bridge_is_cross_community_instead_of_high_degree(tmp_path: pathlib.Path
 #============================================
 
 
-def test_cross_area_connector_output_is_bounded(tmp_path: pathlib.Path) -> None:
+def test_cross_area_connector_output_is_bounded() -> None:
 	"""One large connector summarizes communities beyond the display bound."""
 	community_names = tuple(
 		f"Area {index:02d}"
@@ -479,7 +503,9 @@ def test_cross_area_connector_output_is_bounded(tmp_path: pathlib.Path) -> None:
 		"gods": [],
 	}
 	orientation = tools.graphify_map_repo.format_orientation(
-		tmp_path, None, analysis_data=analysis_data, labels_data={"0": "Bridge Area"}
+		sample_mapped_at(), None,
+		analysis_data=analysis_data,
+		labels_data={"0": "Bridge Area"},
 	)
 	visible_names = ", ".join(
 		community_names[:tools.graphify_map_repo.MAX_CONNECTOR_COMMUNITIES]
@@ -490,7 +516,7 @@ def test_cross_area_connector_output_is_bounded(tmp_path: pathlib.Path) -> None:
 #============================================
 
 
-def test_large_analysis_hard_caps_major_areas(tmp_path: pathlib.Path) -> None:
+def test_large_analysis_hard_caps_major_areas() -> None:
 	"""A large graph cannot expand manager context past the configured area cap."""
 	communities = {}
 	labels = {}
@@ -505,7 +531,9 @@ def test_large_analysis_hard_caps_major_areas(tmp_path: pathlib.Path) -> None:
 		"gods": [],
 	}
 	orientation = tools.graphify_map_repo.format_orientation(
-		tmp_path, None, analysis_data=analysis_data, labels_data=labels
+		sample_mapped_at(), None,
+		analysis_data=analysis_data,
+		labels_data=labels,
 	)
 	assert "- Area 07" in orientation
 	assert "- Area 08" not in orientation
@@ -514,10 +542,14 @@ def test_large_analysis_hard_caps_major_areas(tmp_path: pathlib.Path) -> None:
 #============================================
 
 
-def test_small_graph_without_sidecars_still_produces_context(tmp_path: pathlib.Path) -> None:
+def test_small_graph_without_sidecars_still_produces_context() -> None:
 	"""Graph JSON alone is sufficient for useful deterministic context."""
-	first_output = tools.graphify_map_repo.format_orientation(tmp_path, sample_graph_data())
-	second_output = tools.graphify_map_repo.format_orientation(tmp_path, sample_graph_data())
+	first_output = tools.graphify_map_repo.format_orientation(
+		sample_mapped_at(), sample_graph_data()
+	)
+	second_output = tools.graphify_map_repo.format_orientation(
+		sample_mapped_at(), sample_graph_data()
+	)
 	assert "Major repository areas:" in first_output
 	assert "- Game Logic" in first_output
 	assert "Cross-area connectors:" not in first_output
@@ -552,17 +584,18 @@ Nodes (8): StateMap
 	(output_dir / "GRAPH_REPORT.md").write_text(report_text, encoding="utf-8")
 	orientation = tools.graphify_map_repo.manager_context(tmp_path)
 	assert orientation is not None
-	assert "Graph mapped at commit abc12345." in orientation
+	assert orientation.startswith("GRAPHIFY CONTEXT\nGraph mapped at ")
+	assert "commit" not in orientation
 	assert "Finding - connects Scene Linting and State Management" in orientation
 
 
 #============================================
 
 
-def test_orientation_omits_graphify_diagnostics(tmp_path: pathlib.Path) -> None:
+def test_orientation_omits_graphify_diagnostics() -> None:
 	"""Context contains repository structure, not artifact or maintenance diagnostics."""
 	orientation = tools.graphify_map_repo.format_orientation(
-		tmp_path,
+		sample_mapped_at(),
 		sample_graph_data(),
 		analysis_data=sample_analysis_data(),
 		labels_data=sample_labels_data(),
@@ -585,7 +618,9 @@ def test_manager_context_file_matches_terminal_context(tmp_path: pathlib.Path) -
 	"""Build output saves the exact deterministic context shown to managers."""
 	output_dir = tmp_path / "graphify-out"
 	output_dir.mkdir()
-	context = tools.graphify_map_repo.format_orientation(tmp_path, sample_graph_data())
+	context = tools.graphify_map_repo.format_orientation(
+		sample_mapped_at(), sample_graph_data()
+	)
 	context_path = tools.graphify_map_repo.write_manager_context(tmp_path, context)
 	assert context_path.name == "MANAGER_CONTEXT.md"
 	assert context_path.read_text(encoding="utf-8") == f"{context}\n"
