@@ -59,6 +59,22 @@ native packages give each one a distinct home under `packages/`.
 
 ## Propagation
 
+### Gitignore migration preserves local content
+
+**Decision.** Recognize every shipped LOCAL-section banner and relocate its consumer-owned body
+after the canonical managed blocks without changing the body's line order.
+
+**Why.** Earlier propagation placed the LOCAL section before or between managed blocks. A canonical
+rebuild can distinguish those rules from obsolete managed content only by recognizing the banner
+that assigned their ownership.
+
+**Consequence.** The parser retains compatibility with the previous full LOCAL heading, the legacy
+short heading, and the older divided banner. Repositories converge to the current trailing LOCAL
+layout on their next propagation.
+
+**Owner.** [repolib/gitignore.py](../../repolib/gitignore.py) and
+[GITIGNORE_SYSTEM.md](GITIGNORE_SYSTEM.md).
+
 ### Propagation records consumer maintenance
 
 **Decision.** A successful, non-dry-run single-repository propagation that changes files adds one

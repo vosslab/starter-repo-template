@@ -78,8 +78,9 @@ last. The local banner is deliberately unlike a propagated heading:
 - Add repository-specific rules below `ADD YOUR CUSTOM IGNORES BELOW`.
 - Edit the owning template for a universal or type rule.
 - Propagation relocates the local section after all propagated blocks, preserving its body in order.
-- Propagation recognizes and replaces the legacy `# === LOCAL ===` and prior `LOCAL REPOSITORY
-  RULES` headings.
+- Propagation recognizes and replaces the legacy `# === LOCAL ===`, the previous
+  `# === LOCAL REPOSITORY RULES === [ADD CUSTOM IGNORES HERE]` heading, and the older divided
+  `LOCAL REPOSITORY RULES` banner.
 - Propagation rebuilds active managed blocks from their canonical templates rather than updating
   blocks in place.
 - Canonical rebuild removes every recognized stale managed type block. Removing a token from

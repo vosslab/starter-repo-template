@@ -264,11 +264,18 @@ class TestMergeGitignoreBlocksMultiType:
 			repolib.gitignore.GITIGNORE_LOCAL_NOTICE,
 			*body,
 		]
+		previous_local = [
+			repolib.gitignore.GITIGNORE_PREVIOUS_LOCAL_HEADER,
+			repolib.gitignore.GITIGNORE_LOCAL_NOTICE,
+			*body,
+		]
 		legacy_local = [repolib.gitignore.GITIGNORE_LEGACY_LOCAL_HEADER, *body]
 		inputs = {
 			'legacy': [*legacy_local, *old_universal, *old_typed],
 			'top': [*current_local, *old_universal, *old_typed],
 			'middle': [*old_universal, *current_local, *old_typed],
+			'previous-top': [*previous_local, *old_universal, *old_typed],
+			'previous-middle': [*old_universal, *previous_local, *old_typed],
 			'absent': [*body, *old_universal, *old_typed],
 		}
 		renders = []

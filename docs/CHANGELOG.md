@@ -21,6 +21,8 @@
 
 ### Fixes and Maintenance
 
+- Preserved consumer `.gitignore` rules beneath the previous full LOCAL heading and moved that
+  section after canonical managed blocks, including repositories where it appeared in the middle.
 - The final six-pass audit aligned archive wording, propagation-ledger navigation, support-tool
   examples, positive changelog guidance, and the noexist-routing test description.
 - Rephrased source-line-limit guidance around the required exact-path format and individual
@@ -44,6 +46,8 @@
 
 ### Decisions and Failures
 
+- Recorded adaptability and good-enough stopping points as complementary template-maintainer design
+  guidance; the Gitignore transition uses a focused compatibility rule for observed prior banners.
 - Keep the disk-budget `du` check in the base pytest lane; it measures the checkout and the
   vendored file is restored after deletion. Rejected a footer-comment gate as comment-only policy.
 - Use exact source-line-limit overrides for individually approved external files; universal
@@ -69,7 +73,7 @@
 
 ### Developer Tests and Notes
 
-- `source source_me.sh && pytest tests/ -q` passes all 2,222 permanent fast-lane tests.
+- `source source_me.sh && pytest tests/ -q` passes all 2,225 permanent fast-lane tests.
 - Accepted focused gates cover Gitignore rendering, reset configuration and interview outcomes,
   support-directory imports, root-script thresholds, documentation hygiene, typing, and pyflakes.
 - A disposable current-candidate clone passed the complete LOCAL reset E2E matrix, including a

@@ -13,6 +13,9 @@ GITIGNORE_PREVIOUS_LOCAL_RULES = frozenset({
 	'# -----------------------------------------------------------------------------',
 	'# =============================================================================',
 })
+GITIGNORE_PREVIOUS_LOCAL_HEADER = (
+	'# === LOCAL REPOSITORY RULES === [ADD CUSTOM IGNORES HERE]'
+)
 GITIGNORE_PREVIOUS_LOCAL_HEADER_PREFIX = '# === LOCAL REPOSITORY RULES ==='
 GITIGNORE_LEGACY_LOCAL_HEADER = '# === LOCAL ==='
 
@@ -57,6 +60,8 @@ def _is_gitignore_local_heading(lines: list[str], index: int) -> bool:
 	"""Return whether one line identifies a current or accepted legacy LOCAL section."""
 	line = lines[index]
 	if line == GITIGNORE_LEGACY_LOCAL_HEADER:
+		return True
+	if line == GITIGNORE_PREVIOUS_LOCAL_HEADER:
 		return True
 	if line == GITIGNORE_LOCAL_HEADER:
 		current_banner = (

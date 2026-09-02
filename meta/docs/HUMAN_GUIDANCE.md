@@ -12,6 +12,10 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
   affect correctness, maintainability, delivery, or the maintainer's routine use.
 - Apply the `Focus on important issues` philosophy directly. Finish consequential work before
   considering generalization, speculative flexibility, or low-impact polish.
+- Design software for adaptability so it can evolve with changing requirements and new insights
+  while remaining functional and relevant.
+- Treat a good-enough system as a valid stopping point when pursuing perfection would slow useful
+  progress without a proportionate long-term benefit.
 
 ## Documentation ownership
 
@@ -111,6 +115,8 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 
 - File location is the primary routing determinant. Agents use location first;
   per-file overrides only when location cannot express the rule.
+- During the Gitignore layout transition, recognize the previous LOCAL banner and move its
+  consumer-owned body after the managed blocks while preserving every line in order.
 - Record a `devel/changelog_lib.py`-compatible changelog entry for each real single-repository
   propagation maintenance change; idempotent `.gitignore` normalization leaves it unchanged.
 - Every file under `docs/`, `tests/`, `devel/`, and `tools/` ships universally to all
