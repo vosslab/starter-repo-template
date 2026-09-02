@@ -1,15 +1,29 @@
 """Behavior tests for the propagated Graphify repository mapping tool."""
 
 # Standard Library
+import importlib.machinery
+import importlib.util
 import json
 import pathlib
 import datetime
+import types
 
 # PIP3 modules
 import pytest
 
 # local repo modules
-import tools.graphify_map_repo
+import file_utils
+
+
+# OWASP ASVS 5.0.0 V5.3.2: this fixed path uses trusted, internal components.
+SCRIPT_PATH: pathlib.Path = pathlib.Path(file_utils.get_repo_root()) / "devel" / "graphify_map_repo.py"
+SPEC: importlib.machinery.ModuleSpec | None = importlib.util.spec_from_file_location(
+	"graphify_map_repo", SCRIPT_PATH
+)
+assert SPEC is not None
+assert SPEC.loader is not None
+graphify_map_repo: types.ModuleType = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(graphify_map_repo)
 
 
 #============================================
@@ -133,12 +147,12 @@ def test_existing_graph_selects_real_update(tmp_path: pathlib.Path) -> None:
 	output_dir = tmp_path / "graphify-out"
 	output_dir.mkdir()
 	(output_dir / "graph.json").write_text("{}", encoding="utf-8")
-	operation, command, is_fresh = tools.graphify_map_repo.graph_build_command(
+	operation, command, is_fresh = graphify_map_repo.graph_build_command(
 		"graphify",
 		tmp_path,
-		tools.graphify_map_repo.MODE_AUTO,
+		graphify_map_repo.MODE_AUTO,
 		False,
-		tools.graphify_map_repo.LABEL_BACKEND,
+		graphify_map_repo.LABEL_BACKEND,
 	)
 	assert (operation, command) == ("UPDATING GRAPHIFY CODE MAP", ["graphify", "update", "."])
 	assert is_fresh is False
@@ -149,12 +163,12 @@ def test_existing_graph_selects_real_update(tmp_path: pathlib.Path) -> None:
 
 def test_missing_graph_selects_code_extraction(tmp_path: pathlib.Path) -> None:
 	"""A missing graph performs a fresh code-only extraction."""
-	operation, command, is_fresh = tools.graphify_map_repo.graph_build_command(
+	operation, command, is_fresh = graphify_map_repo.graph_build_command(
 		"graphify",
 		tmp_path,
-		tools.graphify_map_repo.MODE_AUTO,
+		graphify_map_repo.MODE_AUTO,
 		False,
-		tools.graphify_map_repo.LABEL_BACKEND,
+		graphify_map_repo.LABEL_BACKEND,
 	)
 	expected = ("EXTRACTING GRAPHIFY CODE MAP", ["graphify", "extract", ".", "--code-only"])
 	assert (operation, command) == expected
@@ -169,12 +183,12 @@ def test_fresh_mode_forces_code_extraction(tmp_path: pathlib.Path) -> None:
 	output_dir = tmp_path / "graphify-out"
 	output_dir.mkdir()
 	(output_dir / "graph.json").write_text("{}", encoding="utf-8")
-	operation, command, is_fresh = tools.graphify_map_repo.graph_build_command(
+	operation, command, is_fresh = graphify_map_repo.graph_build_command(
 		"graphify",
 		tmp_path,
-		tools.graphify_map_repo.MODE_FRESH,
+		graphify_map_repo.MODE_FRESH,
 		False,
-		tools.graphify_map_repo.LABEL_BACKEND,
+		graphify_map_repo.LABEL_BACKEND,
 	)
 	expected = ("EXTRACTING GRAPHIFY CODE MAP", ["graphify", "extract", ".", "--code-only"])
 	assert (operation, command) == expected
@@ -186,12 +200,12 @@ def test_fresh_mode_forces_code_extraction(tmp_path: pathlib.Path) -> None:
 
 def test_update_mode_extracts_when_graph_is_missing(tmp_path: pathlib.Path) -> None:
 	"""Update mode announces the fresh-extraction fallback from the retired tool."""
-	operation, command, is_fresh = tools.graphify_map_repo.graph_build_command(
+	operation, command, is_fresh = graphify_map_repo.graph_build_command(
 		"graphify",
 		tmp_path,
-		tools.graphify_map_repo.MODE_UPDATE,
+		graphify_map_repo.MODE_UPDATE,
 		False,
-		tools.graphify_map_repo.LABEL_BACKEND,
+		graphify_map_repo.LABEL_BACKEND,
 	)
 	expected = (
 		"NO EXISTING GRAPH; EXTRACTING FRESH GRAPHIFY CODE MAP",
@@ -207,8 +221,8 @@ def test_update_mode_extracts_when_graph_is_missing(tmp_path: pathlib.Path) -> N
 @pytest.mark.parametrize(
 	("label_backend", "expected_model"),
 	[
-		(tools.graphify_map_repo.LABEL_BACKEND, tools.graphify_map_repo.CLAUDE_LABEL_MODEL),
-		(tools.graphify_map_repo.OLLAMA_BACKEND, tools.graphify_map_repo.OLLAMA_MODEL),
+		(graphify_map_repo.LABEL_BACKEND, graphify_map_repo.CLAUDE_LABEL_MODEL),
+		(graphify_map_repo.OLLAMA_BACKEND, graphify_map_repo.OLLAMA_MODEL),
 	],
 )
 def test_include_docs_selects_semantic_extraction(
@@ -217,10 +231,10 @@ def test_include_docs_selects_semantic_extraction(
 	expected_model: str,
 ) -> None:
 	"""Document scope selects the requested semantic backend and configured model."""
-	operation, command, is_fresh = tools.graphify_map_repo.graph_build_command(
+	operation, command, is_fresh = graphify_map_repo.graph_build_command(
 		"graphify",
 		tmp_path,
-		tools.graphify_map_repo.MODE_FRESH,
+		graphify_map_repo.MODE_FRESH,
 		True,
 		label_backend,
 	)
@@ -244,19 +258,19 @@ def test_update_docs_selects_incremental_semantic_extraction(tmp_path: pathlib.P
 	output_dir = tmp_path / "graphify-out"
 	output_dir.mkdir()
 	(output_dir / "graph.json").write_text("{}", encoding="utf-8")
-	operation, command, is_fresh = tools.graphify_map_repo.graph_build_command(
+	operation, command, is_fresh = graphify_map_repo.graph_build_command(
 		"graphify",
 		tmp_path,
-		tools.graphify_map_repo.MODE_UPDATE,
+		graphify_map_repo.MODE_UPDATE,
 		True,
-		tools.graphify_map_repo.LABEL_BACKEND,
+		graphify_map_repo.LABEL_BACKEND,
 	)
 	expected_command = [
 		"graphify",
 		"extract",
 		".",
-		f"--backend={tools.graphify_map_repo.LABEL_BACKEND}",
-		f"--model={tools.graphify_map_repo.CLAUDE_LABEL_MODEL}",
+		f"--backend={graphify_map_repo.LABEL_BACKEND}",
+		f"--model={graphify_map_repo.CLAUDE_LABEL_MODEL}",
 	]
 	assert (operation, is_fresh) == ("UPDATING GRAPHIFY CODE AND SEMANTIC MAP", False)
 	assert command == expected_command
@@ -267,12 +281,12 @@ def test_update_docs_selects_incremental_semantic_extraction(tmp_path: pathlib.P
 
 def test_docs_claude_environment_pins_configured_model() -> None:
 	"""Claude semantic extraction receives the maintained model selection."""
-	environment = tools.graphify_map_repo.graph_build_environment(
+	environment = graphify_map_repo.graph_build_environment(
 		True,
-		tools.graphify_map_repo.LABEL_BACKEND,
+		graphify_map_repo.LABEL_BACKEND,
 	)
 	assert environment is not None
-	assert environment["GRAPHIFY_CLAUDE_CLI_MODEL"] == tools.graphify_map_repo.CLAUDE_LABEL_MODEL
+	assert environment["GRAPHIFY_CLAUDE_CLI_MODEL"] == graphify_map_repo.CLAUDE_LABEL_MODEL
 
 
 #============================================
@@ -281,17 +295,17 @@ def test_docs_claude_environment_pins_configured_model() -> None:
 @pytest.mark.parametrize(
 	("flag", "mode"),
 	[
-		("-F", tools.graphify_map_repo.MODE_FRESH),
-		("--fresh", tools.graphify_map_repo.MODE_FRESH),
-		("-U", tools.graphify_map_repo.MODE_UPDATE),
-		("--update", tools.graphify_map_repo.MODE_UPDATE),
-		("-C", tools.graphify_map_repo.MODE_CONTEXT),
-		("--context", tools.graphify_map_repo.MODE_CONTEXT),
+		("-F", graphify_map_repo.MODE_FRESH),
+		("--fresh", graphify_map_repo.MODE_FRESH),
+		("-U", graphify_map_repo.MODE_UPDATE),
+		("--update", graphify_map_repo.MODE_UPDATE),
+		("-C", graphify_map_repo.MODE_CONTEXT),
+		("--context", graphify_map_repo.MODE_CONTEXT),
 	],
 )
 def test_explicit_mode_flags(flag: str, mode: str) -> None:
 	"""Each documented flag selects its matching lifecycle mode."""
-	args = tools.graphify_map_repo.parse_args([flag])
+	args = graphify_map_repo.parse_args([flag])
 	assert args.mode == mode
 
 
@@ -301,8 +315,8 @@ def test_explicit_mode_flags(flag: str, mode: str) -> None:
 @pytest.mark.parametrize("flag", ["-O", "--ollama"])
 def test_ollama_flag_selects_local_backend(flag: str) -> None:
 	"""The explicit Ollama override selects local community labeling."""
-	args = tools.graphify_map_repo.parse_args([flag])
-	assert args.label_backend == tools.graphify_map_repo.OLLAMA_BACKEND
+	args = graphify_map_repo.parse_args([flag])
+	assert args.label_backend == graphify_map_repo.OLLAMA_BACKEND
 
 
 #============================================
@@ -318,18 +332,18 @@ def test_fresh_claude_labeling_uses_configured_model(
 	def record_command(command: list[str], repo_root: pathlib.Path) -> None:
 		commands.append((command, repo_root))
 
-	monkeypatch.setattr(tools.graphify_map_repo, "run_command", record_command)
-	tools.graphify_map_repo.label_graph(
+	monkeypatch.setattr(graphify_map_repo, "run_command", record_command)
+	graphify_map_repo.label_graph(
 		"graphify",
 		tmp_path,
-		tools.graphify_map_repo.LABEL_BACKEND,
+		graphify_map_repo.LABEL_BACKEND,
 	)
 	expected = [
 		"graphify",
 		"label",
 		".",
 		"--backend=claude-cli",
-		f"--model={tools.graphify_map_repo.CLAUDE_LABEL_MODEL}",
+		f"--model={graphify_map_repo.CLAUDE_LABEL_MODEL}",
 	]
 	assert commands == [(expected, tmp_path)]
 
@@ -347,18 +361,18 @@ def test_fresh_ollama_labeling_uses_configured_model(
 	def record_command(command: list[str], repo_root: pathlib.Path) -> None:
 		commands.append((command, repo_root))
 
-	monkeypatch.setattr(tools.graphify_map_repo, "run_command", record_command)
-	tools.graphify_map_repo.label_graph(
+	monkeypatch.setattr(graphify_map_repo, "run_command", record_command)
+	graphify_map_repo.label_graph(
 		"graphify",
 		tmp_path,
-		tools.graphify_map_repo.OLLAMA_BACKEND,
+		graphify_map_repo.OLLAMA_BACKEND,
 	)
 	expected = [
 		"graphify",
 		"label",
 		".",
 		"--backend=ollama",
-		f"--model={tools.graphify_map_repo.OLLAMA_MODEL}",
+		f"--model={graphify_map_repo.OLLAMA_MODEL}",
 	]
 	assert commands == [(expected, tmp_path)]
 
@@ -371,7 +385,7 @@ def test_context_prints_help_before_first_map(
 	capsys: pytest.CaptureFixture,
 ) -> None:
 	"""Context explains the missing map and prints normal help before first build."""
-	tools.graphify_map_repo.print_context(tmp_path)
+	graphify_map_repo.print_context(tmp_path)
 	output = capsys.readouterr().out
 	assert "No Graphify map exists" in output
 	assert "usage:" in output and "--fresh" in output
@@ -390,7 +404,7 @@ def test_context_prints_help_for_incomplete_map(
 	output_dir = tmp_path / "graphify-out"
 	output_dir.mkdir()
 	(output_dir / artifact_name).write_text("partial", encoding="utf-8")
-	tools.graphify_map_repo.print_context(tmp_path)
+	graphify_map_repo.print_context(tmp_path)
 	output = capsys.readouterr().out
 	assert "No Graphify map exists" in output
 	assert "usage:" in output
@@ -401,7 +415,7 @@ def test_context_prints_help_for_incomplete_map(
 
 def test_structured_orientation_uses_mapping_time_not_commit() -> None:
 	"""Manager context leads with the working-tree map's local timestamp."""
-	orientation = tools.graphify_map_repo.format_orientation(
+	orientation = graphify_map_repo.format_orientation(
 		sample_mapped_at(),
 		sample_graph_data(),
 		analysis_data=sample_analysis_data(),
@@ -457,7 +471,7 @@ def test_bridge_is_cross_community_instead_of_high_degree() -> None:
 		"surprises": [],
 	}
 	labels_data = {"0": "Area A", "1": "Area B", "2": "Area C"}
-	orientation = tools.graphify_map_repo.format_orientation(
+	orientation = graphify_map_repo.format_orientation(
 		sample_mapped_at(),
 		graph_data,
 		analysis_data=analysis_data,
@@ -474,7 +488,7 @@ def test_cross_area_connector_output_is_bounded() -> None:
 	"""One large connector summarizes communities beyond the display bound."""
 	community_names = tuple(
 		f"Area {index:02d}"
-		for index in range(tools.graphify_map_repo.MAX_CONNECTOR_COMMUNITIES + 2)
+		for index in range(graphify_map_repo.MAX_CONNECTOR_COMMUNITIES + 2)
 	)
 	quoted_names = ", ".join(f"`{name}`" for name in community_names)
 	analysis_data = {
@@ -488,13 +502,13 @@ def test_cross_area_connector_output_is_bounded() -> None:
 		"surprises": [],
 		"gods": [],
 	}
-	orientation = tools.graphify_map_repo.format_orientation(
+	orientation = graphify_map_repo.format_orientation(
 		sample_mapped_at(), None,
 		analysis_data=analysis_data,
 		labels_data={"0": "Bridge Area"},
 	)
 	visible_names = ", ".join(
-		community_names[:tools.graphify_map_repo.MAX_CONNECTOR_COMMUNITIES]
+		community_names[:graphify_map_repo.MAX_CONNECTOR_COMMUNITIES]
 	)
 	assert f"- Bridge() - connects {visible_names}, and 2 more" in orientation
 
@@ -506,7 +520,7 @@ def test_large_analysis_hard_caps_major_areas() -> None:
 	"""A large graph cannot expand manager context past the configured area cap."""
 	communities = {}
 	labels = {}
-	for index in range(tools.graphify_map_repo.MAX_COMMUNITIES + 2):
+	for index in range(graphify_map_repo.MAX_COMMUNITIES + 2):
 		community_id = str(index)
 		communities[community_id] = [f"node-{index}-a", f"node-{index}-b"]
 		labels[community_id] = f"Area {index:02d}"
@@ -516,7 +530,7 @@ def test_large_analysis_hard_caps_major_areas() -> None:
 		"surprises": [],
 		"gods": [],
 	}
-	orientation = tools.graphify_map_repo.format_orientation(
+	orientation = graphify_map_repo.format_orientation(
 		sample_mapped_at(), None,
 		analysis_data=analysis_data,
 		labels_data=labels,
@@ -530,10 +544,10 @@ def test_large_analysis_hard_caps_major_areas() -> None:
 
 def test_small_graph_without_sidecars_still_produces_context() -> None:
 	"""Graph JSON alone is sufficient for useful deterministic context."""
-	first_output = tools.graphify_map_repo.format_orientation(
+	first_output = graphify_map_repo.format_orientation(
 		sample_mapped_at(), sample_graph_data()
 	)
-	second_output = tools.graphify_map_repo.format_orientation(
+	second_output = graphify_map_repo.format_orientation(
 		sample_mapped_at(), sample_graph_data()
 	)
 	assert "Major repository areas:" in first_output
@@ -568,7 +582,7 @@ Nodes (8): StateMap
 - **Why does `Finding` connect `Scene Linting` to `State Management`?**
 """
 	(output_dir / "GRAPH_REPORT.md").write_text(report_text, encoding="utf-8")
-	orientation = tools.graphify_map_repo.manager_context(tmp_path)
+	orientation = graphify_map_repo.manager_context(tmp_path)
 	assert orientation is not None
 	assert "Finding - connects Scene Linting and State Management" in orientation
 
@@ -578,7 +592,7 @@ Nodes (8): StateMap
 
 def test_orientation_omits_graphify_diagnostics() -> None:
 	"""Context contains repository structure, not artifact or maintenance diagnostics."""
-	orientation = tools.graphify_map_repo.format_orientation(
+	orientation = graphify_map_repo.format_orientation(
 		sample_mapped_at(),
 		sample_graph_data(),
 		analysis_data=sample_analysis_data(),
@@ -602,10 +616,10 @@ def test_manager_context_file_matches_terminal_context(tmp_path: pathlib.Path) -
 	"""Build output saves the exact deterministic context shown to managers."""
 	output_dir = tmp_path / "graphify-out"
 	output_dir.mkdir()
-	context = tools.graphify_map_repo.format_orientation(
+	context = graphify_map_repo.format_orientation(
 		sample_mapped_at(), sample_graph_data()
 	)
-	context_path = tools.graphify_map_repo.write_manager_context(tmp_path, context)
+	context_path = graphify_map_repo.write_manager_context(tmp_path, context)
 	assert context_path.name == "MANAGER_CONTEXT.md"
 	assert context_path.read_text(encoding="utf-8") == f"{context}\n"
 
@@ -620,7 +634,7 @@ def test_graph_data_loader_rejects_missing_links(tmp_path: pathlib.Path) -> None
 	graph_text = json.dumps({"nodes": []})
 	(output_dir / "graph.json").write_text(graph_text, encoding="utf-8")
 	with pytest.raises(RuntimeError, match="no links list"):
-		tools.graphify_map_repo.load_graph_data(tmp_path)
+		graphify_map_repo.load_graph_data(tmp_path)
 
 
 # Vendored pytest file. Local changes can and will be overwritten.

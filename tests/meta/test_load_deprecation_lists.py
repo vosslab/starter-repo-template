@@ -75,13 +75,19 @@ def test_gitignore_replacements_convert_only_exact_lines(tmp_path: pathlib.Path)
 	assert gitignore.read_text(encoding='utf-8') == '/new/\nold/cache/\n'
 
 
-def test_deprecated_paths_names_replaced_graphify_tool() -> None:
-	"""The propagated Python rename retires the old shell tool path."""
+@pytest.mark.parametrize("deprecated_path", [
+	"tools/graphify_map_repo.sh",
+	"tools/graphify_map_repo.py",
+	"tools/sync_typescript_package_pins.py",
+	"devel/html_to_pdf.mjs",
+])
+def test_deprecated_paths_name_support_location_migrations(deprecated_path: str) -> None:
+	"""Support-directory migrations retain exact cleanup paths."""
 	deprecated_paths = repolib.files.load_deprecation_list(
 		'meta/propagation/deprecated_paths.txt',
 		repolib.files.TEMPLATE_ROOT,
 	)
-	assert 'tools/graphify_map_repo.sh' in deprecated_paths
+	assert deprecated_path in deprecated_paths
 
 
 def test_remove_deprecated_paths_removes_exact_file(tmp_path: pathlib.Path) -> None:

@@ -28,6 +28,10 @@ Core principles guide work in this repo. Cite them by name when making judgment 
 - Prefer small, single-purpose scripts at the repo root.
 - Create topic folders only when a collection needs grouping.
 - Avoid deep nesting; keep paths short.
+- Place one native application, library, or helper package in its own named folder at the
+  repository root.
+- Use `packages/` as a grouping layer when the repository contains multiple native products or
+  packages.
 - Keep `README.md` and `AGENTS.md` at the repo root.
 - Determine REPO_ROOT with `git rev-parse --show-toplevel`, not by deriving paths from the current working directory.
 
@@ -172,10 +176,20 @@ Preferred structure:
 ## Scripts and executables
 - Keep scripts self-contained and single-purpose.
 - Add a shebang for executable scripts and keep them runnable directly.
+- `tools/` holds optional domain-facing utilities for regular users. Their inputs and outputs are
+  user data and useful domain artifacts.
+- `devel/` holds engineering commands for highly technical maintainers. Git, versioning, release,
+  dependency refresh, builds, source generation, lint, benchmarks, captures, and diagnostics live
+  here.
+- Primary product workflows belong in the application CLI. Reusable behavior belongs in an
+  importable package. Keep `tools/` and `devel/` as thin entry-point locations; `tests/` holds tests
+  and test-only support.
+- A large support command may delegate to a native helper package. Follow the repository-structure
+  rule: one named package stays at the root, while `packages/` groups multiple native packages.
 - For repo-local Python commands, use:
   - `source source_me.sh && python ...`
 - For pytest commands, use:
-  - `pytest tests/`
+  - `source source_me.sh && pytest tests/`
 - Avoid hard-coded interpreter paths in routine command examples.
 - Document shared helpers and modules in `docs/USAGE.md` when used across scripts.
 - Use `tests/test_pyflakes_code_lint.py` and `tests/test_ascii_compliance.py` for repo-wide lint checks, with `tests/check_ascii_compliance.py` for single-file ASCII/ISO-8859-1 checks and `tests/fix_ascii_compliance.py` for single-file fixes. `tests/test_markdown_links.py` is the repo-wide check that every local Markdown link is GitHub-browsable and well formed.
@@ -185,6 +199,16 @@ Preferred structure:
   REPO_ROOT = file_utils.get_repo_root()
   ```
   This module uses `git rev-parse --show-toplevel` and is propagated across repos automatically.
+
+### Root script budget
+
+Keep the repository root navigable by limiting tracked root scripts. Every tracked root `.py` and
+`.sh` file counts, including `source_me.sh`, whether or not it has an executable bit. A tracked
+root file with any other extension counts only when it has an executable bit and begins with a
+shebang; this catches standalone launchers without treating executable data or compiled artifacts
+as scripts. Seven or more counted files fails `tests/test_root_script_budget.py`. Five or six
+counted files pass but write a report naming the files; four or fewer pass silently and leave no
+report.
 
 ### source_me.sh contract
 

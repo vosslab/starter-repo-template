@@ -5,10 +5,22 @@ Coverage areas:
 """
 
 import pathlib
+import importlib.util
 
 import repolib.process
-import devel.changelog_lib
 import propagate_style_guides
+
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+
+# ASVS 5.3.2: this fixed path is derived only from the repository-owned test.
+CHANGELOG_LIB_PATH = REPO_ROOT / "devel" / "changelog_lib.py"
+CHANGELOG_LIB_SPEC = importlib.util.spec_from_file_location(
+	"test_propagate_cli_changelog_lib", CHANGELOG_LIB_PATH,
+)
+if CHANGELOG_LIB_SPEC is None or CHANGELOG_LIB_SPEC.loader is None:
+	raise RuntimeError(f"Cannot load trusted test helper: {CHANGELOG_LIB_PATH}")
+CHANGELOG_LIB = importlib.util.module_from_spec(CHANGELOG_LIB_SPEC)
+CHANGELOG_LIB_SPEC.loader.exec_module(CHANGELOG_LIB)
 
 
 #============================================
@@ -46,7 +58,7 @@ def test_record_propagation_changelog_creates_canonical_entry(
 		str(repo_dir), "2099-01-02",
 	)
 
-	_blocks, entries, warnings = devel.changelog_lib.parse_file(
+	_blocks, entries, warnings = CHANGELOG_LIB.parse_file(
 		changelog_path, strict=True, duplicate_policy="raise",
 	)
 	assert warnings == []
@@ -76,7 +88,7 @@ def test_record_propagation_changelog_keeps_canonical_category_order(
 		str(repo_dir), "2099-01-02",
 	)
 
-	_blocks, entries, warnings = devel.changelog_lib.parse_file(
+	_blocks, entries, warnings = CHANGELOG_LIB.parse_file(
 		str(changelog_path), strict=True, duplicate_policy="raise",
 	)
 	assert warnings == []
@@ -107,7 +119,7 @@ def test_record_propagation_changelog_appends_to_existing_category(
 		str(repo_dir), "2099-01-02",
 	)
 
-	_blocks, entries, warnings = devel.changelog_lib.parse_file(
+	_blocks, entries, warnings = CHANGELOG_LIB.parse_file(
 		str(changelog_path), strict=True, duplicate_policy="raise",
 	)
 	assert warnings == []

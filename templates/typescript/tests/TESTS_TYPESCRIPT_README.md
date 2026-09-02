@@ -37,7 +37,7 @@ The repo has four test tiers. Pick the home by what you are testing.
 
 - Fast pytest hygiene under `tests/` covers markdown links, ASCII compliance,
   and file naming. These are cross-ecosystem checks, not the TypeScript
-  toolchain. Run them with `pytest tests/`. One guard, the test naming check,
+  toolchain. Run them with `source source_me.sh && pytest tests/`. One guard, the test naming check,
   enforces test file naming under `tests/e2e/` and `tests/playwright/`.
 - Node unit tests live in `tests/test_*.mjs`. Add one by dropping a
   `test_<name>.mjs` into `tests/`; `./check_codebase.sh` picks it up

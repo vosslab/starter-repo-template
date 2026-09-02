@@ -28,7 +28,7 @@ template is the seed body used only at creation. No separate header-source file 
 
 Marker lines are matched on their stripped text, so keep them on their own line. The ownership tag
 `[PROPAGATED HEADER - ENTRIES BELOW ARE YOURS]` mirrors the `.gitignore` convention of stating block
-ownership inline (`repolib.files.managed_gitignore_header`).
+ownership inline (`repolib.gitignore.managed_gitignore_header`).
 
 ## Outcomes
 

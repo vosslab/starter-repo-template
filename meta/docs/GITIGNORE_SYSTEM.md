@@ -28,8 +28,8 @@ template-side `.gitignore` machinery and maintainer workflow.
 | Exact spelling conversions | [gitignore_replacements.txt](../propagation/gitignore_replacements.txt) |
 | Exact forbidden-rule cleanup | [deprecated_gitignore.txt](../propagation/deprecated_gitignore.txt) |
 | Naming and placement conventions | [REPO_STYLE.md](../../docs/REPO_STYLE.md#data-and-outputs) |
-| Managed-block implementation | [files.py](../../repolib/files.py) |
-| Ordered consumer processing | [process.py](../../repolib/process.py) |
+| Managed-block parsing and LOCAL placement | [gitignore.py](../../repolib/gitignore.py) |
+| Render orchestration and cleanup | [files.py](../../repolib/files.py) and [process.py](../../repolib/process.py) |
 
 The root [.gitignore](../../.gitignore) is the template repository's rendered working copy,
 not the universal source. The propagator always skips the template checkout. When a universal
@@ -61,24 +61,30 @@ tracking state.
 
 ## Rendered ownership
 
-Consumer `.gitignore` files contain explicit ownership headings:
+Consumer `.gitignore` files render all propagated blocks first and the preserved local section
+last. The local banner is deliberately unlike a propagated heading:
 
 ```gitignore
-# === LOCAL REPOSITORY RULES === [ADD CUSTOM IGNORES HERE]
-# Propagation preserves this section.
-
 # === UNIVERSAL === [PROPAGATED - LOCAL EDITS OVERWRITTEN]
-
 # === PYTHON === [PROPAGATED - LOCAL EDITS OVERWRITTEN]
+
+# -------------------- LOCAL REPOSITORY RULES --------------------
+# ADD YOUR CUSTOM IGNORES BELOW
+# Propagation preserves this section.
+# ------------------ END LOCAL REPOSITORY RULES ------------------
+# Template-only ignores.
 ```
 
-- Add repository-specific rules under `LOCAL REPOSITORY RULES`.
+- Add repository-specific rules below `ADD YOUR CUSTOM IGNORES BELOW`.
 - Edit the owning template for a universal or type rule.
-- Propagation renames the legacy `# === LOCAL ===` heading in place.
-- Propagation replaces active managed blocks wherever their headings already occur.
-- Missing managed blocks are appended.
-- Type blocks are additive. Removing a token from `REPO_TYPE` does not delete its old managed
-  block; remove that obsolete block explicitly.
+- Propagation relocates the local section after all propagated blocks, preserving its body in order.
+- Propagation recognizes and replaces the legacy `# === LOCAL ===` and prior `LOCAL REPOSITORY
+  RULES` headings.
+- Propagation rebuilds active managed blocks from their canonical templates rather than updating
+  blocks in place.
+- Canonical rebuild removes every recognized stale managed type block. Removing a token from
+  `REPO_TYPE` therefore removes that old propagated block while preserving consumer-owned LOCAL
+  content.
 - Source-template comments and blank lines are maintainer annotations. `load_gitignore_block()`
   emits only active non-comment rules into managed consumer blocks.
 
@@ -90,9 +96,9 @@ first occurrence, so a local duplicate placed earlier can obscure the visible ow
 [repolib/process.py](../../repolib/process.py) applies one ordered pipeline to each consumer:
 
 1. Load exact replacements and forbidden-rule entries from trusted template policy files.
-2. Ensure the preserved local section exists.
-3. Replace the `UNIVERSAL` block from `templates/gitignore.universal`.
-4. Replace or append one nonempty managed block for each declared repository type.
+2. Extract consumer-owned lines from the existing `.gitignore`.
+3. Build the canonical `UNIVERSAL` block and one nonempty block for each declared repository type.
+4. Restore consumer-owned lines in the LOCAL section after every propagated block.
 5. Apply exact source-to-destination spelling replacements.
 6. Remove duplicate exact lines and trailing whitespace.
 7. Remove every exact line listed in `deprecated_gitignore.txt`.
@@ -142,7 +148,8 @@ rule.
 | Convert one exact spelling to another | `meta/propagation/gitignore_replacements.txt` |
 | Forbid an exact rule everywhere | `meta/propagation/deprecated_gitignore.txt` |
 | Change artifact naming or placement | `docs/REPO_STYLE.md` first, then the owning rule source |
-| Change render or cleanup behavior | `repolib/files.py` or `repolib/process.py` |
+| Change block parsing or LOCAL placement | `repolib/gitignore.py` |
+| Change render orchestration or cleanup | `repolib/files.py` or `repolib/process.py` |
 
 Do not edit a consumer managed block as the only change. The next propagation overwrites it.
 
@@ -205,7 +212,7 @@ fi
 Run focused policy and documentation gates:
 
 ```bash
-source source_me.sh && python3 -m pytest \
+source source_me.sh && pytest \
   tests/meta/test_load_deprecation_lists.py \
   tests/meta/test_repolib_multi_type.py \
   tests/test_markdown_links.py \
@@ -216,7 +223,7 @@ source source_me.sh && python3 -m pytest \
 Run the complete repository suite:
 
 ```bash
-source source_me.sh && python3 -m pytest tests/ -q
+source source_me.sh && pytest tests/ -q
 git diff --check
 ```
 

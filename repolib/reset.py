@@ -3,8 +3,10 @@
 Bootstrap implementation used by the root reset_repo.py entry point.
 
 Interactive bootstrap tool. Prompts for project type, SPDX licenses, optional
-promotion from Python to the PyPI child type, staging, and commit. Writes the REPO_TYPE marker,
-installs selected LICENSE files, optionally seeds pyproject.toml, calls
+promotion from Python to the PyPI child type, then staging, commit, and push
+as one finish decision. JSON configuration runs remain offline by default and
+must explicitly request push. Writes the REPO_TYPE marker, installs selected
+LICENSE files, optionally seeds pyproject.toml, calls
 repolib directly to lay down type-dispatched files in bootstrap mode,
 truncates README + CHANGELOG, and removes itself. Answers come from either an
 interactive interview or a json config (--config); the only other CLI flag is
@@ -26,6 +28,7 @@ import repolib.model
 import repolib.console
 import repolib.process
 import repolib.reset_answers
+import repolib.reset_finish
 
 #============================================
 def get_repo_root() -> str:
@@ -393,111 +396,6 @@ def seed_pyproject(repo_root: str, dry_run: bool) -> int:
 	return 2
 
 
-# Template-owned root-level directories that must be absent after reset cleanup.
-# Only the specific template convention locations for "meta" are checked:
-# root meta/ and tests/meta/. Legitimate consumer meta/ elsewhere is not rejected.
-# Root tools/ is consumer-facing universal content and remains after reset;
-# template-maintenance utilities belong under meta/tools/ instead.
-TEMPLATE_OWNED_PREFIXES = [
-	"templates/",
-	"repolib/",
-	"LICENSES/",
-	"meta/",
-	"tests/meta/",
-]
-
-# Sentinel scaffold paths that must exist after successful propagation, by project type.
-# Each entry is (project_type, relative_path). Rust, swift, other, and the base
-# types with no dedicated overlay (scripted, compiled) are skipped (no sentinel).
-SCAFFOLD_SENTINELS: dict[str, str] = {
-	"typescript": "eslint.config.js",
-	"python": "docs/PYTHON_STYLE.md",
-	"website": "mkdocs.yml",
-}
-
-
-#============================================
-def verify_clean_end_state(repo_root: str, dry_run: bool) -> int:
-	"""Verify no template-owned paths remain after cleanup.
-
-	In dry-run, logs the check that would be performed.
-	In live mode, checks (a) git ls-files and (b) disk for each TEMPLATE_OWNED_PREFIXES
-	entry. Raises RuntimeError listing every leftover path found. Root tools/ is
-	not part of TEMPLATE_OWNED_PREFIXES because universal and typed consumer
-	tools are expected to remain after reset.
-
-	Returns:
-		int: 1 (action taken or announced).
-
-	Raises:
-		RuntimeError: When any template-owned path remains tracked or on disk.
-	"""
-	if dry_run:
-		print("DRY-RUN: verify: would check for leftover template-owned paths")
-		return 1
-
-	# (a) Check git ls-files for any tracked path under template-owned prefixes
-	ls_result = subprocess.run(
-		["git", "ls-files"], check=True, capture_output=True, text=True, cwd=repo_root,
-	)
-	tracked_paths = ls_result.stdout.splitlines()
-	leftover_tracked: list[str] = []
-	for tracked_path in tracked_paths:
-		for prefix in TEMPLATE_OWNED_PREFIXES:
-			if tracked_path.startswith(prefix) or tracked_path == prefix.rstrip("/"):
-				leftover_tracked.append(f"tracked: {tracked_path}")
-				break
-
-	# (b) Check that root-level template-owned directories are absent on disk.
-	# For nested entries like tests/meta/, check the full path.
-	leftover_disk: list[str] = []
-	for prefix in TEMPLATE_OWNED_PREFIXES:
-		# strip trailing slash for os.path.isdir check
-		check_path = os.path.join(repo_root, prefix.rstrip("/"))
-		if os.path.isdir(check_path):
-			leftover_disk.append(f"on disk: {prefix}")
-
-	all_leftovers = leftover_tracked + leftover_disk
-	if all_leftovers:
-		leftover_list = "\n  ".join(all_leftovers)
-		raise RuntimeError(
-			f"template-owned paths remain after cleanup:\n  {leftover_list}"
-		)
-	return 1
-
-
-#============================================
-def verify_scaffold_sentinel(repo_root: str, project_type: str) -> None:
-	"""Assert that at least one required scaffold path exists after propagation.
-
-	This guards against a "successful but empty" propagation regression, where
-	process_repo returns a dict but wrote nothing. Only checked for project types
-	that have a known sentinel (typescript, python). Raises RuntimeError on failure.
-
-	Args:
-		repo_root (str): Repository root path.
-		project_type (str): The project type marker (e.g. 'typescript', 'python,rust').
-
-	Raises:
-		RuntimeError: When the sentinel path is absent after propagation.
-	"""
-	sentinel = None
-	for chain_type in repolib.model.effective_type_chain(project_type):
-		if chain_type in SCAFFOLD_SENTINELS:
-			sentinel = SCAFFOLD_SENTINELS[chain_type]
-			break
-	if sentinel is None:
-		# rust and other have no sentinel defined; skip silently
-		return
-	sentinel_path = os.path.join(repo_root, sentinel)
-	if not os.path.isfile(sentinel_path):
-		raise RuntimeError(
-			f"propagation completed but required scaffold path is missing: {sentinel}\n"
-			f"Expected at: {sentinel_path}\n"
-			"process_repo returned success but may have written nothing."
-		)
-
-
 #============================================
 def truncate_file(path: str, repo_root: str, dry_run: bool) -> int:
 	"""Truncate a repository file.
@@ -597,6 +495,8 @@ def confirm_plan(
 		print(f"  pypi:         {'yes' if answers.pypi else 'no'}")
 		print(f"  stage:        {'yes' if answers.stage else 'no'}")
 		print(f"  commit:       {'yes' if answers.commit else 'no'}")
+		# Show requested outbound Git publication before mutation.
+		print(f"  push:         {'yes' if answers.push else 'no'}")
 		print(f"  mode:         {mode}")
 		confirm_input = input("Proceed? [y/N]: ").strip()
 		if not confirm_input or confirm_input.lower() != "y":
@@ -753,6 +653,7 @@ def clean_template_files(repo_root: str, project_type: str, dry_run: bool) -> in
 	action_count += git_rm("propagate_style_guides.py", repo_root, dry_run)
 	action_count += git_rm_recursive("repolib/", repo_root, dry_run)
 	action_count += git_rm("pip_requirements-meta.txt", repo_root, dry_run)
+	action_count += git_rm("pytest.ini", repo_root, dry_run)
 	action_count += remove_tracked_meta_directories(repo_root, dry_run)
 	action_count += remove_non_pypi_submitter(repo_root, project_type, dry_run)
 	action_count += git_rm("reset_repo.py", repo_root, dry_run)
@@ -760,75 +661,7 @@ def clean_template_files(repo_root: str, project_type: str, dry_run: bool) -> in
 
 
 #============================================
-def print_next_steps(project_type: str) -> None:
-	"""Print the first setup command appropriate for the selected project type."""
-	type_chain = repolib.model.effective_type_chain(project_type)
-	if "python" in type_chain:
-		print("\nNext steps:")
-		print("  pip install -r pip_requirements.txt && pip install -r pip_requirements-dev.txt")
-	elif project_type == "typescript":
-		print("\nNext steps:")
-		print("  npm install && bash devel/setup_playwright.sh")
-		print("  pip install -r pip_requirements-dev.txt")
-	elif project_type == "rust":
-		print("\nNext steps:")
-		print("  cargo build")
-		print("  pip install -r pip_requirements-dev.txt")
-	else:
-		print("\nNext steps:")
-		print("  pip install -r pip_requirements-dev.txt")
-
-
-#============================================
-def complete_reset(
-	repo_root: str,
-	project_type: str,
-	dry_run: bool,
-	stage: bool,
-	commit: bool,
-	action_count: int,
-) -> None:
-	"""Verify the reset, optionally stage or commit it, then print its outcome.
-
-	Args:
-		repo_root (str): Repository root receiving the reset.
-		project_type (str): Canonical project type marker.
-		dry_run (bool): When True, announce actions without changing files.
-		stage (bool): Whether to stage all reset changes.
-		commit (bool): Whether to commit the staged reset changes.
-		action_count (int): Completed action count before verification.
-	"""
-	action_count += verify_clean_end_state(repo_root, dry_run)
-	if stage:
-		action_count += 1
-		if dry_run:
-			dry_run_print("git add -A", dry_run)
-		else:
-			subprocess.run(["git", "add", "-A"], check=True, capture_output=True, cwd=repo_root)
-	if commit:
-		action_count += 1
-		commit_msg = f"initial commit: reset repo to base template ({project_type})"
-		if dry_run:
-			dry_run_print(f"git commit -m {repr(commit_msg)}", dry_run)
-		else:
-			subprocess.run(
-				["git", "commit", "-m", commit_msg], check=True, capture_output=True, cwd=repo_root
-			)
-	if dry_run:
-		print(f"DRY-RUN: {action_count} actions planned. No files changed.")
-	else:
-		if commit:
-			print("Committed.")
-		elif not stage:
-			print("Working tree modified. Run 'git add -A && git commit' when ready.")
-		else:
-			print("Staged. Run 'git commit' when ready.")
-		subprocess.run(["git", "status", "--short"], check=False, cwd=repo_root)
-	print_next_steps(project_type)
-
-
-#============================================
-def main() -> None:
+def main() -> int:
 	"""Run the interactive bootstrap flow."""
 	args = parse_args()
 	repo_root = get_repo_root()
@@ -844,8 +677,9 @@ def main() -> None:
 
 	# === phase: gather answers (config or interview) ===
 	# Config mode (--config) is non-interactive; the interview asks, in order:
-	# project type, code license, docs license, PyPI (python only), stage
-	# changes, create a commit. Staging and commit are driven by these answers.
+	# project type, code license, docs license, PyPI (python only), then one
+	# stage/commit/push finish decision. Config push defaults off to keep
+	# unattended runs offline.
 	if args.config:
 		answers = repolib.reset_answers.answers_from_config(args.config)
 	else:
@@ -858,8 +692,11 @@ def main() -> None:
 	publish_pypi = answers.pypi
 	stage = answers.stage
 	commit = answers.commit
+	push = answers.push
 
 	preflight_check(repo_root, code_license, docs_license)
+	# Every known finish blocker is inspected before the first consumer write.
+	has_origin = repolib.reset_finish.preflight_finish(repo_root, commit, push)
 
 	# === phase: summary and confirmation ===
 	# Config mode auto-skips the Proceed prompt; interactive mode keeps it.
@@ -892,10 +729,11 @@ def main() -> None:
 	action_count += run_propagate(repo_root, args.dry_run)
 
 	# === phase: scaffold sentinel check ===
-	# After propagation completes (live only), assert that the required per-type
-	# scaffold path exists. Guards against "successful but empty" propagation.
+	# After propagation completes (live only), retain an incomplete result for a
+	# missing per-type scaffold instead of aborting this partly-mutated consumer.
+	scaffold_problem = None
 	if not args.dry_run:
-		verify_scaffold_sentinel(repo_root, project_type)
+		scaffold_problem = repolib.reset_finish.verify_scaffold_sentinel(repo_root, project_type)
 
 	# === phase: typescript-specific work ===
 	# Must run AFTER propagate so the noexist bucket has placed package.json at repo root.
@@ -914,15 +752,19 @@ def main() -> None:
 	action_count += clean_template_files(repo_root, project_type, args.dry_run)
 
 	# === phase: verify, stage, commit, and hand off ===
-	complete_reset(
+	exit_status = repolib.reset_finish.complete_reset(
 		repo_root,
 		project_type,
 		args.dry_run,
 		stage,
 		commit,
+		push,
+		has_origin,
 		action_count,
+		scaffold_problem,
 	)
+	return exit_status
 
 
 if __name__ == "__main__":
-	main()
+	sys.exit(main())

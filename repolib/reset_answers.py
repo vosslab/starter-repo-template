@@ -242,23 +242,27 @@ def resolve_licenses() -> tuple[str, str]:
 
 
 #============================================
-def resolve_stage() -> bool:
-	"""Prompt whether to stage changes.
+def resolve_finish() -> bool:
+	"""Ask whether reset should stage, commit, and push as one finish action.
+
+	The accepted answers are empty or ``y``/``yes`` for the default Yes, and
+	``n``/``no`` to decline all three finish steps. Invalid input is reprompted
+	so it cannot authorize a Git finish action (OWASP ASVS 5.0.0 V2.1.1,
+	OWASP ASVS 5.0.0 V2.2.1).
 
 	Returns:
-		True unless the answer is ``n``.
+		True for an accepted affirmative answer, False for an accepted negative
+		answer.
 	"""
-	return input("Stage changes? [Y/n]: ").strip().lower() != "n"
-
-
-#============================================
-def resolve_commit() -> bool:
-	"""Prompt whether to create a commit.
-
-	Returns:
-		True only when the answer is ``y``.
-	"""
-	return input("Create a commit? [y/N]: ").strip().lower() == "y"
+	while True:
+		user_input = input("Finish reset by staging, committing, and pushing? [Y/n]: ").strip().lower()
+		# OWASP ASVS 5.0.0 V2.2.1: only documented affirmative and negative
+		# answers authorize this decision.
+		if user_input in ("", "y", "yes"):
+			return True
+		if user_input in ("n", "no"):
+			return False
+		print("Please answer yes or no.")
 
 
 #============================================
@@ -272,6 +276,7 @@ class ResetAnswers:
 	pypi: bool
 	stage: bool
 	commit: bool
+	push: bool
 
 
 #============================================
@@ -292,13 +297,15 @@ def answers_from_interview(repo_root: str) -> ResetAnswers:
 	pypi = resolve_pypi(project_type)
 	if pypi:
 		project_type = promote_pypi_type(project_type)
+	finish = resolve_finish()
 	return ResetAnswers(
 		project_type=project_type,
 		code_license=code_license,
 		docs_license=docs_license,
 		pypi=pypi,
-		stage=resolve_stage(),
-		commit=resolve_commit(),
+		stage=finish,
+		commit=finish,
+		push=finish,
 	)
 
 
@@ -347,6 +354,53 @@ def load_config(path: str) -> dict:
 
 
 #============================================
+def optional_config_bool(config: dict, key: str, default: bool, path: str) -> bool:
+	"""Return an optional JSON boolean after validating its allowed values.
+
+	The optional key's expected structure is JSON ``true`` or ``false``; its
+	default applies only when the key is absent (OWASP ASVS 5.0.0 V2.1.1).
+
+	Args:
+		config: Parsed JSON configuration object.
+		key: Optional configuration key to read.
+		default: Intentional value when key is absent.
+		path: Configuration file path for an actionable error message.
+
+	Returns:
+		The configured boolean or the intentional default.
+
+	Raises:
+		SystemExit: The supplied value is not a JSON boolean.
+	"""
+	value = config.get(key, default)
+	# OWASP ASVS 5.0.0 V2.2.1: accept only expected JSON booleans here.
+	if not isinstance(value, bool):
+		sys.exit(f"Error: config key '{key}' must be true or false: {path}")
+	return value
+
+
+#============================================
+def validate_finish_chain(stage: bool, commit: bool, push: bool, path: str) -> None:
+	"""Require finish actions to preserve their stage, commit, push order.
+
+	Args:
+		stage: Whether the reset config requests staging.
+		commit: Whether the reset config requests committing.
+		push: Whether the reset config requests publishing the commit.
+		path: Configuration file path for an actionable error message.
+
+	Raises:
+		SystemExit: The requested finish actions skip a required earlier action.
+	"""
+	# OWASP ASVS 5.0.0 V2.3.1: publication must not skip the ordered stage
+	# then commit workflow.
+	if commit and not stage:
+		sys.exit(f"Error: config key 'commit' requires stage=true: {path}")
+	if push and not commit:
+		sys.exit(f"Error: config key 'push' requires commit=true: {path}")
+
+
+#============================================
 def answers_from_config(path: str) -> ResetAnswers:
 	"""Build normalized reset answers from a JSON configuration file.
 
@@ -382,11 +436,17 @@ def answers_from_config(path: str) -> ResetAnswers:
 		pypi = False
 	if pypi:
 		project_type = promote_pypi_type(project_type)
+	stage = optional_config_bool(config, "stage", True, path)
+	commit = optional_config_bool(config, "commit", False, path)
+	# Configured runs opt out of outbound publication unless explicitly requested.
+	push = optional_config_bool(config, "push", False, path)
+	validate_finish_chain(stage, commit, push, path)
 	return ResetAnswers(
 		project_type=project_type,
 		code_license=code_license,
 		docs_license=docs_license,
 		pypi=bool(pypi),
-		stage=bool(config.get("stage", True)),
-		commit=bool(config.get("commit", False)),
+		stage=stage,
+		commit=commit,
+		push=push,
 	)

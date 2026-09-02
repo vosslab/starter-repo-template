@@ -1,12 +1,49 @@
 # Standard Library
 import sys
 import pathlib
+import importlib.util
 
 # PIP3 modules
 import pytest
 
-# local repo modules
-import devel.bump_version
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+
+
+#============================================
+def load_bump_version() -> object:
+	"""Load the standalone devel command as direct execution would.
+
+	The command intentionally uses permitted flat sibling imports. Keep the
+	temporary import path and sibling module cache scoped to this load so this
+	test cannot change later tests' import resolution.
+	"""
+	# ASVS 5.3.2: this path is fixed by the repository-owned test location.
+	devel_dir = REPO_ROOT / "devel"
+	script_path = devel_dir / "bump_version.py"
+	previous_modules = {
+		name: sys.modules.pop(name, None)
+		for name in ("version_lib", "version_files")
+	}
+	sys.path.insert(0, str(devel_dir))
+	try:
+		spec = importlib.util.spec_from_file_location(
+			"test_bump_version_module", script_path,
+		)
+		if spec is None or spec.loader is None:
+			raise RuntimeError(f"Cannot load trusted test script: {script_path}")
+		module = importlib.util.module_from_spec(spec)
+		spec.loader.exec_module(module)
+	finally:
+		sys.path.pop(0)
+		for name in ("version_lib", "version_files"):
+			sys.modules.pop(name, None)
+		for name, previous_module in previous_modules.items():
+			if previous_module is not None:
+				sys.modules[name] = previous_module
+	return module
+
+
+BUMP_VERSION = load_bump_version()
 
 
 #============================================
@@ -34,7 +71,7 @@ def test_patch_updates_repo_and_cargo_versions(
 		],
 	)
 
-	devel.bump_version.main()
+	BUMP_VERSION.main()
 
 	assert version_file.read_text(encoding="utf-8") == "26.08.1\n"
 	assert 'version = "26.8.1"' in cargo_toml.read_text(encoding="utf-8")
@@ -77,7 +114,7 @@ def test_set_version_synchronizes_rust_versions(
 		],
 	)
 
-	devel.bump_version.main()
+	BUMP_VERSION.main()
 
 	cargo_outputs = (
 		cargo_toml.read_text(encoding="utf-8"),
@@ -136,7 +173,7 @@ def test_set_version_updates_workspace_package_only(
 		],
 	)
 
-	devel.bump_version.main()
+	BUMP_VERSION.main()
 
 	workspace_outputs = (
 		workspace_toml.read_text(encoding="utf-8"),

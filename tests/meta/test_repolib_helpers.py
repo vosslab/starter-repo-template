@@ -274,97 +274,6 @@ class TestReadRepoType:
 		assert result == repolib.model.LANG_SWIFT
 
 
-class TestReplaceManagedBlock:
-	"""Test replace_managed_block helper."""
-
-	def test_replace_managed_block_present(self) -> None:
-		"""Test replacing an existing block with content after."""
-		lines = [
-			'user content',
-			'# === UNIVERSAL ===',
-			'old pattern 1',
-			'old pattern 2',
-			'# === PYTHON ===',
-			'python content',
-		]
-		new_block = ['new pattern 1', 'new pattern 2', 'new pattern 3']
-		header = '# === UNIVERSAL ==='
-
-		result = repolib.files.replace_managed_block(lines, header, new_block)
-
-		assert result == [
-			'user content',
-			'# === UNIVERSAL ===',
-			'new pattern 1',
-			'new pattern 2',
-			'new pattern 3',
-			'# === PYTHON ===',
-			'python content',
-		]
-
-	def test_replace_managed_block_absent(self) -> None:
-		"""Test appending when block is absent."""
-		lines = ['user content 1', 'user content 2']
-		new_block = ['pattern 1', 'pattern 2']
-		header = '# === UNIVERSAL ==='
-
-		result = repolib.files.replace_managed_block(lines, header, new_block)
-
-		assert result == [
-			'user content 1',
-			'user content 2',
-			'# === UNIVERSAL ===',
-			'pattern 1',
-			'pattern 2',
-		]
-
-	def test_replace_managed_block_empty_list(self) -> None:
-		"""Test with empty line list."""
-		lines = []
-		new_block = ['pattern 1']
-		header = '# === UNIVERSAL ==='
-
-		result = repolib.files.replace_managed_block(lines, header, new_block)
-
-		assert result == ['# === UNIVERSAL ===', 'pattern 1']
-
-	def test_replace_managed_block_multiple_blocks(self) -> None:
-		"""Test that only the named block is replaced."""
-		lines = [
-			'# === UNIVERSAL ===',
-			'universal content',
-			'# === PYTHON ===',
-			'python content',
-			'more python content',
-		]
-		new_block = ['new python pattern']
-		header = '# === PYTHON ==='
-
-		result = repolib.files.replace_managed_block(lines, header, new_block)
-
-		assert result == [
-			'# === UNIVERSAL ===',
-			'universal content',
-			'# === PYTHON ===',
-			'new python pattern',
-		]
-
-	def test_replace_managed_block_idempotent(self) -> None:
-		"""Test idempotency: result is same if called twice."""
-		lines = [
-			'# === UNIVERSAL ===',
-			'old pattern',
-			'user content',
-		]
-		new_block = ['new pattern 1', 'new pattern 2']
-		header = '# === UNIVERSAL ==='
-
-		result1 = repolib.files.replace_managed_block(lines, header, new_block)
-		result2 = repolib.files.replace_managed_block(result1, header, new_block)
-
-		assert result1 == result2
-
-
 class TestCopyIfChanged:
 	"""Test copy_if_changed helper."""
 
@@ -774,6 +683,5 @@ class TestFindSourceNoexistPrecedence:
 		(pathlib.Path(root) / "AGENTS.md").write_text('agents\n')
 		src = repolib.model.find_source_for_bucket(root, 'noexist_files', 'AGENTS.md', 'python')
 		assert src == os.path.join(root, 'AGENTS.md')
-
 
 

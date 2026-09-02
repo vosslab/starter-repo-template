@@ -66,8 +66,8 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 ## Graphify orientation
 
 - Keep the Graphify manager and subagent orientation short and repository-specific.
-- Ship `tools/graphify_map_repo.py` to every repository type and retain it during new-repository
-  reset; all repositories need the same Graphify navigation entry point.
+- Ship `devel/graphify_map_repo.py` to every repository type and retain it during new-repository
+  reset; all repositories need the same maintainer-facing Graphify navigation entry point.
 - Report when the graph was mapped rather than Graphify's `built_at_commit`. The map includes
   uncommitted and untracked working-tree code, so commit attribution confuses coders.
 - Use the primary generated graph artifact's local modification time as mapping provenance. It
@@ -103,7 +103,7 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 
 - File location is the primary routing determinant. Agents use location first;
   per-file overrides only when location cannot express the rule.
-- Every file under `docs/`, `tests/`, and `devel/` ships universally to all
+- Every file under `docs/`, `tests/`, `devel/`, and `tools/` ships universally to all
   consumer repos (overwrite bucket by default).
 - Every file under `templates/<type>/` ships to consumer repos of that type,
   at its consumer-relative path (e.g. `templates/python/foo.py` ships as `foo.py`).
@@ -162,16 +162,15 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 - `reset_repo.py` is the bootstrap entry point for new consumer repos.
 - Selected licenses install as real root files named `LICENSE.<SPDX>` from complete plain-text
   catalog bodies with the same names. Do not add rendering extensions or license aliases.
-- Interactive interview is the human default: the script asks project type, license,
-  PyPI intent, stage, and commit choices at the terminal.
+- Interactive interview is the human default: it asks project type, license, PyPI intent, then one
+  default-Yes finish question for stage, commit, and push together.
 - CLI surface is minimal: `-h`, `--dry-run`, and `--config <file>`. The `--force` and
   `--yes` flags were removed; `--force` had no use case and `--yes` is replaced by
   `--config` for non-interactive runs.
-- `--config <file>` is the testing/reproducibility interface: a JSON answer file
-  drives a non-interactive reset for e2e and subagent testing. It is not required for
-  normal human use. Required JSON keys: `project_type` and `code_license`. Optional
-  keys with defaults: `docs_license` (CC-BY-4.0), `pypi` (false; legacy Python-to-PyPI promotion),
-  `stage` (true), `commit` (false). Short aliases are accepted for both required keys.
+- `--config <file>` is the testing/reproducibility interface: a JSON answer file drives a
+  non-interactive reset for E2E and subagent testing. Required keys are `project_type` and
+  `code_license`; optional defaults are `docs_license` (CC-BY-4.0), `pypi` (false), `stage` (true),
+  `commit` (false), and `push` (false). Short aliases are accepted for required keys.
 - Folder-name guard: reset refuses to run when the repo root basename is exactly
   `starter-repo-template`. This protects the template development checkout. Guard is
   folder name only; no remote or origin inspection (remote-slug detection is fragile
@@ -179,6 +178,27 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 - Running outside a git repository exits with a clear message instead of a raw
   subprocess traceback.
 - Do not add automation flags for decisions the user makes once at repo creation.
+
+## Enforced template contracts
+
+- Render propagated `.gitignore` blocks first and the consumer-owned LOCAL block last; preserve its
+  body verbatim when rebuilding managed content.
+
+- Keep `tests/test_checkout_disk_budget.py` in the base pytest lane: its local `du` is accepted and
+  the vendored test returns after deletion because propagation restores it.
+- Treat `tools/`, `devel/`, and `tests/` as non-package support directories. Tools scripts do not
+  import sibling tools modules; documented flat devel and test helpers remain allowed.
+- Count tracked root `.py` and `.sh` scripts, plus executable-shebang launchers of other types.
+  Five or six write a report; seven or more fail the root-script budget.
+
+## Tools and developer scripts
+
+- Use `devel/` for highly technical developers and repository or Git work such as versioning.
+- Use `tools/` for standalone one-off utilities that regular users can run for a direct task.
+- Keep one native application, library, or tool-helper package in a named root-level folder. Use a
+  `packages/` grouping layer when the repository contains multiple native products or packages.
+- Survey all repositories under `~/nsh` before applying systemic placement changes so the template
+  fixes the shared source of drift first.
 
 ## E2E harness design
 

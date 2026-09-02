@@ -27,10 +27,11 @@ File location is the primary routing determinant. Files under `docs/`, `tests/`,
 Bootstrap a fresh clone (sets project type + licenses, installs canonical files):
 
 ```bash
-python3 reset_repo.py
+source source_me.sh && python3 reset_repo.py
 ```
 
-The interview asks for repo types, licenses, PyPI packaging, staging, and commit choices.
+The interview asks for repo types, licenses, PyPI packaging, then one finish decision covering
+staging, commit, and push.
 Repo types accept names, comma-separated lists, or letter runs (`python`, `python,rust`, or `pr`).
 `--dry-run` previews the reset; `--config <file>` loads answers from JSON.
 
@@ -49,7 +50,7 @@ consumer's `docs/CHANGELOG.md`; previews and no-op runs leave that changelog unc
 Run the fast test suite:
 
 ```bash
-pytest tests/
+source source_me.sh && pytest tests/
 ```
 
 Non-browser end-to-end tests live under `tests/e2e/` per [docs/E2E_TESTS.md](docs/E2E_TESTS.md) when present; this repo does not currently ship any. Each runner is self-contained -- invoke them individually with `bash tests/e2e/e2e_<name>.sh`.

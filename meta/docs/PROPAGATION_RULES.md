@@ -45,6 +45,18 @@ migrates successfully and the canonical regular file exists. See
 [LICENSE_POLICY.md](LICENSE_POLICY.md) for the exact supported names, conflict rules,
 local-repository census, body sources, and maintainer policy.
 
+## Deprecated consumer paths
+
+Use [meta/propagation/deprecated_paths.txt](../propagation/deprecated_paths.txt) for exact
+template-owned files or symlinks that propagation retires from consumer repositories. Each
+non-comment entry is a repository-relative file path. The loader validates the entries, and the
+resolver accepts ordinary path components contained within the consumer root.
+
+Dry runs report each matching path as a planned removal. Live runs remove the exact file or symlink
+and retain its parent directory and unrelated content. `process_repo()` applies these retirements
+before the normal file buckets, so add a moved path after its canonical replacement source and
+routing coverage are present in the template.
+
 ## Folder convention
 
 | Want to ... | Put the file under | Ships to |
@@ -64,16 +76,19 @@ local-repository census, body sources, and maintainer policy.
 | MERGE bucket (set-union @-import merge with strip list) | template root + add to `MERGE_FILES` | every repo; template @-imports union-added to consumer; strip list at `meta/propagation/deprecated_claude_md.txt` removes retired entries (see [MERGE_BUCKET_SPEC.md](MERGE_BUCKET_SPEC.md)) |
 | HEADER bucket (consumer-owned file with a vendored header region) | docs/ (or another shipping location) + add to `header_files` | every repo; seeded whole when absent, then only the marked region is refreshed while consumer entries stay untouched (see [HEADER_BUCKET_SPEC.md](HEADER_BUCKET_SPEC.md)) |
 | Universal consumer tool | tools/<file> | every repo, overwrite; retained during reset |
+| Universal developer command | devel/<file> | every repo, overwrite; retained during reset |
 | Template-only tooling | meta/tools/<file> | never (template-meta); removed at reset |
-| Typed-overlay tooling | templates/<type>/tools/<file> (e.g. templates/typescript/tools/sync_typescript_package_pins.py) | that type only, ships at consumer tools/<file> |
+| Typed user tool | templates/<type>/tools/<file> | that type only, ships at consumer tools/<file> |
+| Typed developer command | templates/<type>/devel/<file> (e.g. templates/typescript/devel/sync_typescript_package_pins.py) | that type only, ships at consumer devel/<file> |
 
 **Standard: every file under `templates/<type>/` ships** to consumers of that
 type, at its path relative to `templates/<type>/`. This includes `tools/`
-subpaths. The typed-overlay walker no longer filters subdirectories against
+and `devel/` subpaths. The typed-overlay walker no longer filters subdirectories against
 META_DIRS; only the META_FILES basename guard still applies (so a stray
 `templates/<type>/README.md` cannot clobber a consumer README). Root `tools/`
-is universal consumer-facing content. Template infrastructure belongs under
-`meta/tools/`, which never ships and is removed during reset.
+is universal consumer-facing content; root `devel/` is universal maintainer-facing content.
+Reserve `meta/tools/` for template-only infrastructure; reset removes it while preparing a consumer
+repository.
 
 **Underscore folders (`_folder`) are conditional overlays.** Any folder whose
 name starts with `_` under `templates/<type>/` (e.g. `templates/python/_ci/`)

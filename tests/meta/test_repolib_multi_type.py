@@ -5,6 +5,7 @@ import pathlib
 
 import file_utils
 import repolib.files
+import repolib.gitignore
 import repolib.plan
 import repolib.model
 
@@ -204,7 +205,7 @@ class TestMergeGitignoreBlocksMultiType:
 		first_counters = {'created_count': 0, 'merged_count': 0}
 		self._run_gitignore_pipeline(repo_dir, context, first_counters)
 		first_content = (repo_dir / '.gitignore').read_text(encoding='utf-8')
-		managed_header = repolib.files.managed_gitignore_header('UNIVERSAL')
+		managed_header = repolib.gitignore.managed_gitignore_header('UNIVERSAL')
 		local_content, managed_content = first_content.split(managed_header, maxsplit=1)
 		second_counters = {'merged_count': 0}
 		self._run_gitignore_pipeline(repo_dir, context, second_counters)
@@ -212,14 +213,208 @@ class TestMergeGitignoreBlocksMultiType:
 		assert '/node_modules/' not in local_content and '/node_modules/' in managed_content
 		assert second_counters['merged_count'] == 0
 
+	def _context(self, repo_dir: pathlib.Path) -> repolib.model.PropagateContext:
+		"""Build a writable propagation context for a disposable repository."""
+		return repolib.model.PropagateContext(
+			source_dir=str(repo_dir),
+			template_root=file_utils.get_repo_root(),
+			repo_name=None,
+			dry_run=False,
+			initial_setup=False,
+			auto_discover=False,
+			write_marker=False,
+		)
+
+	def _propagated_headers(self, repo_type: str) -> list[str]:
+		"""Return this marker's rendered managed headings from live template data."""
+		template_root = file_utils.get_repo_root()
+		headers = [repolib.gitignore.managed_gitignore_header('UNIVERSAL')]
+		for declared_type in repolib.model.expand_marker_types(repo_type):
+			block_path = pathlib.Path(template_root, 'templates', declared_type, f'gitignore.{declared_type}')
+			if repolib.files.load_gitignore_block(str(block_path)):
+				headers.append(repolib.gitignore.managed_gitignore_header(declared_type.upper()))
+		return headers
+
+	def _render_gitignore(self, repo_dir: pathlib.Path, repo_type: str) -> bytes:
+		"""Render a disposable .gitignore through its production entry point."""
+		repolib.files.merge_gitignore_blocks(
+			str(repo_dir), repo_type, file_utils.get_repo_root(), self._context(repo_dir),
+		)
+		return (repo_dir / '.gitignore').read_bytes()
+
+	def _local_body(self, rendered_lines: list[str]) -> list[str]:
+		"""Extract consumer-owned lines after the renderer-owned LOCAL banner."""
+		local_header_index = rendered_lines.index(repolib.gitignore.GITIGNORE_LOCAL_HEADER)
+		assert rendered_lines[local_header_index - 1] == repolib.gitignore.GITIGNORE_LOCAL_RULE
+		assert rendered_lines[local_header_index + 1] == repolib.gitignore.GITIGNORE_LOCAL_NOTICE
+		assert rendered_lines[local_header_index + 2] == repolib.gitignore.GITIGNORE_LOCAL_RULE_END
+		return rendered_lines[local_header_index + 3:]
+
+	def test_local_section_converges_last_without_losing_its_body(self, tmp_path: pathlib.Path) -> None:
+		"""Every historical LOCAL placement preserves its body and ends after live blocks."""
+		repo_type = 'python,rust'
+		body = ['', '# consumer-owned comment', 'consumer/cache/', '', '!consumer/keep.txt']
+		propagated_headers = self._propagated_headers(repo_type)
+		assert len(propagated_headers) > 1
+		old_universal = ['# === UNIVERSAL ===', 'obsolete-universal/']
+		first_declared_type = repolib.model.expand_marker_types(repo_type)[0]
+		old_typed = [f'# === {first_declared_type.upper()} ===', 'obsolete-typed/']
+		current_local = [
+			repolib.gitignore.GITIGNORE_LOCAL_HEADER,
+			repolib.gitignore.GITIGNORE_LOCAL_NOTICE,
+			*body,
+		]
+		legacy_local = [repolib.gitignore.GITIGNORE_LEGACY_LOCAL_HEADER, *body]
+		inputs = {
+			'legacy': [*legacy_local, *old_universal, *old_typed],
+			'top': [*current_local, *old_universal, *old_typed],
+			'middle': [*old_universal, *current_local, *old_typed],
+			'absent': [*body, *old_universal, *old_typed],
+		}
+		renders = []
+
+		for placement, initial_lines in inputs.items():
+			repo_dir = tmp_path / placement
+			repo_dir.mkdir()
+			(repo_dir / '.gitignore').write_text('\n'.join(initial_lines) + '\n', encoding='utf-8')
+			first_render = self._render_gitignore(repo_dir, repo_type)
+			second_render = self._render_gitignore(repo_dir, repo_type)
+			rendered_lines = first_render.decode('utf-8').splitlines()
+			local_header_index = rendered_lines.index(repolib.gitignore.GITIGNORE_LOCAL_HEADER)
+			actual_propagated_headers = [
+				line for line in rendered_lines
+				if '[PROPAGATED - LOCAL EDITS OVERWRITTEN]' in line
+			]
+
+			assert actual_propagated_headers == propagated_headers
+			assert all(rendered_lines.index(header) < local_header_index for header in propagated_headers)
+			assert self._local_body(rendered_lines) == body
+			assert first_render == second_render
+			renders.append(first_render)
+
+		assert renders == [renders[0]] * len(renders)
+
+	def test_rebuilds_reverse_managed_order_before_local_section(self, tmp_path: pathlib.Path) -> None:
+		"""Reverse legacy blocks converge to live marker order without stale content."""
+		repo_type = 'python,rust'
+		repo_dir = tmp_path / 'reverse-managed-order'
+		repo_dir.mkdir()
+		declared_types = repolib.model.expand_marker_types(repo_type)
+		reverse_headers = [
+			f'# === {declared_type.upper()} ==='
+			for declared_type in reversed(declared_types)
+		]
+		old_blocks = []
+		for header in reverse_headers:
+			old_blocks.extend([header, f'obsolete-{header.lower()}/'])
+		old_blocks.extend(['# === UNIVERSAL ===', 'obsolete-universal/'])
+		body = ['# consumer-owned comment', 'consumer/cache/']
+		(repo_dir / '.gitignore').write_text(
+			'\n'.join([
+				*old_blocks,
+				repolib.gitignore.GITIGNORE_LEGACY_LOCAL_HEADER,
+				*body,
+			]) + '\n', encoding='utf-8',
+		)
+
+		first_render = self._render_gitignore(repo_dir, repo_type)
+		second_render = self._render_gitignore(repo_dir, repo_type)
+		rendered_lines = first_render.decode('utf-8').splitlines()
+		actual_headers = [
+			line for line in rendered_lines
+			if '[PROPAGATED - LOCAL EDITS OVERWRITTEN]' in line
+		]
+
+		assert actual_headers == self._propagated_headers(repo_type)
+		assert self._local_body(rendered_lines) == body
+		assert 'obsolete-universal/' not in rendered_lines
+		assert all('obsolete-# ===' not in line for line in rendered_lines)
+		assert first_render == second_render
+
+	def test_preserves_divider_looking_comments_outside_and_inside_legacy_local_body(
+			self, tmp_path: pathlib.Path,
+			) -> None:
+		"""Old divider spellings remain consumer content without a complete old banner."""
+		repo_dir = tmp_path / 'legacy-divider-comments'
+		repo_dir.mkdir()
+		body = [
+			'# -----------------------------------------------------------------------------',
+			'# === LOCAL REPOSITORY RULES ===',
+			'consumer/before-dividers/',
+			'# -----------------------------------------------------------------------------',
+			'# =============================================================================',
+			'consumer/cache/',
+		]
+		# Use the model-derived UNIVERSAL marker as the real section boundary.
+		(repo_dir / '.gitignore').write_text(
+			'\n'.join([*body, '# === UNIVERSAL ===', 'obsolete-universal/']) + '\n',
+			encoding='utf-8',
+		)
+
+		first_render = self._render_gitignore(repo_dir, 'python')
+		second_render = self._render_gitignore(repo_dir, 'python')
+		rendered_lines = first_render.decode('utf-8').splitlines()
+
+		assert self._local_body(rendered_lines) == body
+		assert first_render == second_render
+
+	def test_preserves_local_heading_prefix_comments(self, tmp_path: pathlib.Path) -> None:
+		"""Heading-prefix comments stay in LOCAL unless they form a full banner."""
+		repo_dir = tmp_path / 'local-heading-prefix-comments'
+		repo_dir.mkdir()
+		body = [
+			'# ADD YOUR CUSTOM IGNORES BELOW, except this is a comment',
+			'consumer/first/',
+			'# === LOCAL REPOSITORY RULES ===, except this is a comment',
+			'consumer/second/',
+		]
+		(repo_dir / '.gitignore').write_text(
+			'\n'.join([
+				repolib.gitignore.GITIGNORE_LEGACY_LOCAL_HEADER,
+				*body,
+				'# === UNIVERSAL ===',
+				'obsolete-universal/',
+			]) + '\n',
+			encoding='utf-8',
+		)
+
+		first_render = self._render_gitignore(repo_dir, 'python')
+		second_render = self._render_gitignore(repo_dir, 'python')
+		rendered_lines = first_render.decode('utf-8').splitlines()
+
+		assert self._local_body(rendered_lines) == body
+		assert first_render == second_render
+
+	def test_consumer_section_comment_does_not_end_local_body(self, tmp_path: pathlib.Path) -> None:
+		"""An arbitrary section-looking comment preserves the LOCAL body's order."""
+		repo_dir = tmp_path / 'consumer-divider'
+		repo_dir.mkdir()
+		body = ['rule_a/', '# === consumer divider', 'rule_b/']
+		(repo_dir / '.gitignore').write_text(
+			'\n'.join([
+				repolib.gitignore.GITIGNORE_LEGACY_LOCAL_HEADER,
+				*body,
+				'# === UNIVERSAL ===',
+				'obsolete-universal/',
+			]) + '\n',
+			encoding='utf-8',
+		)
+
+		first_render = self._render_gitignore(repo_dir, 'python')
+		second_render = self._render_gitignore(repo_dir, 'python')
+		rendered_lines = first_render.decode('utf-8').splitlines()
+
+		assert self._local_body(rendered_lines) == body
+		assert first_render == second_render
+
 
 class TestSpacedBlock:
 	"""spaced_block() normalizes a managed block's trailing blank line."""
 
 	def test_collapses_existing_trailing_blanks(self) -> None:
 		"""An older block with several trailing blanks converges to exactly one."""
-		assert repolib.files.spaced_block(['a', 'b', '', '', '']) == ['a', 'b', '']
+		assert repolib.gitignore.spaced_block(['a', 'b', '', '', '']) == ['a', 'b', '']
 
 	def test_adds_one_trailing_blank(self) -> None:
 		"""A block with no trailing blank gains exactly one."""
-		assert repolib.files.spaced_block(['a', 'b']) == ['a', 'b', '']
+		assert repolib.gitignore.spaced_block(['a', 'b']) == ['a', 'b', '']

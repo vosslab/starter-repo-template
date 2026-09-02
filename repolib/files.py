@@ -9,15 +9,9 @@ import collections.abc
 
 # local repo modules
 import repolib.console
+import repolib.gitignore
 import repolib.model
 import repolib.repo
-
-
-GITIGNORE_LOCAL_HEADER_PREFIX = '# === LOCAL REPOSITORY RULES ==='
-GITIGNORE_LOCAL_HEADER = f'{GITIGNORE_LOCAL_HEADER_PREFIX} [ADD CUSTOM IGNORES HERE]'
-GITIGNORE_LOCAL_NOTICE = '# Propagation preserves this section.'
-GITIGNORE_LEGACY_LOCAL_HEADER = '# === LOCAL ==='
-
 
 #============================================
 # META leak guard
@@ -478,123 +472,6 @@ def deduplicate_gitignore(gitignore_path: str, dry_run: bool, counters: dict | N
 		counters['merged_count'] += 1
 
 
-#============================================
-def spaced_block(block_lines: list[str]) -> list[str]:
-	"""
-	Return a managed block's content with exactly one trailing blank line.
-
-	Stacked managed blocks are easier to scan when a blank line separates them.
-	The separator is carried as the LAST line of a block's own content rather than
-	emitted before the next header, which is what keeps repeated runs idempotent:
-	replace_managed_block swaps a block's whole content region at once, so a
-	trailing blank is rewritten each run instead of accumulating one blank per run.
-	Any blank lines already at the end are collapsed to exactly one, so a file
-	written by an older version converges on the first run.
-
-	Args:
-		block_lines (list[str]): Block content lines, without the header.
-
-	Returns:
-		list[str]: The same content with exactly one trailing blank line.
-	"""
-	# Drop any existing trailing blanks first so the result is always exactly one.
-	trimmed = list(block_lines)
-	while trimmed and trimmed[-1].strip() == '':
-		trimmed.pop()
-	return trimmed + ['']
-
-
-#============================================
-def ensure_gitignore_local_section(lines: list[str]) -> list[str]:
-	"""Return lines with one clearly labeled repository-owned section.
-
-	The legacy ``# === LOCAL ===`` marker is renamed in place so rule ordering
-	stays unchanged. When no local marker exists, the heading is prepended above
-	the consumer's existing content, which places those existing rules inside the
-	repository-owned section without moving them relative to one another.
-
-	Args:
-		lines (list[str]): Existing .gitignore lines.
-
-	Returns:
-		list[str]: Lines carrying the local heading and preservation notice.
-	"""
-	local_index = None
-	for index, line in enumerate(lines):
-		stripped = line.strip()
-		if stripped == GITIGNORE_LEGACY_LOCAL_HEADER or stripped.startswith(
-			GITIGNORE_LOCAL_HEADER_PREFIX
-		):
-			local_index = index
-			break
-
-	if local_index is None:
-		local_block = [GITIGNORE_LOCAL_HEADER, GITIGNORE_LOCAL_NOTICE, '']
-		return local_block + list(lines)
-
-	result = list(lines)
-	result[local_index] = GITIGNORE_LOCAL_HEADER
-	if local_index + 1 >= len(result) or result[local_index + 1].strip() != GITIGNORE_LOCAL_NOTICE:
-		result.insert(local_index + 1, GITIGNORE_LOCAL_NOTICE)
-	return result
-
-
-#============================================
-def managed_gitignore_header(block_name: str) -> str:
-	"""Return a managed heading that states its propagation ownership."""
-	header = f'# === {block_name} === [PROPAGATED - LOCAL EDITS OVERWRITTEN]'
-	return header
-
-
-#============================================
-def replace_managed_block(
-	lines: list[str],
-	header: str,
-	block_lines: list[str],
-	rendered_header: str | None = None,
-) -> list[str]:
-	"""
-	Replace or append a named managed block in a line list.
-
-	Finds the named block (starting with header) and replaces it with the new content.
-	If the block is absent, appends at end. Idempotent: works correctly on multiple calls.
-
-	Args:
-		lines (list[str]): Existing lines.
-		header (str): Stable block-header prefix to search for.
-		block_lines (list[str]): New block content (without header).
-		rendered_header (str | None): Clear output heading; defaults to header.
-
-	Returns:
-		list[str]: New line list with the block replaced or appended.
-	"""
-	output_header = rendered_header if rendered_header is not None else header
-	start_idx = -1
-	for i, line in enumerate(lines):
-		if line.startswith(header):
-			start_idx = i
-			break
-
-	if start_idx == -1:
-		# Block not found: append
-		result = list(lines)
-		result.append(output_header)
-		result.extend(block_lines)
-		return result
-
-	# Block found: replace
-	end_idx = start_idx + 1
-	for i in range(start_idx + 1, len(lines)):
-		if lines[i].startswith('# ==='):
-			end_idx = i
-			break
-	else:
-		end_idx = len(lines)
-
-	result = lines[:start_idx] + [output_header] + block_lines + lines[end_idx:]
-	return result
-
-
 # MERGE bucket: set-union merge for @-import list files. See meta/docs/MERGE_BUCKET_SPEC.md.
 
 #============================================
@@ -833,22 +710,17 @@ def merge_gitignore_blocks(repo_dir: str, repo_type: str, template_root: str, co
 	gitignore_universal_path = os.path.join(template_root, 'templates', 'gitignore.universal')
 	universal_lines = load_gitignore_block(gitignore_universal_path)
 
-	universal_header = '# === UNIVERSAL ==='
-
-	# Make repository ownership visible before adding or replacing managed blocks.
-	new_lines = ensure_gitignore_local_section(existing_lines)
-	new_lines = replace_managed_block(
-		new_lines,
-		universal_header,
-		spaced_block(universal_lines),
-		managed_gitignore_header('UNIVERSAL'),
-	)
+	# Extract consumer-owned text first. Rebuilding every propagated section from
+	# scratch both removes obsolete managed content and normalizes a destination
+	# that previously listed its managed headings in an arbitrary order.
+	managed_lines = [
+		repolib.gitignore.managed_gitignore_header('UNIVERSAL'),
+		*repolib.gitignore.spaced_block(universal_lines),
+	]
 
 	# One managed block per declared type that has a non-empty source, in
 	# declaration order. 'all' expands to every type here, so an 'all' repo
 	# receives every typed block rather than only the universal one.
-	# replace_managed_block replaces-or-appends per header, so repeated runs on the
-	# same marker leave the file byte-identical.
 	for declared_type in repolib.model.expand_marker_types(repo_type):
 		gitignore_typed_path = os.path.join(
 			template_root, 'templates', declared_type, f'gitignore.{declared_type}',
@@ -857,13 +729,14 @@ def merge_gitignore_blocks(repo_dir: str, repo_type: str, template_root: str, co
 		if not type_lines:
 			continue
 		block_name = declared_type.upper()
-		type_header = f"# === {block_name} ==="
-		new_lines = replace_managed_block(
-			new_lines,
-			type_header,
-			spaced_block(type_lines),
-			managed_gitignore_header(block_name),
-		)
+		managed_lines.extend([
+			repolib.gitignore.managed_gitignore_header(block_name),
+			*repolib.gitignore.spaced_block(type_lines),
+		])
+
+	consumer_lines = repolib.gitignore.extract_gitignore_consumer_lines(existing_lines)
+	local_lines = repolib.gitignore.ensure_gitignore_local_section(consumer_lines)
+	new_lines = managed_lines + local_lines
 
 	# Build content with proper trailing newline
 	content = '\n'.join(new_lines)

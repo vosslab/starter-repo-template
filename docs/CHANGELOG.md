@@ -1,3 +1,70 @@
+## 2026-09-02
+
+### Additions and New Features
+
+- Added support-directory and root-script-budget pytest gates, plus `tools/TOOLS_README.md` and
+  reciprocal devel guidance. Extracted the Gitignore and reset-finish owners into focused modules.
+- Added a complete `~/nsh` tools/devel usage survey covering 109 Git roots and defining the
+  user-utility, developer-command, application-CLI, and importable-package boundaries.
+- Recorded the settled audience and input/output placement rule in the design-decision ledger.
+
+### Behavior or Interface Changes
+
+- Rendered `.gitignore` now places canonical propagated blocks before the consumer-owned LOCAL
+  block, preserving the LOCAL body while replacing stale recognized managed blocks.
+- Reset removes consumer `pytest.ini` and uses one default-Yes finish decision for stage, commit,
+  and push; config keeps push off by default and reports explicit publication terminal outcomes.
+
+### Fixes and Maintenance
+
+- Removed the reset `pytest.ini` leak while retaining that template-owned configuration for the
+  non-shipping meta suite; trusted file-path loaders and a template-owned propagation changelog
+  writer remove the remaining support-directory import drift.
+- Removed real Git repository, commit, remote, and push implementation checks from permanent
+  pytest; the excluded reset E2E harness owns those workflows and now covers every publication
+  terminal outcome.
+- Removed unused `repolib.files` and `repolib.reset` compatibility facades and the dead
+  `replace_managed_block` helper; callers now use the focused owning modules directly.
+- Review corrections preserved heading-like LOCAL comments, qualified no-finish stage wording,
+  restored source-line budgets, and removed Bandit temporary-literal findings.
+- Six-pass audit corrections refreshed the reset quick start, Gitignore ownership and rendering
+  documentation, plan and survey timing, and Python comment structure.
+- The final audit documented universal `tools/` routing and exact deprecated-path cleanup, aligned
+  live pytest commands with the repository environment, and corrected a legacy LOCAL docstring.
+
+### Decisions and Failures
+
+- Keep the disk-budget `du` check in the base pytest lane; it measures the checkout and the
+  vendored file is restored after deletion. Rejected a footer-comment gate as comment-only policy.
+- The audit stays in `meta/docs/active_plans/audit/`: this template has no archive convention.
+  Its current survey corrects stale historical no-runtime-import claims; consumer repairs remain
+  with their maintainers.
+- Support-directory imports unconditionally reject `tools`, `devel`, and `tests` package roots;
+  documented flat devel and test helpers remain allowed, while tools scripts never import tool
+  siblings. The root-script budget counts tracked `.py` and `.sh` files plus executable-shebang
+  launchers; five or six report and seven or more fail.
+- The six-pass audit left coordinated design work open for destination-first deprecated-path
+  migration and duplicated propagation-changelog parsing.
+- The usage survey classifies Graphify and TypeScript dependency refresh as developer commands,
+  keeps HTML-to-PDF as a user tool, and identifies nine identical stale devel PDF copies for
+  propagation cleanup.
+- Keep one native application, library, or tool-helper package in a named root-level folder. Use
+  `packages/` as the grouping layer when a repository contains multiple native products or
+  packages.
+- Moved the universal Graphify launcher and typed TypeScript dependency refresh into `devel/`.
+  Propagation now retires their former `tools/` paths and the obsolete duplicate
+  `devel/html_to_pdf.mjs` path.
+
+### Developer Tests and Notes
+
+- `source source_me.sh && pytest tests/ -q` passes all 2,211 permanent fast-lane tests.
+- Accepted focused gates cover Gitignore rendering, reset configuration and interview outcomes,
+  support-directory imports, root-script thresholds, documentation hygiene, typing, and pyflakes.
+- A disposable current-candidate clone passed the complete LOCAL reset E2E matrix, including a
+  synthetic bare-origin publication check and a local push-failure outcome; no remote host was
+  contacted. A disposable TypeScript consumer confirmed moved-path cleanup and a clean second
+  propagation pass. Diff checks passed.
+
 ## 2026-08-31
 
 ### Behavior or Interface Changes

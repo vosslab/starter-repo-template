@@ -21,6 +21,7 @@ import pathlib
 import subprocess
 import sys
 import tempfile
+import importlib.util
 
 
 # Anchor sys.path on the local checkout (this file's repo) so repolib imports
@@ -36,9 +37,18 @@ if str(TEMPLATE_ROOT) not in sys.path:
 	sys.path.insert(0, str(TEMPLATE_ROOT))
 
 # local repo modules (sys.path insert above ensures this resolves to the local checkout)
-import devel.changelog_lib
 import repolib.header_sync
 import propagate_style_guides
+
+# ASVS 5.3.2: this path is fixed beneath the repository root resolved above.
+CHANGELOG_LIB_PATH = TEMPLATE_ROOT / "devel" / "changelog_lib.py"
+CHANGELOG_LIB_SPEC = importlib.util.spec_from_file_location(
+	"e2e_header_bucket_changelog_lib", CHANGELOG_LIB_PATH,
+)
+if CHANGELOG_LIB_SPEC is None or CHANGELOG_LIB_SPEC.loader is None:
+	raise RuntimeError(f"Cannot load trusted E2E helper: {CHANGELOG_LIB_PATH}")
+CHANGELOG_LIB = importlib.util.module_from_spec(CHANGELOG_LIB_SPEC)
+CHANGELOG_LIB_SPEC.loader.exec_module(CHANGELOG_LIB)
 
 GUIDANCE_REL = "docs/HUMAN_GUIDANCE.md"
 DECISIONS_REL = "docs/DESIGN_DECISIONS.md"
@@ -195,7 +205,7 @@ def check_content_preserved(before_text: str, after_text: str, file_rel: str) ->
 def check_changelog_compatible(repo_root: pathlib.Path) -> None:
 	"""Verify the generated entry parses cleanly through changelog_lib."""
 	changelog_path = repo_root / "docs" / "CHANGELOG.md"
-	_blocks, entries, warnings = devel.changelog_lib.parse_file(
+	_blocks, entries, warnings = CHANGELOG_LIB.parse_file(
 		str(changelog_path), strict=True, duplicate_policy="raise",
 	)
 	matching_entries = [

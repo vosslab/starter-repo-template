@@ -132,6 +132,128 @@ class TestAnswersFromConfigOptionalDefaults:
 		answers = repolib.reset_answers.answers_from_config(path)
 		assert answers.project_type == "pypi"
 
+	def test_push_defaults_to_false(self, tmp_path: pathlib.Path) -> None:
+		"""Omitting push keeps unattended configuration runs offline."""
+		cfg = {"project_type": "python", "code_license": "MIT"}
+		path = write_json(tmp_path, "cfg.json", cfg)
+		answers = repolib.reset_answers.answers_from_config(path)
+		assert answers.push is False
+
+
+#============================================
+# Finish behavior
+#============================================
+
+class TestFinishPrompt:
+	"""The interactive finish prompt controls every consumer Git finish step."""
+
+	def test_default_yes_enables_stage_commit_and_push(
+		self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path,
+	) -> None:
+		"""An empty finish answer explicitly accepts the default completion path."""
+		monkeypatch.setattr(repolib.reset_answers, "resolve_project_type", lambda root: "python")
+		monkeypatch.setattr(repolib.reset_answers, "resolve_licenses", lambda: ("MIT", "none"))
+		monkeypatch.setattr(repolib.reset_answers, "resolve_pypi", lambda project_type: False)
+		monkeypatch.setattr("builtins.input", lambda prompt: "")
+		consumer_path = tmp_path / "consumer"
+		answers = repolib.reset_answers.answers_from_interview(str(consumer_path))
+		assert (answers.stage, answers.commit, answers.push) == (True, True, True)
+
+	def test_explicit_no_disables_stage_commit_and_push(
+		self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path,
+	) -> None:
+		"""An explicit no declines the full finish sequence."""
+		monkeypatch.setattr(repolib.reset_answers, "resolve_project_type", lambda root: "python")
+		monkeypatch.setattr(repolib.reset_answers, "resolve_licenses", lambda: ("MIT", "none"))
+		monkeypatch.setattr(repolib.reset_answers, "resolve_pypi", lambda project_type: False)
+		monkeypatch.setattr("builtins.input", lambda prompt: "n")
+		consumer_path = tmp_path / "consumer"
+		answers = repolib.reset_answers.answers_from_interview(str(consumer_path))
+		assert (answers.stage, answers.commit, answers.push) == (False, False, False)
+
+	def test_invalid_finish_answer_reprompts_without_authorizing(
+		self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+	) -> None:
+		"""A typo is rejected before an explicit no controls the finish actions."""
+		answers = iter(["typo", "no"])
+		monkeypatch.setattr("builtins.input", lambda prompt: next(answers))
+		assert repolib.reset_answers.resolve_finish() is False
+		assert "Please answer yes or no." in capsys.readouterr().out
+
+
+#============================================
+# Configured publication intent
+#============================================
+
+class TestAnswersFromConfigFinish:
+	"""Configured finish intent is typed, sequential, and safe by default."""
+
+	def test_push_true_is_retained(self, tmp_path: pathlib.Path) -> None:
+		"""A JSON true push value records an explicit publication request."""
+		cfg = {"project_type": "python", "code_license": "MIT", "commit": True, "push": True}
+		path = write_json(tmp_path, "cfg.json", cfg)
+		answers = repolib.reset_answers.answers_from_config(path)
+		assert answers.push is True
+
+	def test_push_false_is_retained(self, tmp_path: pathlib.Path) -> None:
+		"""A JSON false push value preserves the no-publication request."""
+		cfg = {"project_type": "python", "code_license": "MIT", "push": False}
+		path = write_json(tmp_path, "cfg.json", cfg)
+		answers = repolib.reset_answers.answers_from_config(path)
+		assert answers.push is False
+
+	@pytest.mark.parametrize("key", ["stage", "commit", "push"])
+	def test_non_boolean_finish_key_is_rejected(
+		self, tmp_path: pathlib.Path, key: str,
+	) -> None:
+		"""A truthy string cannot accidentally authorize any finish action."""
+		cfg = {"project_type": "python", "code_license": "MIT", key: "yes"}
+		path = write_json(tmp_path, "cfg.json", cfg)
+		with pytest.raises(SystemExit):
+			repolib.reset_answers.answers_from_config(path)
+
+	@pytest.mark.parametrize(
+		"finish",
+		[
+			{"stage": False, "commit": True, "push": False},
+			{"stage": True, "commit": False, "push": True},
+		],
+	)
+	def test_incoherent_finish_chain_is_rejected(
+		self, tmp_path: pathlib.Path, finish: dict[str, bool],
+	) -> None:
+		"""A finish config cannot skip staging or committing before publication."""
+		cfg = {"project_type": "python", "code_license": "MIT", **finish}
+		path = write_json(tmp_path, "cfg.json", cfg)
+		with pytest.raises(SystemExit):
+			repolib.reset_answers.answers_from_config(path)
+
+
+#============================================
+# Pre-mutation summary
+#============================================
+
+class TestConfirmPlan:
+	"""The confirmation summary exposes outbound Git publication intent."""
+
+	def test_summary_states_push_intent(
+		self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+	) -> None:
+		"""A requested push is visible before the user confirms mutation."""
+		answers = repolib.reset_answers.ResetAnswers(
+			project_type="python",
+			code_license="MIT",
+			docs_license="none",
+			pypi=False,
+			stage=True,
+			commit=True,
+			push=True,
+		)
+		monkeypatch.setattr("builtins.input", lambda prompt: "y")
+		repolib.reset.confirm_plan(answers, False, False)
+		output = capsys.readouterr().out
+		assert "push:         yes" in output
+
 
 #============================================
 # Invalid json -> SystemExit

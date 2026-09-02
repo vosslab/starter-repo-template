@@ -59,10 +59,10 @@ def test_root_tools_routes_universal(tmp_path: pathlib.Path) -> None:
 	"""A root tools/ file ships universally at its tools/ consumer path."""
 	tools_dir = tmp_path / 'tools'
 	tools_dir.mkdir()
-	(tools_dir / 'graphify_map_repo.py').write_text('test')
+	(tools_dir / 'user_report.py').write_text('test')
 	for repo_type in repolib.model.REPO_TYPE_ORDER:
 		plan = repolib.plan.compute_propagation_plan(str(tmp_path), repo_type)
-		assert 'tools/graphify_map_repo.py' in plan['overwrite_files']
+		assert 'tools/user_report.py' in plan['overwrite_files']
 
 
 def test_typescript_overlay_tools_ships(tmp_path: pathlib.Path) -> None:
@@ -74,12 +74,24 @@ def test_typescript_overlay_tools_ships(tmp_path: pathlib.Path) -> None:
 	"""
 	tools_dir = tmp_path / 'templates' / 'typescript' / 'tools'
 	tools_dir.mkdir(parents=True)
-	(tools_dir / 'sync_typescript_package_pins.py').write_text('test')
+	(tools_dir / 'html_to_pdf.mjs').write_text('test')
 	plan_ts = repolib.plan.compute_propagation_plan(str(tmp_path), 'typescript')
 	plan_py = repolib.plan.compute_propagation_plan(str(tmp_path), 'python')
-	assert 'tools/sync_typescript_package_pins.py' in plan_ts['overwrite_files']
+	assert 'tools/html_to_pdf.mjs' in plan_ts['overwrite_files']
 	# Other repo types do not get the typescript overlay file.
-	assert 'tools/sync_typescript_package_pins.py' not in plan_py['overwrite_files']
+	assert 'tools/html_to_pdf.mjs' not in plan_py['overwrite_files']
+
+
+#============================================
+def test_typescript_overlay_devel_ships(tmp_path: pathlib.Path) -> None:
+	"""A TypeScript developer command reaches only TypeScript consumers."""
+	devel_dir = tmp_path / 'templates' / 'typescript' / 'devel'
+	devel_dir.mkdir(parents=True)
+	(devel_dir / 'sync_typescript_package_pins.py').write_text('test')
+	plan_ts = repolib.plan.compute_propagation_plan(str(tmp_path), 'typescript')
+	plan_py = repolib.plan.compute_propagation_plan(str(tmp_path), 'python')
+	assert 'sync_typescript_package_pins.py' in plan_ts['devel_files']
+	assert 'sync_typescript_package_pins.py' not in plan_py['devel_files']
 
 
 def test_typescript_overlay_tools_meta_file_basename_excluded(tmp_path: pathlib.Path) -> None:

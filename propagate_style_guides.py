@@ -6,8 +6,8 @@ import argparse
 import datetime
 
 import repolib.console
+import repolib.propagation_changelog
 import repolib.process
-import devel.changelog_lib
 
 
 CHANGELOG_CATEGORY = "Fixes and Maintenance"
@@ -42,9 +42,8 @@ def parse_args() -> argparse.Namespace:
 #============================================
 def record_propagation_changelog(repo_dir: str, date_str: str) -> str:
 	"""Add the canonical propagation entry and return the changelog path."""
-	changelog_path = os.path.join(repo_dir, 'docs', 'CHANGELOG.md')
-	devel.changelog_lib.add_entry(
-		changelog_path, date_str, CHANGELOG_CATEGORY, CHANGELOG_TITLE,
+	changelog_path = repolib.propagation_changelog.record_entry(
+		repo_dir, date_str, CHANGELOG_CATEGORY, CHANGELOG_TITLE,
 	)
 	result = changelog_path
 	return result

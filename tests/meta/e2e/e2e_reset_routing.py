@@ -45,6 +45,7 @@ import os
 import sys
 import glob
 import json
+import re
 import shutil
 import subprocess
 
@@ -86,6 +87,7 @@ TEMPLATE_META_PATHS = [
 	"meta",
 	"templates",
 	"propagate_style_guides.py",
+	"pytest.ini",
 	"reset_repo.py",
 ]
 
@@ -248,8 +250,10 @@ def run_reset_config(clone_dir: str, config_path: str) -> subprocess.CompletedPr
 	return completed
 
 
-def reset_must_succeed(clone_dir: str, config_path: str, label: str) -> None:
-	"""Run reset and abort the harness with diagnostics if it fails."""
+def reset_must_succeed(
+	clone_dir: str, config_path: str, label: str,
+) -> subprocess.CompletedProcess:
+	"""Run reset, require success, and return the completed process."""
 	completed = run_reset_config(clone_dir, config_path)
 	if completed.returncode != 0:
 		print(f"FAIL [{label}]: reset_repo.py exited {completed.returncode}")
@@ -258,6 +262,194 @@ def reset_must_succeed(clone_dir: str, config_path: str, label: str) -> None:
 		print("--- stderr ---")
 		print(completed.stderr)
 		sys.exit(1)
+	return completed
+
+
+#============================================
+# Offline publication cases
+#============================================
+
+def run_git(argv: list[str], cwd: str | None = None) -> subprocess.CompletedProcess:
+	"""Run a Git command and return its captured result without raising.
+
+	Args:
+		argv (list[str]): Complete Git argv, including the ``git`` executable.
+		cwd (str | None): Optional working directory for Git.
+
+	Returns:
+		subprocess.CompletedProcess: Captured process result.
+	"""
+	return subprocess.run(argv, cwd=cwd, capture_output=True, text=True)
+
+
+def must_git_succeed(argv: list[str], cwd: str | None, label: str) -> None:
+	"""Run Git argv or abort with its output under the supplied case label."""
+	result = run_git(argv, cwd)
+	if result.returncode != 0:
+		print(f"FAIL [{label}]: Git command failed: {' '.join(argv)}")
+		print(result.stdout)
+		print(result.stderr)
+		sys.exit(1)
+
+
+def assert_terminal_outcome(
+	completed: subprocess.CompletedProcess,
+	expected_exit: int,
+	expected_line: str,
+	label: str,
+) -> None:
+	"""Assert reset reports its exact machine-distinguishable terminal state."""
+	if completed.returncode != expected_exit:
+		print(f"FAIL [{label}]: reset exited {completed.returncode}, expected {expected_exit}")
+		print(completed.stdout)
+		print(completed.stderr)
+		sys.exit(1)
+	if expected_line not in completed.stdout.splitlines():
+		print(f"FAIL [{label}]: missing terminal line: {expected_line}")
+		print(completed.stdout)
+		sys.exit(1)
+
+
+def assert_stdout_line(
+	completed: subprocess.CompletedProcess, expected_line: str, label: str,
+) -> None:
+	"""Assert reset stdout contains one exact line."""
+	if expected_line not in completed.stdout.splitlines():
+		print(f"FAIL [{label}]: missing output line: {expected_line}")
+		print(completed.stdout)
+		sys.exit(1)
+
+
+def reset_commit_sha(clone_dir: str) -> str:
+	"""Return the exact reset commit SHA after asserting the reset commit exists."""
+	if not reset_commit_present(clone_dir):
+		print("FAIL: expected reset-generated commit is absent")
+		sys.exit(1)
+	result = run_git(["git", "rev-parse", "HEAD"], clone_dir)
+	if result.returncode != 0 or result.stdout.strip() == "":
+		print("FAIL: cannot resolve reset commit SHA")
+		print(result.stderr)
+		sys.exit(1)
+	return result.stdout.strip()
+
+
+def assert_bare_remote_contains_commit(bare_dir: str, commit_sha: str, label: str) -> None:
+	"""Assert a local bare remote has a ref containing the exact reset commit."""
+	result = run_git(
+		["git", "--git-dir", bare_dir, "for-each-ref", "--contains", commit_sha,
+			"--format=%(refname)"],
+	)
+	if result.returncode != 0 or result.stdout.strip() == "":
+		print(f"FAIL [{label}]: bare origin has no ref containing {commit_sha}")
+		print(result.stdout)
+		print(result.stderr)
+		sys.exit(1)
+	print(f"  PASS [{label}]: exact reset commit reached local bare origin")
+
+
+def publication_config() -> dict:
+	"""Return the explicit non-interactive configuration for publication cases."""
+	return {
+		"project_type": "python",
+		"code_license": "MIT",
+		"pypi": False,
+		"stage": True,
+		"commit": True,
+		"push": True,
+	}
+
+
+def remove_path_under_tmp(path: str) -> None:
+	"""Remove a known harness artifact only when it is directly under /tmp."""
+	absolute_path = os.path.abspath(path)
+	if os.path.dirname(absolute_path) != TMP_PARENT:
+		raise ValueError(f"refusing to remove non-/tmp harness path: {absolute_path}")
+	if os.path.isdir(absolute_path):
+		shutil.rmtree(absolute_path, ignore_errors=True)
+	elif os.path.exists(absolute_path):
+		os.remove(absolute_path)
+
+
+def run_offline_publication_cases(mode: str) -> None:
+	"""Exercise publish, no-origin, and push-failure outcomes without a network.
+
+	Every artifact is a consumer-named direct child of /tmp and removed in the
+	finally block, including the config files, clones, and local bare remote.
+	"""
+	if mode != "local":
+		return
+	case_root = os.path.join(TMP_PARENT, "reset_e2e_publication")
+	published_clone = os.path.join(case_root, "reset_e2e_published")
+	missing_origin_clone = os.path.join(case_root, "reset_e2e_no_origin")
+	failed_push_clone = os.path.join(case_root, "reset_e2e_failed_push")
+	bare_origin = os.path.join(case_root, "reset_e2e_origin.git")
+	unreachable_origin = os.path.join(case_root, "reset_e2e_unreachable_origin.git")
+	published_config = os.path.join(case_root, "reset_e2e_published.json")
+	missing_origin_config = os.path.join(case_root, "reset_e2e_no_origin.json")
+	failed_push_config = os.path.join(case_root, "reset_e2e_failed_push.json")
+
+	remove_path_under_tmp(case_root)
+	os.makedirs(case_root, exist_ok=True)
+	try:
+		print("\n=== case local/published_to_local_bare_origin ===")
+		clone_template(mode, published_clone)
+		must_git_succeed(["git", "init", "--bare", bare_origin], None, "local/published")
+		must_git_succeed(
+			["git", "remote", "set-url", "origin", bare_origin], published_clone,
+			"local/published",
+		)
+		write_config_file(publication_config(), published_config)
+		published_result = run_reset_config(published_clone, published_config)
+		assert_terminal_outcome(
+			published_result, 0,
+			"RESET OUTCOME: complete and published to origin (exit 0).",
+			"local/published",
+		)
+		published_sha = reset_commit_sha(published_clone)
+		assert_bare_remote_contains_commit(bare_origin, published_sha, "local/published")
+
+		print("\n=== case local/publication_requested_without_origin ===")
+		clone_template(mode, missing_origin_clone)
+		must_git_succeed(
+			["git", "remote", "remove", "origin"], missing_origin_clone,
+			"local/no-origin",
+		)
+		write_config_file(publication_config(), missing_origin_config)
+		no_origin_result = run_reset_config(missing_origin_clone, missing_origin_config)
+		assert_terminal_outcome(
+			no_origin_result, 2,
+			"RESET OUTCOME: complete; publication requested but no origin remote configured (exit 2).",
+			"local/no-origin",
+		)
+		no_origin_sha = reset_commit_sha(missing_origin_clone)
+		print(f"  PASS [local/no-origin]: reset commit retained locally ({no_origin_sha})")
+
+		print("\n=== case local/publication_push_failed ===")
+		clone_template(mode, failed_push_clone)
+		must_git_succeed(
+			["git", "remote", "set-url", "origin", unreachable_origin], failed_push_clone,
+			"local/push-failed",
+		)
+		write_config_file(publication_config(), failed_push_config)
+		failed_push_result = run_reset_config(failed_push_clone, failed_push_config)
+		assert_terminal_outcome(
+			failed_push_result, 3,
+			"RESET OUTCOME: complete; push attempted and failed (exit 3).",
+			"local/push-failed",
+		)
+		assert_stdout_line(
+			failed_push_result,
+			"Manual publication command: git push origin HEAD",
+			"local/push-failed",
+		)
+		failed_push_sha = reset_commit_sha(failed_push_clone)
+		print(f"  PASS [local/push-failed]: reset commit retained locally ({failed_push_sha})")
+	finally:
+		remove_path_under_tmp(case_root)
+		if os.path.exists(case_root):
+			print(f"FAIL: publication artifacts remain after cleanup: {case_root}")
+			sys.exit(1)
+		print("  PASS [local/publication-cleanup]: /tmp publication artifacts removed")
 
 
 #============================================
@@ -335,6 +527,34 @@ def assert_template_meta_removed(clone_dir: str, label: str) -> None:
 			print(f"    {rel_path}")
 		sys.exit(1)
 	print(f"  PASS [{label}]: template-meta paths removed ({', '.join(TEMPLATE_META_PATHS)})")
+
+
+#============================================
+def assert_test_collection(clone_dir: str, label: str) -> None:
+	"""Assert consumer tests collect successfully without root pytest.ini.
+
+	Args:
+		clone_dir (str): Reset consumer repository root.
+		label (str): Case label for diagnostics.
+	"""
+	result = subprocess.run(
+		["pytest", "tests/", "--collect-only", "-q"],
+		cwd=clone_dir, capture_output=True, text=True,
+	)
+	if result.returncode != 0:
+		print(f"FAIL [{label}]: pytest collection failed after reset")
+		print("--- stdout ---")
+		print(result.stdout)
+		print("--- stderr ---")
+		print(result.stderr)
+		sys.exit(1)
+	match = re.search(r"(\d+) tests? collected", result.stdout)
+	if match is None or int(match.group(1)) == 0:
+		print(f"FAIL [{label}]: pytest collection was empty after reset")
+		print("--- stdout ---")
+		print(result.stdout)
+		sys.exit(1)
+	print(f"  PASS [{label}]: pytest collected {match.group(1)} tests without pytest.ini")
 
 
 def assert_marker(clone_dir: str, expected_type: str, label: str) -> None:
@@ -534,7 +754,7 @@ def run_case(mode: str, case: dict) -> None:
 	# Write the ephemeral config, run reset, then remove the config file.
 	write_config_file(config, config_path)
 	try:
-		reset_must_succeed(clone_dir, config_path, label)
+		completed = reset_must_succeed(clone_dir, config_path, label)
 	finally:
 		# The short-lived config file is always removed, even on failure exit.
 		if os.path.isfile(config_path):
@@ -551,11 +771,25 @@ def run_case(mode: str, case: dict) -> None:
 	)
 	stage = config.get("stage", True)
 	commit = config.get("commit", False)
+	push = config.get("push", False)
+	if not push:
+		if commit:
+			finish_state = "staged and committed"
+		elif stage:
+			finish_state = "staged but not committed"
+		else:
+			finish_state = "finish stage not run; finish commit not run"
+		assert_terminal_outcome(
+			completed, 0,
+			f"RESET OUTCOME: complete; publication not requested ({finish_state}) (exit 0).",
+			label,
+		)
 
 	# (c) engine-derived propagated-file presence.
 	assert_propagated_present(clone_dir, repo_type, label)
 	# (d) reset-specific anchors.
 	assert_template_meta_removed(clone_dir, label)
+	assert_test_collection(clone_dir, label)
 	assert_no_changelog_archives(clone_dir, label)
 	assert_marker(clone_dir, repo_type, label)
 	assert_license_scope(clone_dir, code_license, docs_license, label)
@@ -639,6 +873,7 @@ def main() -> None:
 
 	for case in case_matrix():
 		run_case(mode, case)
+	run_offline_publication_cases(mode)
 
 	print("\n=== SUMMARY ===")
 	print("PASS: all reset clone cases succeeded.")

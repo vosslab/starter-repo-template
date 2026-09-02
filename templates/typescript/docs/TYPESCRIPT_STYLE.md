@@ -18,7 +18,7 @@ never goes stale against a sync run.
   never as a default. Live example: typescript-eslint caps the TypeScript it supports
   (currently `<6.1.0`); if TypeScript outruns typescript-eslint, a temporary `<` cap waits
   for the matching typescript-eslint release rather than breaking lint.
-- Refresh tool: `tools/sync_typescript_package_pins.py` rewrites every pin to `>={latest}`
+- Refresh command: `devel/sync_typescript_package_pins.py` rewrites every pin to `>={latest}`
   from the npm registry. It is a refresh HELPER, not a dependency solver: it writes `>=`
   uniformly and never emits `<` caps, compound ranges, non-`latest` dist-tags, or
   `workspace:*`, and it leaves private/E404 and consumer-extra packages untouched.
