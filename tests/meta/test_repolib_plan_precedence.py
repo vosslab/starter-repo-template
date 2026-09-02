@@ -87,6 +87,17 @@ def test_universal_noexist_overrides_overwrite(tmp_path: pathlib.Path) -> None:
 	assert 'AGENTS.md' in plan['noexist_files']
 
 
+def test_source_line_override_seed_uses_noexist(tmp_path: pathlib.Path) -> None:
+	"""Route the source-line override seed through universal noexist."""
+	tests_dir = tmp_path / 'tests'
+	tests_dir.mkdir()
+	path = 'tests/source_file_line_limit_overrides.txt'
+	(tests_dir / 'source_file_line_limit_overrides.txt').write_text('# exact paths\n')
+	plan = repolib.plan.compute_propagation_plan(str(tmp_path), 'python')
+	assert path in plan['noexist_files']
+	assert path not in plan['test_files']
+
+
 def test_header_files_override_docs_overwrite(tmp_path: pathlib.Path) -> None:
 	"""HEADER entries claim the path from the universal docs OVERWRITE default."""
 	docs_dir = tmp_path / 'docs'

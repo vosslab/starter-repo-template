@@ -226,11 +226,11 @@ Discovery filters files through three layers, in order:
   (for example keep only `__init__.py`). Keep all repo-specific exclusions in
   `tests/conftest.py REPO_HYGIENE_FILTERS`; vendored files hold only universal logic.
 
-The source-file line-limit gate has one narrower manager-approval mechanism rather than a glob
-filter: `tests/source_file_line_limit_overrides.txt` may list exact repo-relative paths for tracked
-sources outside the repo's control, such as downloaded normative specifications. The file is
-optional, repo-owned, and never propagated between repos. Other hygiene exclusions remain in
-`REPO_HYGIENE_FILTERS`.
+The source-file line-limit gate has one narrow manager-approval mechanism:
+`tests/source_file_line_limit_overrides.txt` lists exact repo-relative POSIX paths for tracked
+sources outside the repo's control, such as downloaded normative specifications. Propagation seeds
+the commented file when a consumer lacks it, then the consumer owns its contents. Other hygiene
+exclusions remain in `REPO_HYGIENE_FILTERS`.
 
 A normal hygiene test calls `discover_files` with its `test_key` so Layer 2 can target it:
 

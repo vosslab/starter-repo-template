@@ -95,6 +95,7 @@ universal_noexist:
   - source_me.sh
   - docs/AUTHORS.md
   - tests/TESTS_README.md
+  - tests/source_file_line_limit_overrides.txt
   - pip_requirements-dev.txt
 
 # Files routed to the MERGE bucket (set-union @-import merge).
@@ -120,8 +121,6 @@ meta_files:
   - pip_extras.txt
   - pip_requirements-meta.txt
   - docs/CHANGELOG.md
-  # Manager-owned per-repo policy approvals must not propagate between repos.
-  - tests/source_file_line_limit_overrides.txt
   # A repo's backlog is its own. This file previously landed in overwrite_files
   # for every repo type, so each propagation replaced a consumer's TODO list
   # with this template's. Never ship it; each repo writes its own.

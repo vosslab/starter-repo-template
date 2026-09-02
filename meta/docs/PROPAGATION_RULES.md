@@ -2,7 +2,8 @@
 
 Where to drop a file so the propagator ships it to the right repos.
 
-See [HUMAN_GUIDANCE.md](HUMAN_GUIDANCE.md) for durable propagation decisions and design rationale.
+See [HUMAN_GUIDANCE.md](HUMAN_GUIDANCE.md) for human-stated guidance and
+[DESIGN_DECISIONS.md](DESIGN_DECISIONS.md) for durable propagation decisions and rationale.
 
 ## Hardcoding principles
 
@@ -275,8 +276,8 @@ manifest literals back to `repolib/model.py`.
   AGENTS.md, source_me.sh, dist_clean.sh, and pip_requirements-dev.txt. Add here when introducing
   a new root-level file all repos need.
 - `UNIVERSAL_NOEXIST` -- universal files that ship only when missing at consumer. Default:
-  `.graphifyignore`, AGENTS.md, source_me.sh, docs/AUTHORS.md, tests/TESTS_README.md, and
-  pip_requirements-dev.txt.
+  `.graphifyignore`, AGENTS.md, source_me.sh, docs/AUTHORS.md, tests/TESTS_README.md,
+  tests/source_file_line_limit_overrides.txt, and pip_requirements-dev.txt.
 
 The two sets compose: `ROOT_PROPAGATE_ALLOWLIST` decides IF a root file ships; `UNIVERSAL_NOEXIST`
 then decides HOW (overwrite vs noexist-only). Overlap is intentional: `AGENTS.md` and `source_me.sh`

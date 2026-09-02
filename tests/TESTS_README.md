@@ -98,10 +98,11 @@ Exclusions come from three layers, in order:
   Keep all repo-specific exclusions in `conftest.py REPO_HYGIENE_FILTERS`; vendored files hold
   only universal logic.
 
-The source-file line-limit gate also reads the optional repo-owned
-`tests/source_file_line_limit_overrides.txt`. A manager uses it only for tracked sources outside
-the repo's control, with one exact repo-relative path per line. Blank lines and full-line `#`
-comments are accepted; globs are not. The file never propagates between repos.
+The source-file line-limit gate also reads the repo-owned
+`tests/source_file_line_limit_overrides.txt`. A manager uses it for tracked sources outside the
+repo's control, with one exact repo-relative POSIX path per line. Blank lines and full-line `#`
+comments are accepted. Propagation seeds the file only when the consumer lacks it, then the
+consumer owns its contents.
 
 A normal hygiene test calls `discover_files` with its `test_key`:
 

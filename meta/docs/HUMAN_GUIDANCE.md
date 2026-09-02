@@ -17,6 +17,8 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 
 - Keep the propagated `docs/HUMAN_GUIDANCE.md` and `docs/DESIGN_DECISIONS.md` seeds minimal.
   Record starter-template-specific guidance in this file instead of shipping it to consumer repos.
+- Keep one native application, library, or tool-helper package in a named root-level folder. Use a
+  `packages/` grouping layer when multiple native products or packages need separation.
 - Keep `docs/MARKDOWN_STYLE.md` high-level. Use GitHub Flavored Markdown as its syntax baseline and
   link the official online specification instead of restating fine-grained parsing rules.
 - Support simple pipe tables in Markdown. Direct captions and complex accessible header
@@ -41,6 +43,12 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
   `REPO_HYGIENE_FILTERS`.
 - The line-limit gate keeps only its exact-path manager approval list because
   that policy is specific to the gate.
+- Automatically exclude Markdown under any `docs/active_plans/` or `docs/archive/` tree from the
+  source-code line limit while retaining the limit for other authored source files.
+- Use one exact repo-relative path for each source-line-limit override. Encode universal folder
+  categories in the gate and approve exceptional files individually.
+- Seed `tests/source_file_line_limit_overrides.txt` through universal noexist propagation so new
+  consumers receive its instructions and established consumers retain their approvals.
 
 ## Plan and test gates
 
@@ -103,6 +111,8 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 
 - File location is the primary routing determinant. Agents use location first;
   per-file overrides only when location cannot express the rule.
+- Record a `devel/changelog_lib.py`-compatible changelog entry for each real single-repository
+  propagation maintenance change; idempotent `.gitignore` normalization leaves it unchanged.
 - Every file under `docs/`, `tests/`, `devel/`, and `tools/` ships universally to all
   consumer repos (overwrite bucket by default).
 - Every file under `templates/<type>/` ships to consumer repos of that type,

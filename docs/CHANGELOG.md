@@ -2,6 +2,8 @@
 
 ### Additions and New Features
 
+- Added a commented `tests/source_file_line_limit_overrides.txt` seed through universal noexist
+  propagation, giving new consumers exact-path instructions while preserving existing approvals.
 - Added support-directory and root-script-budget pytest gates, plus `tools/TOOLS_README.md` and
   reciprocal devel guidance. Extracted the Gitignore and reset-finish owners into focused modules.
 - Added a complete `~/nsh` tools/devel usage survey covering 109 Git roots and defining the
@@ -10,6 +12,8 @@
 
 ### Behavior or Interface Changes
 
+- The source-file line-limit gate now automatically excludes Markdown beneath any
+  `docs/active_plans/` or `docs/archive/` tree while retaining coverage for other source types.
 - Rendered `.gitignore` now places canonical propagated blocks before the consumer-owned LOCAL
   block, preserving the LOCAL body while replacing stale recognized managed blocks.
 - Reset removes consumer `pytest.ini` and uses one default-Yes finish decision for stage, commit,
@@ -17,6 +21,12 @@
 
 ### Fixes and Maintenance
 
+- The final six-pass audit aligned archive wording, propagation-ledger navigation, support-tool
+  examples, positive changelog guidance, and the noexist-routing test description.
+- Rephrased source-line-limit guidance around the required exact-path format and individual
+  approvals, following the repository's positive-prompting policy.
+- Restored the shipped human-guidance and design-decision files to neutral consumer seeds and moved
+  starter-template-specific records into `meta/docs/`.
 - Removed the reset `pytest.ini` leak while retaining that template-owned configuration for the
   non-shipping meta suite; trusted file-path loaders and a template-owned propagation changelog
   writer remove the remaining support-directory import drift.
@@ -36,9 +46,11 @@
 
 - Keep the disk-budget `du` check in the base pytest lane; it measures the checkout and the
   vendored file is restored after deletion. Rejected a footer-comment gate as comment-only policy.
-- The audit stays in `meta/docs/active_plans/audit/`: this template has no archive convention.
-  Its current survey corrects stale historical no-runtime-import claims; consumer repairs remain
-  with their maintainers.
+- Use exact source-line-limit overrides for individually approved external files; universal
+  planning/archive exclusions belong in the gate.
+- The audit remains active in `meta/docs/active_plans/audit/`; completed planning artifacts move to
+  `docs/archive/` under the repository convention. Its current survey corrects stale historical
+  no-runtime-import claims; consumer repairs remain with their maintainers.
 - Support-directory imports unconditionally reject `tools`, `devel`, and `tests` package roots;
   documented flat devel and test helpers remain allowed, while tools scripts never import tool
   siblings. The root-script budget counts tracked `.py` and `.sh` files plus executable-shebang
@@ -57,7 +69,7 @@
 
 ### Developer Tests and Notes
 
-- `source source_me.sh && pytest tests/ -q` passes all 2,211 permanent fast-lane tests.
+- `source source_me.sh && pytest tests/ -q` passes all 2,222 permanent fast-lane tests.
 - Accepted focused gates cover Gitignore rendering, reset configuration and interview outcomes,
   support-directory imports, root-script thresholds, documentation hygiene, typing, and pyflakes.
 - A disposable current-candidate clone passed the complete LOCAL reset E2E matrix, including a
