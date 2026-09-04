@@ -13,3 +13,7 @@ origin belongs there too. Rules: [REPO_STYLE.md](REPO_STYLE.md).
 ## Review expectations
 
 ## Working style
+
+- I normally use Graphify update or fresh, sometimes context, and now the cleaned SVG. Keep this
+  command line to those recurring actions, with Ollama available when my Claude usage is maxed out.
+- I want the cleaned SVG only; never put Graphify's full-size SVG under `docs/`.

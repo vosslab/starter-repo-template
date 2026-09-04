@@ -152,8 +152,6 @@ def test_existing_graph_selects_real_update(tmp_path: pathlib.Path) -> None:
 		"graphify",
 		tmp_path,
 		graphify_map_repo.MODE_AUTO,
-		False,
-		graphify_map_repo.LABEL_BACKEND,
 	)
 	assert (operation, command) == ("UPDATING GRAPHIFY CODE MAP", ["graphify", "update", "."])
 	assert is_fresh is False
@@ -168,8 +166,6 @@ def test_missing_graph_selects_code_extraction(tmp_path: pathlib.Path) -> None:
 		"graphify",
 		tmp_path,
 		graphify_map_repo.MODE_AUTO,
-		False,
-		graphify_map_repo.LABEL_BACKEND,
 	)
 	expected = ("EXTRACTING GRAPHIFY CODE MAP", ["graphify", "extract", ".", "--code-only"])
 	assert (operation, command) == expected
@@ -188,8 +184,6 @@ def test_fresh_mode_forces_code_extraction(tmp_path: pathlib.Path) -> None:
 		"graphify",
 		tmp_path,
 		graphify_map_repo.MODE_FRESH,
-		False,
-		graphify_map_repo.LABEL_BACKEND,
 	)
 	expected = ("EXTRACTING GRAPHIFY CODE MAP", ["graphify", "extract", ".", "--code-only"])
 	assert (operation, command) == expected
@@ -205,8 +199,6 @@ def test_update_mode_extracts_when_graph_is_missing(tmp_path: pathlib.Path) -> N
 		"graphify",
 		tmp_path,
 		graphify_map_repo.MODE_UPDATE,
-		False,
-		graphify_map_repo.LABEL_BACKEND,
 	)
 	expected = (
 		"NO EXISTING GRAPH; EXTRACTING FRESH GRAPHIFY CODE MAP",
@@ -214,80 +206,6 @@ def test_update_mode_extracts_when_graph_is_missing(tmp_path: pathlib.Path) -> N
 	)
 	assert (operation, command) == expected
 	assert is_fresh is True
-
-
-#============================================
-
-
-@pytest.mark.parametrize(
-	("label_backend", "expected_model"),
-	[
-		(graphify_map_repo.LABEL_BACKEND, graphify_map_repo.CLAUDE_LABEL_MODEL),
-		(graphify_map_repo.OLLAMA_BACKEND, graphify_map_repo.OLLAMA_MODEL),
-	],
-)
-def test_include_docs_selects_semantic_extraction(
-	tmp_path: pathlib.Path,
-	label_backend: str,
-	expected_model: str,
-) -> None:
-	"""Document scope selects the requested semantic backend and configured model."""
-	operation, command, is_fresh = graphify_map_repo.graph_build_command(
-		"graphify",
-		tmp_path,
-		graphify_map_repo.MODE_FRESH,
-		True,
-		label_backend,
-	)
-	expected_command = [
-		"graphify",
-		"extract",
-		".",
-		f"--backend={label_backend}",
-		f"--model={expected_model}",
-		"--force",
-	]
-	assert (operation, is_fresh) == ("EXTRACTING GRAPHIFY CODE AND SEMANTIC MAP", True)
-	assert command == expected_command
-
-
-#============================================
-
-
-def test_update_docs_selects_incremental_semantic_extraction(tmp_path: pathlib.Path) -> None:
-	"""Document-aware update omits force so Graphify reuses its semantic cache."""
-	output_dir = tmp_path / "graphify-out"
-	output_dir.mkdir()
-	(output_dir / "graph.json").write_text("{}", encoding="utf-8")
-	operation, command, is_fresh = graphify_map_repo.graph_build_command(
-		"graphify",
-		tmp_path,
-		graphify_map_repo.MODE_UPDATE,
-		True,
-		graphify_map_repo.LABEL_BACKEND,
-	)
-	expected_command = [
-		"graphify",
-		"extract",
-		".",
-		f"--backend={graphify_map_repo.LABEL_BACKEND}",
-		f"--model={graphify_map_repo.CLAUDE_LABEL_MODEL}",
-	]
-	assert (operation, is_fresh) == ("UPDATING GRAPHIFY CODE AND SEMANTIC MAP", False)
-	assert command == expected_command
-
-
-#============================================
-
-
-def test_docs_claude_environment_pins_configured_model() -> None:
-	"""Claude semantic extraction receives the maintained model selection."""
-	environment = graphify_map_repo.graph_build_environment(
-		True,
-		graphify_map_repo.LABEL_BACKEND,
-	)
-	assert environment is not None
-	assert environment["GRAPHIFY_CLAUDE_CLI_MODEL"] == graphify_map_repo.CLAUDE_LABEL_MODEL
 
 
 #============================================
@@ -302,6 +220,8 @@ def test_docs_claude_environment_pins_configured_model() -> None:
 		("--update", graphify_map_repo.MODE_UPDATE),
 		("-C", graphify_map_repo.MODE_CONTEXT),
 		("--context", graphify_map_repo.MODE_CONTEXT),
+		("-S", graphify_map_repo.MODE_SVG),
+		("--svg", graphify_map_repo.MODE_SVG),
 	],
 )
 def test_explicit_mode_flags(flag: str, mode: str) -> None:
@@ -313,11 +233,19 @@ def test_explicit_mode_flags(flag: str, mode: str) -> None:
 #============================================
 
 
-@pytest.mark.parametrize("flag", ["-O", "--ollama"])
-def test_ollama_flag_selects_local_backend(flag: str) -> None:
-	"""The explicit Ollama override selects local community labeling."""
-	args = graphify_map_repo.parse_args([flag])
+def test_fresh_ollama_flag_selects_local_backend() -> None:
+	"""The allowance fallback is available for the fresh-build workflow."""
+	args = graphify_map_repo.parse_args(["--fresh", "--ollama"])
 	assert args.label_backend == graphify_map_repo.OLLAMA_BACKEND
+
+
+#============================================
+
+
+def test_ollama_requires_fresh_mode() -> None:
+	"""The local label fallback cannot silently change an update."""
+	with pytest.raises(SystemExit):
+		graphify_map_repo.parse_args(["--ollama"])
 
 
 #============================================
@@ -356,7 +284,7 @@ def test_fresh_ollama_labeling_uses_configured_model(
 	tmp_path: pathlib.Path,
 	monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-	"""Fresh Ollama labeling names every community with the configured model."""
+	"""The local fallback uses its maintained model without contacting Claude."""
 	commands = []
 
 	def record_command(command: list[str], repo_root: pathlib.Path) -> None:
@@ -409,6 +337,35 @@ def test_context_prints_help_for_incomplete_map(
 	output = capsys.readouterr().out
 	assert "No Graphify map exists" in output
 	assert "usage:" in output
+
+
+#============================================
+
+
+def test_svg_uses_the_clean_figure_writer(
+	tmp_path: pathlib.Path,
+	monkeypatch: pytest.MonkeyPatch,
+	capsys: pytest.CaptureFixture,
+) -> None:
+	"""SVG mode writes the cleaned figure and never generates the map page."""
+	output_dir = tmp_path / "graphify-out"
+	output_dir.mkdir()
+	(output_dir / "graph.json").write_text(json.dumps(sample_graph_data()), encoding="utf-8")
+	figure_summary = {
+		"target_bytes": 2048,
+		"removed_labels": 12,
+		"kept_labels": 3,
+	}
+	monkeypatch.setattr(graphify_map_repo, "require_command", lambda _name: "graphify")
+	monkeypatch.setattr(
+		graphify_map_repo.graphify_docs_lib,
+		"build_figure",
+		lambda _command, _root: figure_summary,
+	)
+	graphify_map_repo.write_map_svg(tmp_path)
+	output = capsys.readouterr().out
+	assert "docs/GRAPHIFY_map.svg" in output
+	assert "node labels removed" in output
 
 
 #============================================
@@ -770,24 +727,6 @@ def test_architectural_hubs_reach_the_output() -> None:
 	)
 	assert "- App() (src/app.tsx)" in orientation
 	assert "test_fixture()" not in orientation
-
-
-#============================================
-
-
-def test_global_registration_requires_a_fresh_extraction() -> None:
-	"""Graphify cannot register during an update, so the combination is rejected."""
-	with pytest.raises(SystemExit):
-		graphify_map_repo.parse_args(["--update", "--global"])
-
-
-#============================================
-
-
-def test_deep_extraction_requires_semantic_inputs() -> None:
-	"""Deep mode refines semantic extraction, so it needs the semantic pass."""
-	with pytest.raises(SystemExit):
-		graphify_map_repo.parse_args(["--fresh", "--deep"])
 
 
 #============================================

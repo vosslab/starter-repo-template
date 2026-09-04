@@ -63,34 +63,20 @@ build is the only path that always relabels afterward, so stored labels cannot g
 
 **Owner.** [../devel/graphify_prune_tests.py](../devel/graphify_prune_tests.py)
 
-### The repository-map page is generated, never shared
+### Graphify exposes recurring maintainer actions
 
-**Decision.** `docs/GRAPHIFY.md` and `docs/GRAPHIFY_map.svg` are written by
-`devel/graphify_map_repo.py --page` in each repository, and never copied between repositories.
+**Decision.** The wrapper exposes automatic update, explicit fresh, context, and cleaned SVG
+actions. `--ollama` remains the one fresh-build fallback when the Claude allowance is exhausted.
 
-**Why.** A code map describes the repository it was built from. Files under `docs/` are replaced
-wholesale on sync, so sharing this template's copy would overwrite a repository's own page with a
-map of the wrong codebase.
+**Why.** These are the maintainer's recurring tasks. Semantic extraction, global registration,
+reflection, map-page generation, deep extraction, and forced shrinking add configuration without
+serving the normal workflow.
 
-**Consequence.** Both are recorded as files that never transfer. Exact entries are required rather
-than a filename pattern, because link-bucket classification reads only the exact list, and the page
-must classify as non-shared so it may link to the `devel/` tooling that generates it.
+**Consequence.** `--svg` exports through Graphify but writes only cleaned
+`docs/GRAPHIFY_map.svg`; Graphify's full export stays in generated `graphify-out/`. The cleaned SVG
+is recorded as non-shared because it describes the repository where it was generated.
 
-**Owner.** [../devel/graphify_docs_lib.py](../devel/graphify_docs_lib.py)
-
-### The map page draws its own diagram rather than reusing Graphify's
-
-**Decision.** Generate the Mermaid community diagram from `graph.json`, with no theme directive
-and plain-text labels. Do not extract Graphify's call-flow HTML.
-
-**Why.** Graphify's Mermaid pins a dark theme and uses HTML labels, which renders wrong in GitHub
-light mode and risks sanitization; its per-section diagrams are large dependency dumps. Scraping
-generated HTML would also couple this repository to markup that changes release to release.
-
-**Consequence.** Theme neutrality, label sanitization, and diagram size stay under local control,
-and the generator depends on the graph data rather than on Graphify's presentation layer.
-
-**Owner.** [../devel/graphify_docs_lib.py](../devel/graphify_docs_lib.py)
+**Owner.** [../devel/graphify_map_repo.py](../devel/graphify_map_repo.py)
 
 ### The committed graph figure is decorative
 
@@ -103,7 +89,8 @@ the names a reader needs. Matplotlib is not a required Graphify dependency, so t
 unavailable.
 
 **Consequence.** The figure conveys cluster shape and scale, not detail, so coordinate rounding is
-acceptable. A failed export or an unparsable SVG omits the figure instead of failing the page.
+acceptable. `--svg` reports an unavailable or unparsable export without placing a full-size SVG in
+`docs/`.
 
 **Owner.** [../devel/graphify_clean_svg.py](../devel/graphify_clean_svg.py)
 

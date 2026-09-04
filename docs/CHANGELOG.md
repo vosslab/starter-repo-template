@@ -30,6 +30,10 @@
 
 ### Behavior or Interface Changes
 
+- Minimized `devel/graphify_map_repo.py` to automatic update, `--fresh`, `--update`, `--context`,
+  and `--svg`. The SVG action writes only cleaned `docs/GRAPHIFY_map.svg`; Graphify's full export
+  remains generated under `graphify-out/`. `--ollama` remains available with `--fresh` when the
+  Claude allowance is exhausted.
 - Cross-area connectors now drop symbols spanning more than a quarter of the map, with a floor of
   three communities so small maps still report connectors. A `Timestamp` type joining 34 of about 40
   communities was being presented as a navigational bridge, which it is not.
@@ -76,6 +80,12 @@
 - Refined maintainer guidance so adaptability comes from clear boundaries, stable domain concepts,
   and replaceable components, while speculative mechanisms wait for a concrete requirement or
   likely failure mode.
+
+### Removals and Deprecations
+
+- Removed the wrapper's `--reflect`, `--page`, `--force-shrink`, `--deep`, `--global`, and
+  `--include-docs` controls. Their narrow upstream behaviors do not belong in the recurring
+  repository-mapping workflow.
 
 ### Decisions and Failures
 

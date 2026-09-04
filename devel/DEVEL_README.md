@@ -85,6 +85,13 @@ source source_me.sh && python3 devel/graphify_map_repo.py
 source source_me.sh && python3 devel/graphify_map_repo.py --context
 ```
 
+Force a full refresh only when needed. Use local Ollama when the Claude allowance is exhausted:
+
+```bash
+source source_me.sh && python3 devel/graphify_map_repo.py --fresh
+source source_me.sh && python3 devel/graphify_map_repo.py --fresh --ollama
+```
+
 Prefer targeted Graphify traversal over a broad repository sweep:
 
 ```bash
@@ -93,37 +100,23 @@ graphify explain "<symbol_or_path>"
 graphify affected "<symbol_or_path>" --depth 2
 ```
 
-Record what each query was worth, so the map improves with use. Saved outcomes
-accumulate in `graphify-out/memory/`, and `--reflect` aggregates them into
-`graphify-out/reflections/LESSONS.md`:
+### Cleaned map SVG
+
+`--svg` writes the lightweight `docs/GRAPHIFY_map.svg` from an existing map:
 
 ```bash
-graphify save-result --question "<q>" --answer "<a>" --outcome useful
-source source_me.sh && python3 devel/graphify_map_repo.py --reflect
+source source_me.sh && python3 devel/graphify_map_repo.py --svg
 ```
 
-`graphify-out/` is generated output and stays out of Git, so maps, memory, and
-lessons remain local to each checkout. Scope comes from `.graphifyignore`.
+The wrapper leaves Graphify's full export in generated `graphify-out/` and copies
+only the cleaned SVG to `docs/`. The cleaner strips unreadable per-symbol labels
+but preserves the community legend, so the result shows cluster shape and scale
+rather than source-level detail. Graphify renders the export with matplotlib,
+which is optional; an unavailable export leaves no SVG output.
 
-### Browsable map page
-
-`--page` writes `docs/GRAPHIFY.md`: a Mermaid diagram of how the communities
-connect, a size and language summary, a community table, and the most-connected
-symbols in each area. GitHub renders the diagram natively.
-
-```bash
-source source_me.sh && python3 devel/graphify_map_repo.py --page
-```
-
-The page also embeds `docs/GRAPHIFY_map.svg`, a cleaned version of Graphify's
-SVG export with the per-symbol labels stripped and the community legend kept.
-That figure is decorative: it shows cluster shape and scale, not readable
-detail. Graphify renders the export with matplotlib, which is not one of its
-required dependencies, so a machine without matplotlib simply gets the page
-with no figure.
-
-Both files describe the repository they were generated in, so each repository
-regenerates its own and neither is shared between repositories.
+`graphify-out/` is generated output and stays out of Git. The cleaned SVG
+describes the repository where it was generated, so it is never shared between
+repositories. Scope comes from `.graphifyignore`.
 
 ### Rust test symbols
 
