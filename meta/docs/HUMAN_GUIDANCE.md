@@ -12,8 +12,10 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
   affect correctness, maintainability, delivery, or the maintainer's routine use.
 - Apply the `Focus on important issues` philosophy directly. Finish consequential work before
   considering generalization, speculative flexibility, or low-impact polish.
-- Design software for adaptability so it can evolve with changing requirements and new insights
-  while remaining functional and relevant.
+- Prefer adaptability over speculative edge-case handling. Use clear boundaries, stable domain
+  concepts, and replaceable components so unexpected cases can be handled later without redesign.
+- Address concrete requirements and likely failure modes now. Add mechanisms, policies, and tests
+  when supported by an actual need rather than a hypothetical future case.
 - Treat a good-enough system as a valid stopping point when pursuing perfection would slow useful
   progress without a proportionate long-term benefit.
 
@@ -78,6 +80,8 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 ## Graphify orientation
 
 - Keep the Graphify manager and subagent orientation short and repository-specific.
+- Keep the final Graphify SVG's major repository area labels visible; these are the groups that
+  explain the graph.
 - Ship `devel/graphify_map_repo.py` to every repository type and retain it during new-repository
   reset; all repositories need the same maintainer-facing Graphify navigation entry point.
 - Report when the graph was mapped rather than Graphify's `built_at_commit`. The map includes

@@ -1,12 +1,10 @@
 """Behavior tests for the propagated Graphify repository mapping tool."""
 
 # Standard Library
-import importlib.machinery
-import importlib.util
+import sys
 import json
 import pathlib
 import datetime
-import types
 
 # PIP3 modules
 import pytest
@@ -16,14 +14,17 @@ import file_utils
 
 
 # OWASP ASVS 5.0.0 V5.3.2: this fixed path uses trusted, internal components.
-SCRIPT_PATH: pathlib.Path = pathlib.Path(file_utils.get_repo_root()) / "devel" / "graphify_map_repo.py"
-SPEC: importlib.machinery.ModuleSpec | None = importlib.util.spec_from_file_location(
-	"graphify_map_repo", SCRIPT_PATH
-)
-assert SPEC is not None
-assert SPEC.loader is not None
-graphify_map_repo: types.ModuleType = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(graphify_map_repo)
+# pytest.ini is template-meta and never propagates, but this test does, so the
+# devel/ directory is placed on sys.path here rather than relying on the
+# template's pythonpath setting. graphify_map_repo imports its sibling
+# graphify_context_lib, so both must resolve the same way a direct
+# `python3 devel/graphify_map_repo.py` run resolves them.
+DEVEL_DIR: pathlib.Path = pathlib.Path(file_utils.get_repo_root()) / "devel"
+if str(DEVEL_DIR) not in sys.path:
+	sys.path.insert(0, str(DEVEL_DIR))
+
+import graphify_context_lib
+import graphify_map_repo
 
 
 #============================================
@@ -415,7 +416,7 @@ def test_context_prints_help_for_incomplete_map(
 
 def test_structured_orientation_uses_mapping_time_not_commit() -> None:
 	"""Manager context leads with the working-tree map's local timestamp."""
-	orientation = graphify_map_repo.format_orientation(
+	orientation = graphify_context_lib.format_orientation(
 		sample_mapped_at(),
 		sample_graph_data(),
 		analysis_data=sample_analysis_data(),
@@ -471,28 +472,41 @@ def test_bridge_is_cross_community_instead_of_high_degree() -> None:
 		"surprises": [],
 	}
 	labels_data = {"0": "Area A", "1": "Area B", "2": "Area C"}
-	orientation = graphify_map_repo.format_orientation(
+	orientation = graphify_context_lib.format_orientation(
 		sample_mapped_at(),
 		graph_data,
 		analysis_data=analysis_data,
 		labels_data=labels_data,
 	)
 	assert "Bridge() - connects Area A, Area B, and Area C" in orientation
-	assert "Hub()" not in orientation
+	# The god node may appear as an architectural hub; what it must never do is
+	# take the cross-area connector slot that belongs to the real bridge.
+	assert "Hub() - connects" not in orientation
 
 
 #============================================
 
 
 def test_cross_area_connector_output_is_bounded() -> None:
-	"""One large connector summarizes communities beyond the display bound."""
+	"""One large connector summarizes communities beyond the display bound.
+
+	The map needs enough communities that a connector spanning this many of them
+	is still a real bridge rather than a repository-wide utility type, otherwise
+	the spread filter rejects it before the display bound is ever reached.
+	"""
 	community_names = tuple(
 		f"Area {index:02d}"
-		for index in range(graphify_map_repo.MAX_CONNECTOR_COMMUNITIES + 2)
+		for index in range(graphify_context_lib.MAX_CONNECTOR_COMMUNITIES + 2)
 	)
 	quoted_names = ", ".join(f"`{name}`" for name in community_names)
+	spanning_community_count = len(community_names)
+	total_community_count = int(
+		spanning_community_count / graphify_context_lib.MAX_CONNECTOR_SPREAD_RATIO
+	)
 	analysis_data = {
-		"communities": {"0": ["bridge"]},
+		"communities": {
+			str(index): ["bridge"] for index in range(total_community_count)
+		},
 		"questions": [
 			{
 				"type": "bridge_node",
@@ -502,13 +516,13 @@ def test_cross_area_connector_output_is_bounded() -> None:
 		"surprises": [],
 		"gods": [],
 	}
-	orientation = graphify_map_repo.format_orientation(
+	orientation = graphify_context_lib.format_orientation(
 		sample_mapped_at(), None,
 		analysis_data=analysis_data,
 		labels_data={"0": "Bridge Area"},
 	)
 	visible_names = ", ".join(
-		community_names[:graphify_map_repo.MAX_CONNECTOR_COMMUNITIES]
+		community_names[:graphify_context_lib.MAX_CONNECTOR_COMMUNITIES]
 	)
 	assert f"- Bridge() - connects {visible_names}, and 2 more" in orientation
 
@@ -520,7 +534,7 @@ def test_large_analysis_hard_caps_major_areas() -> None:
 	"""A large graph cannot expand manager context past the configured area cap."""
 	communities = {}
 	labels = {}
-	for index in range(graphify_map_repo.MAX_COMMUNITIES + 2):
+	for index in range(graphify_context_lib.MAX_COMMUNITIES + 2):
 		community_id = str(index)
 		communities[community_id] = [f"node-{index}-a", f"node-{index}-b"]
 		labels[community_id] = f"Area {index:02d}"
@@ -530,7 +544,7 @@ def test_large_analysis_hard_caps_major_areas() -> None:
 		"surprises": [],
 		"gods": [],
 	}
-	orientation = graphify_map_repo.format_orientation(
+	orientation = graphify_context_lib.format_orientation(
 		sample_mapped_at(), None,
 		analysis_data=analysis_data,
 		labels_data=labels,
@@ -544,10 +558,10 @@ def test_large_analysis_hard_caps_major_areas() -> None:
 
 def test_small_graph_without_sidecars_still_produces_context() -> None:
 	"""Graph JSON alone is sufficient for useful deterministic context."""
-	first_output = graphify_map_repo.format_orientation(
+	first_output = graphify_context_lib.format_orientation(
 		sample_mapped_at(), sample_graph_data()
 	)
-	second_output = graphify_map_repo.format_orientation(
+	second_output = graphify_context_lib.format_orientation(
 		sample_mapped_at(), sample_graph_data()
 	)
 	assert "Major repository areas:" in first_output
@@ -582,7 +596,7 @@ Nodes (8): StateMap
 - **Why does `Finding` connect `Scene Linting` to `State Management`?**
 """
 	(output_dir / "GRAPH_REPORT.md").write_text(report_text, encoding="utf-8")
-	orientation = graphify_map_repo.manager_context(tmp_path)
+	orientation = graphify_context_lib.manager_context(tmp_path)
 	assert orientation is not None
 	assert "Finding - connects Scene Linting and State Management" in orientation
 
@@ -592,7 +606,7 @@ Nodes (8): StateMap
 
 def test_orientation_omits_graphify_diagnostics() -> None:
 	"""Context contains repository structure, not artifact or maintenance diagnostics."""
-	orientation = graphify_map_repo.format_orientation(
+	orientation = graphify_context_lib.format_orientation(
 		sample_mapped_at(),
 		sample_graph_data(),
 		analysis_data=sample_analysis_data(),
@@ -616,10 +630,10 @@ def test_manager_context_file_matches_terminal_context(tmp_path: pathlib.Path) -
 	"""Build output saves the exact deterministic context shown to managers."""
 	output_dir = tmp_path / "graphify-out"
 	output_dir.mkdir()
-	context = graphify_map_repo.format_orientation(
+	context = graphify_context_lib.format_orientation(
 		sample_mapped_at(), sample_graph_data()
 	)
-	context_path = graphify_map_repo.write_manager_context(tmp_path, context)
+	context_path = graphify_context_lib.write_manager_context(tmp_path, context)
 	assert context_path.name == "MANAGER_CONTEXT.md"
 	assert context_path.read_text(encoding="utf-8") == f"{context}\n"
 
@@ -634,7 +648,182 @@ def test_graph_data_loader_rejects_missing_links(tmp_path: pathlib.Path) -> None
 	graph_text = json.dumps({"nodes": []})
 	(output_dir / "graph.json").write_text(graph_text, encoding="utf-8")
 	with pytest.raises(RuntimeError, match="no links list"):
-		graphify_map_repo.load_graph_data(tmp_path)
+		graphify_context_lib.load_graph_data(tmp_path)
+
+
+#============================================
+
+
+def bridge_analysis_data(community_count: int, spans: dict[str, int]) -> dict:
+	"""Build analysis data whose bridges span a chosen number of communities."""
+	area_names = [f"Area {index:02d}" for index in range(community_count)]
+	questions = []
+	for label, span in spans.items():
+		quoted = ", ".join(f"`{name}`" for name in area_names[:span])
+		questions.append({
+			"type": "bridge_node",
+			"question": f"Why does `{label}` connect {quoted}?",
+		})
+	return {
+		"communities": {str(index): ["node"] for index in range(community_count)},
+		"questions": questions,
+		"surprises": [],
+		"gods": [],
+	}
+
+
+#============================================
+
+
+def test_repository_wide_type_is_not_a_connector() -> None:
+	"""A symbol spanning most of the map is a utility type, not a bridge."""
+	analysis_data = bridge_analysis_data(
+		community_count=40,
+		spans={"Timestamp": 34, "GitHubClient": 3},
+	)
+	orientation = graphify_context_lib.format_orientation(
+		sample_mapped_at(), None, analysis_data=analysis_data
+	)
+	assert "GitHubClient - connects" in orientation
+	assert "Timestamp" not in orientation
+
+
+#============================================
+
+
+def test_small_map_still_reports_its_connectors() -> None:
+	"""The spread floor keeps a tiny map from rejecting every connector it has."""
+	analysis_data = bridge_analysis_data(
+		community_count=4,
+		spans={"SharedClient": 3},
+	)
+	orientation = graphify_context_lib.format_orientation(
+		sample_mapped_at(), None, analysis_data=analysis_data
+	)
+	assert "SharedClient - connects" in orientation
+
+
+#============================================
+
+
+def test_notable_relationships_exclude_test_symbols() -> None:
+	"""Notable relationships report architecture, not the test suite."""
+	analysis_data = {
+		"communities": {"0": ["a"]},
+		"questions": [],
+		"gods": [],
+		"surprises": [
+			{
+				"source": "schedule_defaults_are_kept()",
+				"target": "SchedulePolicy",
+				"relation": "uses",
+				"source_files": ["tests/test_schedule.py", "src/policy.py"],
+			},
+			{
+				"source": "publish_report_date()",
+				"target": "PublicationRuntime",
+				"relation": "references",
+				"source_files": ["src/publish.py", "src/runtime.py"],
+			},
+		],
+	}
+	orientation = graphify_context_lib.format_orientation(
+		sample_mapped_at(), None, analysis_data=analysis_data
+	)
+	assert "publish_report_date() references PublicationRuntime." in orientation
+	assert "SchedulePolicy" not in orientation
+
+
+#============================================
+
+
+def test_test_symbols_are_not_offered_as_connectors() -> None:
+	"""The same test predicate guards the connector list, not only relationships."""
+	analysis_data = bridge_analysis_data(
+		community_count=40,
+		spans={"test_fixture_registry": 3, "GitHubClient": 3},
+	)
+	orientation = graphify_context_lib.format_orientation(
+		sample_mapped_at(), None, analysis_data=analysis_data
+	)
+	assert "GitHubClient - connects" in orientation
+	assert "test_fixture_registry" not in orientation
+
+
+#============================================
+
+
+def test_architectural_hubs_reach_the_output() -> None:
+	"""Architectural hubs give managers a source path and omit test scaffolding."""
+	analysis_data = sample_analysis_data()
+	analysis_data["gods"].append(
+		{"id": "fixture", "label": "test_fixture()", "degree": 30}
+	)
+	graph_data = sample_graph_data()
+	graph_data["nodes"].append({
+		"id": "fixture",
+		"label": "test_fixture()",
+		"source_file": "tests/test_fixture.py",
+	})
+	orientation = graphify_context_lib.format_orientation(
+		sample_mapped_at(), graph_data, analysis_data=analysis_data
+	)
+	assert "- App() (src/app.tsx)" in orientation
+	assert "test_fixture()" not in orientation
+
+
+#============================================
+
+
+def test_global_registration_requires_a_fresh_extraction() -> None:
+	"""Graphify cannot register during an update, so the combination is rejected."""
+	with pytest.raises(SystemExit):
+		graphify_map_repo.parse_args(["--update", "--global"])
+
+
+#============================================
+
+
+def test_deep_extraction_requires_semantic_inputs() -> None:
+	"""Deep mode refines semantic extraction, so it needs the semantic pass."""
+	with pytest.raises(SystemExit):
+		graphify_map_repo.parse_args(["--fresh", "--deep"])
+
+
+#============================================
+
+
+def test_stale_map_still_prints_full_orientation(
+	tmp_path: pathlib.Path, capsys: pytest.CaptureFixture
+) -> None:
+	"""Staleness is advisory: orientation is the point of context mode."""
+	output_dir = tmp_path / "graphify-out"
+	output_dir.mkdir()
+	graph_text = json.dumps(sample_graph_data())
+	(output_dir / "graph.json").write_text(graph_text, encoding="utf-8")
+	(output_dir / "needs_update").write_text("", encoding="utf-8")
+	graphify_map_repo.print_context(tmp_path)
+	printed = capsys.readouterr().out
+	assert "Major repository areas:" in printed
+	assert "Map is stale" in printed
+
+
+#============================================
+
+
+def test_lessons_file_is_pointed_at_when_present(tmp_path: pathlib.Path) -> None:
+	"""Manager context routes readers to prior query outcomes when they exist."""
+	output_dir = tmp_path / "graphify-out"
+	output_dir.mkdir()
+	graph_text = json.dumps(sample_graph_data())
+	(output_dir / "graph.json").write_text(graph_text, encoding="utf-8")
+	without_lessons = graphify_context_lib.manager_context(tmp_path)
+	reflections_dir = output_dir / "reflections"
+	reflections_dir.mkdir()
+	(reflections_dir / "LESSONS.md").write_text("# Lessons\n", encoding="utf-8")
+	with_lessons = graphify_context_lib.manager_context(tmp_path)
+	assert "Prior query outcomes" not in without_lessons
+	assert "graphify-out/reflections/LESSONS.md" in with_lessons
 
 
 # Vendored pytest file. Local changes can and will be overwritten.

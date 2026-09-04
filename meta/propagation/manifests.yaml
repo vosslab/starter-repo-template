@@ -125,6 +125,14 @@ meta_files:
   # for every repo type, so each propagation replaced a consumer's TODO list
   # with this template's. Never ship it; each repo writes its own.
   - docs/TODO.md
+  # A repo's code map describes that repo. devel/graphify_map_repo.py --page
+  # regenerates both per repository, so shipping this template's copy would
+  # overwrite a consumer's page with a map of the wrong codebase. Exact entries
+  # rather than a meta_file_patterns glob: link-bucket classification reads
+  # META_FILES and META_DIRS only, and the page must classify as meta so it may
+  # link to devel/ tooling.
+  - docs/GRAPHIFY.md
+  - docs/GRAPHIFY_map.svg
 
 # Glob patterns (template-root-relative) that NEVER ship. Rotation archives like
 # docs/CHANGELOG-2026-06a.md must not propagate; the active docs/CHANGELOG.md stays
