@@ -77,9 +77,9 @@ shared_overlays:
       - other
 
 # Root-level files repolib propagates (ships) to every consumer repo's root.
-# ROOT_PROPAGATE_ALLOWLIST says a root file MAY ship; universal_noexist refines
-# HOW it ships (overwrite vs noexist-only). Overlap with universal_noexist is
-# intentional (AGENTS.md, source_me.sh).
+# ROOT_PROPAGATE_ALLOWLIST says a root file MAY ship; special file-policy lists
+# below refine HOW it ships. Overlap with universal_noexist is intentional for
+# AGENTS.md and source_me.sh.
 root_propagate_allowlist:
   - .graphifyignore
   - CLAUDE.md
@@ -96,6 +96,9 @@ universal_noexist:
   - docs/AUTHORS.md
   - tests/TESTS_README.md
   - tests/source_file_line_limit_overrides.txt
+
+# Root development requirements use a dedicated managed/local merge policy.
+requirements_files:
   - pip_requirements-dev.txt
 
 # Files routed to the MERGE bucket (set-union @-import merge).
@@ -125,7 +128,7 @@ meta_files:
   # for every repo type, so each propagation replaced a consumer's TODO list
   # with this template's. Never ship it; each repo writes its own.
   - docs/TODO.md
-  # A repo's code map describes that repo. devel/graphify_map_repo.py --page
+  # A repo's code map describes that repo. devel/graphify_map_repo.py --svg
   # regenerates both per repository, so shipping this template's copy would
   # overwrite a consumer's page with a map of the wrong codebase. Exact entries
   # rather than a meta_file_patterns glob: link-bucket classification reads

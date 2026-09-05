@@ -65,34 +65,46 @@ build is the only path that always relabels afterward, so stored labels cannot g
 
 ### Graphify exposes recurring maintainer actions
 
-**Decision.** The wrapper exposes automatic update, explicit fresh, context, and cleaned SVG
-actions. `--ollama` remains the one fresh-build fallback when the Claude allowance is exhausted.
+**Decision.** The wrapper exposes automatic update, explicit fresh, context, and documentation
+publication. `--svg` composes with fresh or update and also publishes an existing map by itself.
+`--ollama` remains the one fresh-build fallback when the Claude allowance is exhausted.
 
 **Why.** These are the maintainer's recurring tasks. Semantic extraction, global registration,
 reflection, map-page generation, deep extraction, and forced shrinking add configuration without
 serving the normal workflow.
 
-**Consequence.** `--svg` exports through Graphify but writes only cleaned
-`docs/GRAPHIFY_map.svg`; Graphify's full export stays in generated `graphify-out/`. The cleaned SVG
-is recorded as non-shared because it describes the repository where it was generated.
+**Consequence.** `--svg` writes both `docs/GRAPHIFY.md` and `docs/GRAPHIFY_map.svg`. Both are
+recorded as non-shared because they describe the repository where they were generated.
 
 **Owner.** [../devel/graphify_map_repo.py](../devel/graphify_map_repo.py)
 
 ### The committed graph figure is decorative
 
-**Decision.** Strip per-symbol labels from the exported SVG, keep the community legend, and treat
-the whole figure step as optional.
+**Decision.** Generate the SVG directly from community membership and intercommunity edges. Show
+at most the largest twelve communities, scale circles by membership, weight connecting lines, and
+keep names and detail in Markdown rather than an SVG legend.
 
-**Why.** The export is matplotlib output: text is emitted as per-glyph references, so a 452-symbol
-map costs 1.9 MB, and 452 overlapping filename labels are unreadable anyway. The legend carries
-the names a reader needs. Matplotlib is not a required Graphify dependency, so the export can be
-unavailable.
+**Why.** Full Graphify exports grow with every symbol and embed font glyphs for labels that are not
+readable at repository-map scale. A community-level figure preserves the important visual
+relationships while Markdown provides accessible, searchable names and repository-derived prose.
 
-**Consequence.** The figure conveys cluster shape and scale, not detail, so coordinate rounding is
-acceptable. `--svg` reports an unavailable or unparsable export without placing a full-size SVG in
-`docs/`.
+**Consequence.** The figure conveys relative community scale and coupling rather than code-level
+detail. Publication has no matplotlib, SVG-cleaning, or XML-parser dependency.
 
-**Owner.** [../devel/graphify_clean_svg.py](../devel/graphify_clean_svg.py)
+**Owner.** [../devel/graphify_docs_lib.py](../devel/graphify_docs_lib.py)
+
+### Recent untracked Markdown links are temporary working-tree inputs
+
+**Decision.** The Markdown link checker admits nonignored untracked regular files as sources and
+targets only while their creation age is strictly less than 24 hours.
+
+**Why.** Newly authored documentation often links to another new file before staging, while older,
+ignored, missing, and outside-repository paths should continue to fail the GitHub-browsability gate.
+
+**Consequence.** Git supplies candidates through `ls-files --others --exclude-standard`; one
+captured current time classifies birth time, or ctime where birth time is unavailable.
+
+**Owner.** [../tests/test_markdown_links.py](../tests/test_markdown_links.py)
 
 ### Graphify orientation filters test symbols instead of trusting the graph
 

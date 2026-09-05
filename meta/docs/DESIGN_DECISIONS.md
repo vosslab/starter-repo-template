@@ -59,6 +59,22 @@ native packages give each one a distinct home under `packages/`.
 
 ## Propagation
 
+### Development requirements have split ownership
+
+**Decision.** Propagate `pip_requirements-dev.txt` through a dedicated bucket that owns a marked
+universal package block and preserves the repository-specific local block.
+
+**Why.** NOEXIST freezes shared dependencies at repository creation, while OVERWRITE would erase
+packages each repository needs. Requirement-aware merging can refresh shared tools without
+confusing comments, directives, extras, or version constraints with package identity.
+
+**Consequence.** Marker-free consumers migrate automatically. Canonical package names identify
+universal duplicates, the template specification wins during migration, and ambiguous ownership
+markers stop the write.
+
+**Owner.** [repolib/requirements_sync.py](../../repolib/requirements_sync.py) and
+[REQUIREMENTS_BUCKET_SPEC.md](REQUIREMENTS_BUCKET_SPEC.md).
+
 ### Gitignore migration preserves local content
 
 **Decision.** Recognize every shipped LOCAL-section banner and relocate its consumer-owned body

@@ -53,6 +53,8 @@ merge_files:
   - SYNTH_MERGE.md
 header_files:
   - SYNTH_HEADER.md
+requirements_files:
+  - SYNTH_REQUIREMENTS.txt
 meta_files:
   - SYNTH_META.md
 meta_file_patterns:

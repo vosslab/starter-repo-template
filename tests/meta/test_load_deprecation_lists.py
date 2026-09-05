@@ -130,7 +130,10 @@ def test_deprecated_gitignore_entries_have_no_whitespace() -> None:
 def _flatten_plan(plan: dict[str, list[str]]) -> list[str]:
 	"""Flatten every bucket into one list of strings for membership checks."""
 	flat = []
-	for bucket in ('overwrite_files', 'noexist_files', 'devel_files', 'test_files'):
+	for bucket in (
+		'overwrite_files', 'noexist_files', 'merge_files', 'header_files',
+		'requirements_files', 'devel_files', 'test_files',
+	):
 		flat.extend(plan.get(bucket, []))
 	flat.extend(plan.get('gitignore_block', []))
 	return flat

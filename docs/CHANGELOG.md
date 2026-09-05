@@ -1,3 +1,57 @@
+## 2026-09-05
+
+### Additions and New Features
+
+- Added a dedicated development-requirements propagation bucket. It seeds missing files, migrates
+  marker-free consumers, compares parseable requirements by canonical package name, refreshes the
+  universal block, and preserves repository-specific dependencies, comments, and pip directives.
+- Reworked `devel/graphify_docs_lib.py` to generate a compact community-level SVG directly from
+  `graph.json`, plus repository-group, major-community, and graph-observation prose in
+  `docs/GRAPHIFY.md`.
+
+### Behavior or Interface Changes
+
+- Made `--svg` independent of the mutually exclusive Graphify lifecycle modes. Bare `--svg`
+  publishes an existing graph; `--fresh --svg` and `--update --svg` build and publish in one run.
+- The Markdown link checker now includes nonignored untracked regular files as sources and targets
+  while their creation age is strictly under 24 hours. It captures one current time per scan, uses
+  macOS birth time with a ctime fallback, and continues to reject ignored or older paths.
+
+### Fixes and Maintenance
+
+- Re-verified the completed support-directory work without changing it: the repository survey and
+  reciprocal `tools/` and `devel/` documentation are present, and the focused import-boundary gate
+  passes all 136 cases.
+- Updated propagation routing, source resolution coverage, meta-leak checks, reset E2E inventory,
+  maintainer guidance, and bucket documentation for the new requirements policy.
+- Regenerated only this repository's Graphify artifacts after an incremental map update. The page
+  now reflects the new requirements synchronizer and places its SVG immediately below the title.
+
+### Removals and Deprecations
+
+- Removed the matplotlib SVG cleanup stage, its focused tests, and the `lxml` development
+  requirement from this template. Future propagation leaves consumer-owned legacy copies intact.
+- Removed all six completed entries from `meta/docs/TODO.md`.
+
+### Decisions and Failures
+
+- The committed Graphify illustration shows only the largest twelve communities. Circle size
+  represents membership and line weight represents intercommunity relationships; readable names
+  and source detail belong in Markdown rather than a per-community SVG legend.
+- Left other repositories' existing Graphify artifacts unchanged. Their compact pages regenerate
+  the next time their maintainers run `--svg`.
+- Requirements synchronization is defined and tested in this template; applying it to another
+  repository remains an explicit maintainer operation.
+
+### Developer Tests and Notes
+
+- `source source_me.sh && python3 -m pytest tests/ -q` passes all 2,377 permanent fast-lane tests.
+- Focused requirements synchronization cases verify marker-free migration, managed precedence,
+  local-content order, later updates, malformed-marker refusal, and missing-file seeding.
+- A one-time render at 1600 by 900 pixels confirmed the unlabeled community figure remains clear.
+  The prior 405 KB cleaned full-graph SVG is now a 3.3 KB self-contained SVG; no byte-size gate was
+  added.
+
 ## 2026-09-04
 
 ### Additions and New Features

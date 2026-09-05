@@ -1,11 +1,10 @@
-"""Behavior tests for the propagated Graphify repository-map page builder."""
+"""Behavior tests for the propagated Graphify documentation builder."""
 
 # Standard Library
-import re
 import sys
+import re
+import json
 import pathlib
-import subprocess
-import unittest.mock
 
 # PIP3 modules
 import pytest
@@ -16,8 +15,7 @@ import file_utils
 
 # OWASP ASVS 5.0.0 V5.3.2: this fixed path uses trusted, internal components.
 # pytest.ini is template-meta and never propagates, but this test does, so the
-# devel/ directory is placed on sys.path here rather than relying on the
-# template's pythonpath setting.
+# devel/ directory is placed on sys.path here.
 DEVEL_DIR: pathlib.Path = pathlib.Path(file_utils.get_repo_root()) / "devel"
 if str(DEVEL_DIR) not in sys.path:
 	sys.path.insert(0, str(DEVEL_DIR))
@@ -25,14 +23,11 @@ if str(DEVEL_DIR) not in sys.path:
 import graphify_docs_lib
 
 
-MERMAID_NODE_PATTERN = re.compile(r"^    ([A-Za-z0-9_]+)\[", re.MULTILINE)
-
-
 #============================================
 
 
 def sample_graph_data() -> dict:
-	"""Return a two-community graph with one link crossing between them."""
+	"""Return a two-community graph with one relationship crossing between them."""
 	graph_data = {
 		"nodes": [
 			{
@@ -54,7 +49,7 @@ def sample_graph_data() -> dict:
 				"label": "GitHubClient",
 				"community": 1,
 				"community_name": "GitHub API Client",
-				"source_file": "src/github.py",
+				"source_file": "tools/github.py",
 			},
 		],
 		"links": [
@@ -68,10 +63,24 @@ def sample_graph_data() -> dict:
 #============================================
 
 
-def test_diagram_emits_no_theme_directive() -> None:
-	"""GitHub themes Mermaid per reader; a pinned theme breaks light mode."""
-	diagram = graphify_docs_lib.format_mermaid_overview(sample_graph_data(), None)
-	assert "%%{init" not in diagram
+def test_page_places_figure_before_repository_derived_prose() -> None:
+	"""The figure is the first content and summaries come from graph data."""
+	page = graphify_docs_lib.format_page(sample_graph_data(), None)
+	first_lines = page.splitlines()[:5]
+	assert first_lines[:3] == [
+		"# Repository map", "", "![Community-level repository graph](GRAPHIFY_map.svg)",
+	]
+	assert "3 symbols and 2 relationships into 2 communities" in page
+
+
+#============================================
+
+
+def test_page_describes_repository_groups_and_major_communities() -> None:
+	"""Source areas and Graphify communities both appear in the generated prose."""
+	page = graphify_docs_lib.format_page(sample_graph_data(), None)
+	assert "| `src` | 2 | 1 | 1 |" in page
+	assert "| Run Storage | 2 | `src/store.py`" in page
 
 
 #============================================
@@ -79,89 +88,54 @@ def test_diagram_emits_no_theme_directive() -> None:
 
 @pytest.mark.parametrize(
 	"unsafe_text",
-	["<br/>", "<small>hidden</small>", "&amp;", '"quoted"', "] ---|9| injected["],
+	["<small>hidden</small>", "&amp;", '"quoted"', "] injected["],
 )
-def test_diagram_sanitizes_generated_labels(unsafe_text: str) -> None:
-	"""Generated community names cannot inject HTML or Mermaid syntax."""
+def test_page_sanitizes_generated_community_names(unsafe_text: str) -> None:
+	"""Generated community names cannot inject HTML or Markdown table structure."""
 	graph_data = sample_graph_data()
 	graph_data["nodes"][2]["community_name"] = f"GitHub {unsafe_text} Client"
-	diagram = graphify_docs_lib.format_mermaid_overview(graph_data, None)
-	assert unsafe_text not in diagram
+	page = graphify_docs_lib.format_page(graph_data, None)
+	assert unsafe_text not in page
 
 
 #============================================
 
 
-def test_diagram_node_ids_are_identifier_safe() -> None:
-	"""Community names become ids, so punctuation must not reach the diagram."""
-	graph_data = sample_graph_data()
-	graph_data["nodes"][2]["community_name"] = "Package.json Scripts & Config"
-	diagram = graphify_docs_lib.format_mermaid_overview(graph_data, None)
-	identifiers = MERMAID_NODE_PATTERN.findall(diagram)
-	assert identifiers and all(
-		re.fullmatch(r"[A-Za-z0-9_]+", identifier) is not None
-		for identifier in identifiers
-	)
+def test_svg_is_self_contained_unlabeled_and_membership_scaled() -> None:
+	"""The compact figure uses circles and lines without a text legend or external data."""
+	svg_text = graphify_docs_lib.format_community_svg(sample_graph_data(), None)
+	radii = re.findall(r'<circle [^>]*r="([0-9.]+)"', svg_text)
+	assert float(radii[0]) > float(radii[1])
+	assert "<text" not in svg_text and "href=" not in svg_text
 
 
 #============================================
 
 
-def test_diagram_shows_communities_and_their_crossing_links() -> None:
-	"""Boxes carry the community size and edges carry the crossing count."""
-	diagram = graphify_docs_lib.format_mermaid_overview(sample_graph_data(), None)
-	assert all(
-		label in diagram
-		for label in ('["Run Storage (2)"]', '["GitHub API Client (1)"]')
-	)
-	# One link crosses communities; the containment link stays inside one.
-	assert "---|1|" in diagram
+def test_svg_output_is_deterministic() -> None:
+	"""Identical graph data produces byte-identical community illustrations."""
+	first = graphify_docs_lib.format_community_svg(sample_graph_data(), None)
+	second = graphify_docs_lib.format_community_svg(sample_graph_data(), None)
+	assert first == second
 
 
 #============================================
 
 
-def test_summary_omits_the_benchmark_row_when_unavailable() -> None:
-	"""A failed benchmark drops one row rather than failing the page."""
-	rows = graphify_docs_lib.format_summary_table(sample_graph_data(), None, None)
-	joined = "\n".join(rows)
-	assert "Token reduction" not in joined
-
-
-#============================================
-
-
-def test_detail_sections_exclude_test_symbols() -> None:
-	"""The same predicate that guards orientation also guards the page."""
-	graph_data = sample_graph_data()
-	graph_data["nodes"].append({
-		"id": "case",
-		"label": "test_writes_a_run()",
-		"community": 0,
-		"community_name": "Run Storage",
-		"source_file": "tests/test_store.py",
-	})
-	sections = "\n".join(graphify_docs_lib.format_community_sections(graph_data, None))
-	assert "`RunStore`" in sections
-	assert "test_writes_a_run" not in sections
-
-
-#============================================
-
-
-def test_invalid_svg_export_is_nonfatal(
-	tmp_path: pathlib.Path,
-	monkeypatch: pytest.MonkeyPatch,
-) -> None:
-	"""An unparsable optional figure does not prevent page generation."""
-	output_dir = tmp_path / graphify_docs_lib.graphify_context_lib.OUTPUT_DIR_NAME
+def test_write_docs_writes_both_fixed_artifacts(tmp_path: pathlib.Path) -> None:
+	"""One publication action writes the page and its compact SVG."""
+	output_dir = tmp_path / "graphify-out"
+	docs_dir = tmp_path / "docs"
 	output_dir.mkdir()
-	(output_dir / graphify_docs_lib.EXPORTED_SVG_NAME).write_text("<svg>", encoding="utf-8")
-	completed = subprocess.CompletedProcess(["graphify", "export", "svg"], 0)
-	mock_run = unittest.mock.Mock(return_value=completed)
-	monkeypatch.setattr(graphify_docs_lib.subprocess, "run", mock_run)
-	summary = graphify_docs_lib.build_figure("graphify", tmp_path)
-	assert summary is None
+	docs_dir.mkdir()
+	(output_dir / "graph.json").write_text(
+		json.dumps(sample_graph_data()), encoding="utf-8",
+	)
+	page_path, figure_path = graphify_docs_lib.write_docs(tmp_path)
+	assert page_path.read_text(encoding="ascii").startswith(
+		"# Repository map\n\n![Community-level repository graph](GRAPHIFY_map.svg)"
+	)
+	assert figure_path.read_text(encoding="ascii").startswith("<svg")
 
 
 # Vendored pytest file. Local changes can and will be overwritten.

@@ -76,6 +76,7 @@ routing coverage are present in the template.
 | Universal gitignore blocks | templates/gitignore.universal | every repo, merged into .gitignore under `# === UNIVERSAL ===` |
 | MERGE bucket (set-union @-import merge with strip list) | template root + add to `MERGE_FILES` | every repo; template @-imports union-added to consumer; strip list at `meta/propagation/deprecated_claude_md.txt` removes retired entries (see [MERGE_BUCKET_SPEC.md](MERGE_BUCKET_SPEC.md)) |
 | HEADER bucket (consumer-owned file with a vendored header region) | docs/ (or another shipping location) + add to `header_files` | every repo; seeded whole when absent, then only the marked region is refreshed while consumer entries stay untouched (see [HEADER_BUCKET_SPEC.md](HEADER_BUCKET_SPEC.md)) |
+| REQUIREMENTS bucket (managed universal packages plus local dependencies) | template root + add to `requirements_files` | every repo; migrate marker-free files, refresh the managed block, preserve repository dependencies (see [REQUIREMENTS_BUCKET_SPEC.md](REQUIREMENTS_BUCKET_SPEC.md)) |
 | Universal consumer tool | tools/<file> | every repo, overwrite; retained during reset |
 | Universal developer command | devel/<file> | every repo, overwrite; retained during reset |
 | Template-only tooling | meta/tools/<file> | never (template-meta); removed at reset |
@@ -250,10 +251,13 @@ File routing honors a strict precedence order; earlier rules win on conflict:
 1. **META_FILES / META_DIRS** - Files in these block-lists never ship to any consumer, even if matched by other rules.
 2. **MERGE_FILES** - Files in this set route to the `merge_files` bucket regardless of where the walker would otherwise place them. A post-walker routing step in `compute_propagation_plan` moves matching entries out of `overwrite_files` / `noexist_files` into `merge_files`. See [MERGE_BUCKET_SPEC.md](MERGE_BUCKET_SPEC.md).
 3. **HEADER_FILES** - Its own post-walker routing step, same shape: matching entries move out of `overwrite_files` / `noexist_files` into `header_files`, because seed-plus-refresh subsumes both policies. See [HEADER_BUCKET_SPEC.md](HEADER_BUCKET_SPEC.md).
-4. **ROUTING_OVERRIDES** - Per-file exceptions. Currently the only supported field is `exclude_repos` (blocks a file from shipping to its source repo). Language and requires_repo_file gates have been removed; use location-based routing or conditional overlays instead.
-5. **UNIVERSAL_NOEXIST** - Files in this list override the universal overwrite default; they move to noexist_files instead.
-6. **Typed noexist** - Templates/<type>/noexist/<path> overrides typed overlay overwrite; same path in noexist always wins.
-7. **Typed overlay shadows universal** - When both universal and typed overlay define the same consumer destination, the typed version ships. The propagator prints `[OVERLAY-OVERRIDE] <consumer-path>: typed overlay shadows universal source` to stdout for visibility.
+4. **REQUIREMENTS_FILES** - Root manifests in this set route to `requirements_files`, where the
+   universal dependency block refreshes and local dependencies remain consumer-owned. See
+   [REQUIREMENTS_BUCKET_SPEC.md](REQUIREMENTS_BUCKET_SPEC.md).
+5. **ROUTING_OVERRIDES** - Per-file exceptions. Currently the only supported field is `exclude_repos` (blocks a file from shipping to its source repo). Language and requires_repo_file gates have been removed; use location-based routing or conditional overlays instead.
+6. **UNIVERSAL_NOEXIST** - Files in this list override the universal overwrite default; they move to noexist_files instead.
+7. **Typed noexist** - Templates/<type>/noexist/<path> overrides typed overlay overwrite; same path in noexist always wins.
+8. **Typed overlay shadows universal** - When both universal and typed overlay define the same consumer destination, the typed version ships. The propagator prints `[OVERLAY-OVERRIDE] <consumer-path>: typed overlay shadows universal source` to stdout for visibility.
 
 ## Classification criterion
 
@@ -263,6 +267,9 @@ Every file the propagator ships is classified into one policy category. The clas
 - **MERGE** -- template ships an `@`-import set; the propagator union-adds it to the consumer file and strips entries listed in `meta/propagation/deprecated_claude_md.txt`. Consumer-local `@`-imports and non-`@` content are preserved. Currently used by `CLAUDE.md` only. See [MERGE_BUCKET_SPEC.md](MERGE_BUCKET_SPEC.md).
 - **NOEXIST** -- starter seed; consumer owns the file thereafter. Use when the consumer reasonably extends the file with project-specific content the template cannot anticipate (e.g., `AGENTS.md`, `source_me.sh`, `tsconfig.json`, deploy scripts).
 - **HEADER** -- starter seed whose vendored marker region the template keeps current. The consumer owns every entry outside that region; the template rewrites the region on every sync. Use when the consumer owns the content but the template ships instructions that must stay correctable, rather than freezing at seed time. See [HEADER_BUCKET_SPEC.md](HEADER_BUCKET_SPEC.md).
+- **REQUIREMENTS** -- parsed package merge for development manifests. The template owns the
+  marked universal block; the repository owns dependencies, comments, and directives beneath the
+  local marker. See [REQUIREMENTS_BUCKET_SPEC.md](REQUIREMENTS_BUCKET_SPEC.md).
 - **META** -- never ships, any bucket, any repo type. Use for template-only infrastructure (propagator itself, reset_repo, README, VERSION) and per-repo content the template cannot author (CHANGELOG, .gitignore, REPO_TYPE).
 
 ## Exceptions in the manifest
@@ -273,11 +280,11 @@ Most additions are drop-and-go. All manifests live in `meta/propagation/manifest
 manifest literals back to `repolib/model.py`.
 
 - `ROOT_PROPAGATE_ALLOWLIST` -- root files that DO ship. Default: `.graphifyignore`, CLAUDE.md,
-  AGENTS.md, source_me.sh, dist_clean.sh, and pip_requirements-dev.txt. Add here when introducing
+  AGENTS.md, source_me.sh, and pip_requirements-dev.txt. Add here when introducing
   a new root-level file all repos need.
 - `UNIVERSAL_NOEXIST` -- universal files that ship only when missing at consumer. Default:
   `.graphifyignore`, AGENTS.md, source_me.sh, docs/AUTHORS.md, tests/TESTS_README.md,
-  tests/source_file_line_limit_overrides.txt, and pip_requirements-dev.txt.
+  and tests/source_file_line_limit_overrides.txt.
 
 The two sets compose: `ROOT_PROPAGATE_ALLOWLIST` decides IF a root file ships; `UNIVERSAL_NOEXIST`
 then decides HOW (overwrite vs noexist-only). Overlap is intentional: `AGENTS.md` and `source_me.sh`
@@ -292,6 +299,9 @@ deprecation-strip list); consumer keeps any local `@`-imports and non-`@` conten
   its vendored marker region is rewritten while the consumer's own entries stay byte-for-byte
   intact. Adding a file needs a manifest entry plus a marked block in the template source; the
   helper carries no per-file knowledge. See [HEADER_BUCKET_SPEC.md](HEADER_BUCKET_SPEC.md).
+- `REQUIREMENTS_FILES` -- files routed to the requirements-aware managed/local bucket. Default:
+  `pip_requirements-dev.txt`. See
+  [REQUIREMENTS_BUCKET_SPEC.md](REQUIREMENTS_BUCKET_SPEC.md).
 - `meta/propagation/deprecated_claude_md.txt` -- user-editable strip manifest for the CLAUDE.md
   set-union merge. Lines in this file are removed from every consumer CLAUDE.md on every sync (after
   comment/blank-line filtering). Add a line when retiring an `@`-import from the template.

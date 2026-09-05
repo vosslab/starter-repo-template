@@ -98,6 +98,15 @@ def test_source_line_override_seed_uses_noexist(tmp_path: pathlib.Path) -> None:
 	assert path not in plan['test_files']
 
 
+def test_development_requirements_use_dedicated_bucket(tmp_path: pathlib.Path) -> None:
+	"""Development requirements merge universal packages while preserving local ones."""
+	path = 'pip_requirements-dev.txt'
+	(tmp_path / path).write_text('pytest\n')
+	plan = repolib.plan.compute_propagation_plan(str(tmp_path), 'python')
+	assert path in plan['requirements_files']
+	assert path not in plan['noexist_files'] and path not in plan['overwrite_files']
+
+
 def test_header_files_override_docs_overwrite(tmp_path: pathlib.Path) -> None:
 	"""HEADER entries claim the path from the universal docs OVERWRITE default."""
 	docs_dir = tmp_path / 'docs'

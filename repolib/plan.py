@@ -26,7 +26,7 @@ def resolve_spec_for_type(repo_type: str, template_root: str | None = None, coun
 		repo_dir (str | None): Optional consumer repository for requirement checks.
 
 	Returns:
-		dict: Six-bucket propagation specification.
+		dict: Propagation specification with each file-policy bucket.
 
 	Raises:
 		ValueError: When repo_type contains an unknown type.
@@ -158,6 +158,8 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 	- 'merge_files': paths routed to the set-union @-import merge bucket
 	- 'header_files': consumer-owned paths seeded whole when absent, then refreshed
 	  inside their vendored marker region
+	- 'requirements_files': development manifests with managed universal packages
+	  and consumer-owned local packages
 	- 'devel_files': bare filenames under devel/ at consumer
 	- 'test_files': paths under tests/ at consumer
 	- 'gitignore_block': pattern lines for .gitignore
@@ -208,6 +210,7 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 		'noexist_files': [],
 		'merge_files': [],
 		'header_files': [],
+		'requirements_files': [],
 		'devel_files': [],
 		'test_files': [],
 		'gitignore_block': [],
@@ -477,5 +480,16 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 		if path not in plan['header_files']:
 			assert_not_meta(path)
 			plan['header_files'].append(path)
+
+	# 8. Apply REQUIREMENTS_FILES routing. This dedicated bucket owns package
+	# lines within explicit markers and preserves repository-specific content.
+	for path in repolib.model.REQUIREMENTS_FILES:
+		if path in plan['overwrite_files']:
+			plan['overwrite_files'].remove(path)
+		if path in plan['noexist_files']:
+			plan['noexist_files'].remove(path)
+		if path not in plan['requirements_files']:
+			assert_not_meta(path)
+			plan['requirements_files'].append(path)
 
 	return plan

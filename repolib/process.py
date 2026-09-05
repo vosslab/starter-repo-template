@@ -12,6 +12,7 @@ import repolib.console
 import repolib.files
 import repolib.header_sync
 import repolib.license_migration
+import repolib.requirements_sync
 import repolib.plan
 import repolib.model
 import repolib.repo
@@ -133,7 +134,8 @@ def apply_file_bucket(bucket_name: str, spec: dict, repo_dir: str, repo_type: st
 
 	Args:
 		bucket_name: A bucket key present in spec: 'overwrite_files', 'noexist_files',
-			'merge_files', 'header_files', 'devel_files', or 'test_files'.
+			'merge_files', 'header_files', 'requirements_files', 'devel_files', or
+			'test_files'.
 		spec: The spec dict containing every bucket list.
 		repo_dir: The repo directory path.
 		repo_type: The detected repo type.
@@ -309,6 +311,32 @@ def apply_file_bucket(bucket_name: str, spec: dict, repo_dir: str, repo_type: st
 			elif outcome == 'created':
 				bucket_copies += 1
 
+	elif bucket_name == 'requirements_files':
+		# ============ REQUIREMENTS BUCKET ============
+		# Requirements: seed a missing file, migrate a marker-free file, then
+		# replace only the universal managed block on later synchronizations.
+		for file_rel in spec['requirements_files']:
+			source_file = _source_for_bucket(file_rel, 'overwrite_files')
+			if source_file is None:
+				counters['errors'] += 1
+				repolib.console.log_action(
+					"error", f"source missing for requirements_files:{file_rel}",
+				)
+				continue
+
+			dest_file = os.path.join(repo_dir, file_rel)
+			if os.path.abspath(dest_file) == os.path.abspath(source_file):
+				repolib.console.log_action("skip", f"self: {dest_file}", counters)
+				continue
+
+			outcome = repolib.requirements_sync.sync_development_requirements(
+				source_file, dest_file, context.dry_run, counters,
+			)
+			if outcome == 'merged':
+				bucket_updates += 1
+			elif outcome == 'created':
+				bucket_copies += 1
+
 	elif bucket_name == 'test_files':
 		# ============ TEST BUCKET ============
 		# Test: copy to tests/<file_rel> preserving tests/ prefix; auto-discovered files merge here.
@@ -350,7 +378,8 @@ def process_repo(repo_dir: str, context: repolib.model.PropagateContext, counter
 	Process a single repository: read type, discover files, and perform propagation.
 
 	Handles all per-repo logic: type detection, legacy license migration, directory
-	creation, file propagation across the buckets (overwrite, noexist, merge, header, devel, test),
+	creation, file propagation across the buckets (overwrite, noexist, merge, header,
+	requirements, devel, test),
 	gitignore management,
 	and optionally per-repo summary output. Updates counters in-place.
 
@@ -480,6 +509,11 @@ def process_repo(repo_dir: str, context: repolib.model.PropagateContext, counter
 	repo_skips += skips
 
 	updates, copies, skips = apply_file_bucket('header_files', spec, repo_dir, repo_type, context, counters)
+	repo_updates += updates
+	repo_copies += copies
+	repo_skips += skips
+
+	updates, copies, skips = apply_file_bucket('requirements_files', spec, repo_dir, repo_type, context, counters)
 	repo_updates += updates
 	repo_copies += copies
 	repo_skips += skips

@@ -49,9 +49,8 @@ consumer migration direction.
 | [dist_clean.sh](dist_clean.sh) | Remove build artifacts, caches, and dependency installs. |
 | [graphify_map_repo.py](graphify_map_repo.py) | Build repository maps and manager orientation for technical maintenance. |
 | [graphify_context_lib.py](graphify_context_lib.py) | Load artifacts and format orientation. |
-| [graphify_docs_lib.py](graphify_docs_lib.py) | Render a browsable repository map. |
+| [graphify_docs_lib.py](graphify_docs_lib.py) | Render a compact SVG and repository map page. |
 | [graphify_prune_tests.py](graphify_prune_tests.py) | Remove Rust tests before clustering. |
-| [graphify_clean_svg.py](graphify_clean_svg.py) | Shrink an exported SVG figure. |
 
 ## Propagated devel scripts
 
@@ -100,23 +99,30 @@ graphify explain "<symbol_or_path>"
 graphify affected "<symbol_or_path>" --depth 2
 ```
 
-### Cleaned map SVG
+### Published map page
 
-`--svg` writes the lightweight `docs/GRAPHIFY_map.svg` from an existing map:
+`--svg` writes both `docs/GRAPHIFY.md` and its compact `docs/GRAPHIFY_map.svg` from an
+existing map:
 
 ```bash
 source source_me.sh && python3 devel/graphify_map_repo.py --svg
 ```
 
-The wrapper leaves Graphify's full export in generated `graphify-out/` and copies
-only the cleaned SVG to `docs/`. The cleaner strips unreadable per-symbol labels
-but preserves the community legend, so the result shows cluster shape and scale
-rather than source-level detail. Graphify renders the export with matplotlib,
-which is optional; an unavailable export leaves no SVG output.
+Add the flag to a build when the map and published documentation should advance together:
 
-`graphify-out/` is generated output and stays out of Git. The cleaned SVG
-describes the repository where it was generated, so it is never shared between
-repositories. Scope comes from `.graphifyignore`.
+```bash
+source source_me.sh && python3 devel/graphify_map_repo.py --update --svg
+source source_me.sh && python3 devel/graphify_map_repo.py --fresh --svg
+```
+
+The figure is generated directly from `graph.json`. It shows the largest twelve communities,
+scales circles by membership, and weights lines by intercommunity relationships. It carries no
+per-symbol labels or legend; names, repository groups, representative symbols, and observations
+remain readable and searchable in the Markdown page.
+
+`graphify-out/` is generated output and stays out of Git. The page and SVG describe the repository
+where they were generated, so neither is shared between repositories. Scope comes from
+`.graphifyignore`.
 
 ### Rust test symbols
 

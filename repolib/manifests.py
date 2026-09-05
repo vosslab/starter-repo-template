@@ -24,6 +24,7 @@ SET_MANIFEST_KEYS = (
 	'universal_noexist',
 	'merge_files',
 	'header_files',
+	'requirements_files',
 	'meta_files',
 	'meta_file_patterns',
 	'meta_dirs',

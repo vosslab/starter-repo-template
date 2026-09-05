@@ -80,8 +80,10 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 ## Graphify orientation
 
 - Keep the Graphify manager and subagent orientation short and repository-specific.
-- Keep the final Graphify SVG's major repository area labels visible; these are the groups that
-  explain the graph.
+- Publish a compact community-level Graphify SVG without per-symbol labels or a legend; keep the
+  repository groups, community names, and observations readable in `docs/GRAPHIFY.md`.
+- Let `--svg` publish an existing map alone or compose with `--fresh` and `--update` so graph data
+  and documentation can advance in one command.
 - Ship `devel/graphify_map_repo.py` to every repository type and retain it during new-repository
   reset; all repositories need the same maintainer-facing Graphify navigation entry point.
 - Report when the graph was mapped rather than Graphify's `built_at_commit`. The map includes
@@ -128,9 +130,10 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 - Every file under `templates/<type>/` ships to consumer repos of that type,
   at its consumer-relative path (e.g. `templates/python/foo.py` ships as `foo.py`).
 - `docs/PYTHON_STYLE.md` ships to all repo types. It is a universal doc.
-- `pip_requirements-dev.txt` ships universally (root `root_propagate_allowlist`
-  + `universal_noexist`). `pip_requirements.txt` is python-only noexist
-  (`templates/python/noexist/pip_requirements.txt`).
+- `pip_requirements-dev.txt` ships through its dedicated managed/local requirements bucket. The
+  universal package block refreshes while repository-specific dependencies remain local.
+- `pip_requirements.txt` is a Python-only noexist seed at
+  `templates/python/noexist/pip_requirements.txt`.
 - `.graphifyignore` ships universally as a noexist seed. Its shared defaults exclude
   `tests/`, `devel/`, `tools/`, and `docs/`; each consumer may add local exclusions afterward.
 - Every propagation run invokes the conservative root-license migration in

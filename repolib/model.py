@@ -56,6 +56,8 @@ LANG_UNKNOWN = 'unknown'
 #   MERGE_FILES: files routed to the set-union @-import merge bucket.
 #   HEADER_FILES: consumer-owned files seeded whole when absent, then refreshed
 #     inside their vendored marker region. See meta/docs/HEADER_BUCKET_SPEC.md.
+#   REQUIREMENTS_FILES: requirement manifests whose universal package block is
+#     managed while repository-specific dependencies remain consumer-owned.
 #   META_FILES / META_DIRS: files and dirs that NEVER ship (template-meta).
 #   META_FILE_PATTERNS: glob patterns that never ship, e.g. changelog archives.
 #   SKIP_WALK_DIRS: dirs skipped during os.walk of the source template.
@@ -100,6 +102,7 @@ ROOT_PROPAGATE_ALLOWLIST = _MANIFESTS['root_propagate_allowlist']
 UNIVERSAL_NOEXIST = _MANIFESTS['universal_noexist']
 MERGE_FILES = _MANIFESTS['merge_files']
 HEADER_FILES = _MANIFESTS['header_files']
+REQUIREMENTS_FILES = _MANIFESTS['requirements_files']
 META_FILES = _MANIFESTS['meta_files']
 # Glob patterns (template-root-relative) that never ship, e.g. changelog archives.
 META_FILE_PATTERNS = _MANIFESTS['meta_file_patterns']

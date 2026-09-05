@@ -76,7 +76,10 @@ def _all_plan_entries(plan: dict) -> list[str]:
 	"""Flatten every file-path bucket in a plan into one list for presence checks."""
 	# devel_files holds bare names; all others hold repo-relative paths.
 	entries = []
-	for bucket in ('overwrite_files', 'noexist_files', 'merge_files', 'test_files'):
+	for bucket in (
+		'overwrite_files', 'noexist_files', 'merge_files', 'header_files',
+		'requirements_files', 'test_files',
+	):
 		entries.extend(plan[bucket])
 	for name in plan['devel_files']:
 		entries.append('devel/' + name)

@@ -464,7 +464,8 @@ def expected_propagated_paths(repo_type: str, clone_dir: str) -> list[str]:
 	shared-overlay predicates see the clone's on-disk state. The plan's buckets are mapped to
 	consumer destination paths via target_path_for_bucket semantics:
 
-	  - overwrite_files, noexist_files, merge_files: repo-root-relative as-is.
+	  - overwrite_files, noexist_files, merge_files, header_files, and
+	    requirements_files: repo-root-relative as-is.
 	  - devel_files: bare names, landing at devel/<name>.
 	  - test_files: already carry the tests/ prefix.
 
@@ -482,7 +483,10 @@ def expected_propagated_paths(repo_type: str, clone_dir: str) -> list[str]:
 	)
 	consumer_paths: set[str] = set()
 	# Plain repo-root-relative buckets ship at their own path.
-	for bucket in ("overwrite_files", "noexist_files", "merge_files"):
+	for bucket in (
+		"overwrite_files", "noexist_files", "merge_files", "header_files",
+		"requirements_files",
+	):
 		for rel_path in plan[bucket]:
 			consumer_paths.add(rel_path)
 	# devel_files are bare names landing under devel/.

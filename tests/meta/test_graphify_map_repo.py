@@ -220,14 +220,39 @@ def test_update_mode_extracts_when_graph_is_missing(tmp_path: pathlib.Path) -> N
 		("--update", graphify_map_repo.MODE_UPDATE),
 		("-C", graphify_map_repo.MODE_CONTEXT),
 		("--context", graphify_map_repo.MODE_CONTEXT),
-		("-S", graphify_map_repo.MODE_SVG),
-		("--svg", graphify_map_repo.MODE_SVG),
 	],
 )
 def test_explicit_mode_flags(flag: str, mode: str) -> None:
 	"""Each documented flag selects its matching lifecycle mode."""
 	args = graphify_map_repo.parse_args([flag])
 	assert args.mode == mode
+
+
+#============================================
+
+
+@pytest.mark.parametrize(
+	"argv",
+	[
+		["--svg"],
+		["--fresh", "--svg"],
+		["--update", "--svg"],
+		["--context", "--svg"],
+	],
+)
+def test_svg_is_independent_of_the_lifecycle_mode(argv: list[str]) -> None:
+	"""Publishing composes with explicit modes and works alone on existing data."""
+	args = graphify_map_repo.parse_args(argv)
+	assert args.write_svg is True
+
+
+#============================================
+
+
+def test_lifecycle_modes_remain_mutually_exclusive() -> None:
+	"""Fresh, update, and context still cannot select conflicting graph actions."""
+	with pytest.raises(SystemExit):
+		graphify_map_repo.parse_args(["--fresh", "--update", "--svg"])
 
 
 #============================================
@@ -342,30 +367,28 @@ def test_context_prints_help_for_incomplete_map(
 #============================================
 
 
-def test_svg_uses_the_clean_figure_writer(
+def test_svg_writes_the_page_and_community_figure(
 	tmp_path: pathlib.Path,
 	monkeypatch: pytest.MonkeyPatch,
 	capsys: pytest.CaptureFixture,
 ) -> None:
-	"""SVG mode writes the cleaned figure and never generates the map page."""
+	"""SVG publication delegates both fixed artifacts to the documentation writer."""
 	output_dir = tmp_path / "graphify-out"
 	output_dir.mkdir()
 	(output_dir / "graph.json").write_text(json.dumps(sample_graph_data()), encoding="utf-8")
-	figure_summary = {
-		"target_bytes": 2048,
-		"removed_labels": 12,
-		"kept_labels": 3,
-	}
-	monkeypatch.setattr(graphify_map_repo, "require_command", lambda _name: "graphify")
+	docs_dir = tmp_path / "docs"
+	docs_dir.mkdir()
+	page_path = docs_dir / "GRAPHIFY.md"
+	figure_path = docs_dir / "GRAPHIFY_map.svg"
 	monkeypatch.setattr(
 		graphify_map_repo.graphify_docs_lib,
-		"build_figure",
-		lambda _command, _root: figure_summary,
+		"write_docs",
+		lambda _root: (page_path, figure_path),
 	)
-	graphify_map_repo.write_map_svg(tmp_path)
+	graphify_map_repo.write_graphify_docs(tmp_path)
 	output = capsys.readouterr().out
+	assert "docs/GRAPHIFY.md" in output
 	assert "docs/GRAPHIFY_map.svg" in output
-	assert "node labels removed" in output
 
 
 #============================================
