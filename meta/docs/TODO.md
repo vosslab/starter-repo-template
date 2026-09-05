@@ -6,8 +6,9 @@ topics
 
 3. look at the other graphipy maps `find ~/nsh/ -name GRAPHIFY_map.svg`. some are over 10MiB, can it be reduced? is it still more rust test function noise
 
-3. too many agents confuse the tools/ folder for someplace to put the main code. (1) survey the local repos in 
+4. too many agents confuse the tools/ folder for someplace to put the main code. (1) survey the local repos in 
 ~/nsh/ for misuse of tools/ (2) we need a tools/TOOLS_README.md that ships. (3) perhaps a pytest script that 
 checks to make sure no script in tools/ or devel/ is every imported (4) be sure the tools/TOOLS_README.md and 
 devel/DEVEL_README.md are cross referenced and compliment each other.
 
+5. have the markdown links checker allow links to untracked files that have a creation date of less than 24 hours.
