@@ -12,8 +12,18 @@ origin belongs there too. Rules: [REPO_STYLE.md](REPO_STYLE.md).
 
 ## Review expectations
 
+- Classify one-time rebuild checks separately from permanent pytest. Keep only deterministic,
+  offline, quick behavior contracts; when in doubt, remove the test.
+
 ## Working style
 
+- Use positive, action-oriented instructions for AI agents. State the desired artifact, action, and
+  evidence with phrases such as "Use Y" or "Do X", and omit boundaries that do not aid the task.
+- Ship `docs/PYTEST_STYLE.md` and `docs/PYTEST_AUTHORING_GUIDE.md`: the style guide defines
+  permanent pytest policy, while the authoring guide explains implementation. Keep template-only
+  propagation, vendoring, and meta-test coverage in `PYTEST_META_GUIDE.md`.
+- I want Bash shell scripts to stay under 100 lines and 8000 characters. Simplify an oversized
+  script or move substantial logic to Python, which has the existing 1000-line source limit.
 - I normally use Graphify update or fresh, sometimes context, and now the published map. Keep this
   command line to those recurring actions, with Ollama available when my Claude usage is maxed out.
 - Let one Graphify run update or rebuild the data and publish `docs/GRAPHIFY.md` with its compact

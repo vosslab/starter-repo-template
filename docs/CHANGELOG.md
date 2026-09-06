@@ -1,3 +1,32 @@
+## 2026-09-06
+
+### Additions and New Features
+
+- Added `tests/test_bash_script_line_limit.py`, a fast hygiene gate for nonignored `.sh` files.
+  It requires fewer than 100 physical lines and 8000 characters and reports how to simplify the
+  script or move substantial logic to Python under the existing 1000-line source-file limit.
+- Added `docs/PYTEST_AUTHORING_GUIDE.md`, a concise companion to `docs/PYTEST_STYLE.md`. It covers
+  shared pytest implementation conventions, focused/full verification, and maintenance records.
+  `meta/docs/PYTEST_META_GUIDE.md` holds template-only propagation, vendoring, and meta-test
+  coverage.
+
+### Fixes and Maintenance
+
+- Simplified the four existing scripts that exceeded the new Bash budget while retaining their
+  commands and cleanup scopes: `devel/clean_build.sh`, `devel/dist_clean.sh`,
+  `templates/typescript/check_codebase.sh`, and
+  `templates/typescript/noexist/run_playwright_tests.sh`.
+
+### Decisions and Failures
+
+- The new Bash line-limit counts a final unterminated physical line and uses a separate character
+  ceiling, so collapsing substantial logic onto a few long lines does not bypass the policy.
+
+### Developer Tests and Notes
+
+- Classified the initial Bash-script syntax and size inventory as one-time rebuild evidence. The
+  permanent suite retains only the deterministic real-file hygiene gate and its report.
+
 ## 2026-09-05
 
 ### Additions and New Features

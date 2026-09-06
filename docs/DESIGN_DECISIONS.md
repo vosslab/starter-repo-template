@@ -24,6 +24,33 @@ authoritative code or contract document, rather than a person.
 
 ## Software design
 
+### Pytest documentation has three roles
+
+**Decision.** Ship `docs/PYTEST_STYLE.md` and `docs/PYTEST_AUTHORING_GUIDE.md`, and retain
+`PYTEST_META_GUIDE.md` for template-specific pytest rules.
+
+**Why.** The style guide defines permanent-test policy. The authoring guide provides shared pytest
+implementation conventions. Template propagation, vendoring, and meta-test coverage serve starter
+template maintenance.
+
+**Consequence.** Keep policy in `PYTEST_STYLE.md`, implementation in
+`PYTEST_AUTHORING_GUIDE.md`, and template-specific coverage in `PYTEST_META_GUIDE.md`.
+
+**Owner.** [PYTEST_STYLE.md](PYTEST_STYLE.md) and
+[PYTEST_AUTHORING_GUIDE.md](PYTEST_AUTHORING_GUIDE.md)
+
+### Bash scripts stay small orchestration front doors
+
+**Decision.** Track every nonignored `.sh` file below 100 physical lines and 8000 characters.
+
+**Why.** Shell is appropriate for concise orchestration, but large scripts are difficult to read,
+test, and safely maintain. A character ceiling prevents compressing complex code onto fewer lines.
+
+**Consequence.** Simplify an oversized shell script or move its substantial logic to Python, where
+the existing source-file gate permits fewer than 1000 lines.
+
+**Owner.** [../tests/test_bash_script_line_limit.py](../tests/test_bash_script_line_limit.py)
+
 ## Dependencies
 
 ## Generated artifacts
