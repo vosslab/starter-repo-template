@@ -24,6 +24,21 @@ authoritative code or contract document, rather than a person.
 
 ## Software design
 
+### Script placement follows workflow ownership
+
+**Decision.** Classify commands by audience, purpose, dependencies, and input/output boundary.
+Standalone domain utilities use `tools/`; repository engineering uses `devel/`; primary workflows
+and reusable behavior use the application; thin application delegates may use local `launchers/`.
+
+**Why.** This separates standalone utilities from application entry points without forcing a
+substantial utility into one file or treating every script directory as a generic launcher home.
+
+**Consequence.** Tools remain independent of repository-local packages but may own helpers inside a
+self-contained tool directory. `launchers/` remains optional and is not propagated by convention.
+
+**Owner.** [REPO_STYLE.md](REPO_STYLE.md#scripts-and-executables) and
+[../tests/test_support_dirs_not_imported.py](../tests/test_support_dirs_not_imported.py)
+
 ### Pytest documentation has three roles
 
 **Decision.** Ship `docs/PYTEST_STYLE.md` and `docs/PYTEST_AUTHORING_GUIDE.md`, and retain

@@ -49,8 +49,10 @@ Important: `collect_ignore` only affects pytest test collection. The repo's lint
 - `tests/test_checkout_disk_budget.py` deliberately runs in the base `pytest tests/` lane. Its
   one local `du` call measures the actual checkout; the vendored file is restored by propagation
   after deletion.
-- `tests/test_support_dirs_not_imported.py` keeps `tools/`, `devel/`, and `tests/` out of the
-  import namespace. Run it directly when changing support scripts or their loaders.
+- `tests/test_support_dirs_not_imported.py` keeps `tools/`, `devel/`, `tests/`, and `launchers/`
+  out of the import namespace. It also keeps standalone tools independent from repository-local
+  packages while allowing tool-local helpers and application-facing launchers. Run it directly
+  when changing support scripts or their loaders.
 - `tests/test_root_script_budget.py` keeps root launchers navigable. It reports five or six counted
   scripts and fails at seven; run it after adding a root-level script.
 

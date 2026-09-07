@@ -23,8 +23,8 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 
 - Keep the propagated `docs/HUMAN_GUIDANCE.md` and `docs/DESIGN_DECISIONS.md` seeds minimal.
   Record starter-template-specific guidance in this file instead of shipping it to consumer repos.
-- Keep one native application, library, or tool-helper package in a named root-level folder. Use a
-  `packages/` grouping layer when multiple native products or packages need separation.
+- Keep one native application or library package in a named root-level folder. Use a `packages/`
+  grouping layer when multiple native applications or libraries need separation.
 - Keep `docs/MARKDOWN_STYLE.md` high-level. Use GitHub Flavored Markdown as its syntax baseline and
   link the official online specification instead of restating fine-grained parsing rules.
 - Support simple pipe tables in Markdown. Direct captions and complex accessible header
@@ -127,6 +127,8 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
   propagation maintenance change; idempotent `.gitignore` normalization leaves it unchanged.
 - Every file under `docs/`, `tests/`, `devel/`, and `tools/` ships universally to all
   consumer repos (overwrite bucket by default).
+- Keep `launchers/` as an optional consumer-local convention outside universal propagation
+  routing. Create it only in repositories with a concrete launcher.
 - Every file under `templates/<type>/` ships to consumer repos of that type,
   at its consumer-relative path (e.g. `templates/python/foo.py` ships as `foo.py`).
 - `docs/PYTHON_STYLE.md` ships to all repo types. It is a universal doc.
@@ -209,17 +211,20 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 
 - Keep `tests/test_checkout_disk_budget.py` in the base pytest lane: its local `du` is accepted and
   the vendored test returns after deletion because propagation restores it.
-- Treat `tools/`, `devel/`, and `tests/` as non-package support directories. Tools scripts do not
-  import sibling tools modules; documented flat devel and test helpers remain allowed.
+- Treat `tools/`, `devel/`, `tests/`, and `launchers/` as support locations rather than
+  repository-level import packages. Keep standalone tools independent of repository-local packages,
+  while allowing a self-contained tool directory to own helpers and a launcher to delegate into the
+  application. Documented flat devel and test helpers remain allowed.
 - Count tracked root `.py` and `.sh` scripts, plus executable-shebang launchers of other types.
   Five or six write a report; seven or more fail the root-script budget.
 
 ## Tools and developer scripts
 
 - Use `devel/` for highly technical developers and repository or Git work such as versioning.
-- Use `tools/` for standalone one-off utilities that regular users can run for a direct task.
-- Keep one native application, library, or tool-helper package in a named root-level folder. Use a
-  `packages/` grouping layer when the repository contains multiple native products or packages.
+- Use `tools/` for optional standalone utilities that regular users can run for a direct domain
+  task.
+- Keep one native application or library package in a named root-level folder. Use a `packages/`
+  grouping layer when the repository contains multiple native applications or libraries.
 - Survey all repositories under `~/nsh` before applying systemic placement changes so the template
   fixes the shared source of drift first.
 

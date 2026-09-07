@@ -1,3 +1,58 @@
+## 2026-09-07
+
+### Behavior or Interface Changes
+
+- Made `docs/REPO_STYLE.md` the canonical four-way script-placement policy: optional standalone
+  domain utilities use `tools/`, repository engineering uses `devel/`, primary workflows and
+  reusable behavior use the application, and thin application delegates may use an optional local
+  `launchers/` directory.
+- Defined a standalone tool by its independence from repository-local packages rather than by a
+  one-file limit. A self-contained tool directory may own its helpers and use standard-library
+  modules plus declared installed dependencies.
+
+### Fixes and Maintenance
+
+- Rewrote the vendored `tools/TOOLS_README.md` and `devel/DEVEL_README.md` as concise,
+  audience-specific explanations of the canonical policy. Removed the historical tools migration
+  material and aging devel inventory while preserving current Graphify and release instructions.
+- Extended the existing support-directory gate to recognize `launchers/`, reject standalone-tool
+  imports of root repository packages and packages grouped under `packages/`, allow tool-local
+  helpers, and preserve devel's flat sibling-helper model.
+- Updated the `source_me.sh` import-path example, test guidance, and consumer/template ledgers to
+  distinguish application launchers from standalone tools and local launcher convention from
+  propagation policy.
+- An independent six-pass audit found and fixed two policy gaps: the gate now recognizes
+  Python-bearing namespace-package directories without `__init__.py`, and template documentation
+  no longer directs standalone tools to root-level helper packages.
+
+### Decisions and Failures
+
+- Kept current command paths and propagation routing unchanged. The policy does not create a
+  `launchers/` directory; repositories add one only for a concrete launcher use case.
+- Kept permanent coverage focused on import boundaries. README wording, current command inventory,
+  and migration-state checks remain outside pytest.
+- An optional full-suite audit exposed the committed universal-to-meta link from
+  `docs/PYTEST_AUTHORING_GUIDE.md` to `docs/CHANGELOG.md`. The source guide, isolation test, and
+  propagation routing are unchanged by this work, so the unrelated documentation repair remains
+  outside this script-placement change.
+
+### Developer Tests and Notes
+
+- `source source_me.sh && python3 -m pytest tests/test_support_dirs_not_imported.py
+  tests/test_import_requirements.py -q` passes all 261 focused cases.
+- The related pyflakes, typing, pytest-hygiene, source-limit, ASCII, whitespace, indentation,
+  vendored-header, and guidance-format gates pass all 939 cases.
+- `source source_me.sh && python3 -m pytest tests/test_markdown_links.py -q` passes all 56 cases,
+  and `git diff --check` is clean.
+- A one-time working-tree inventory confirms that every changed path is modified in place,
+  propagation manifests are unchanged, and no `launchers/` directory exists.
+- A one-time direct invocation of a disposable `tools/report/main.py` importing
+  `helpers.formatter` from the same self-contained tool directory printed the expected result under
+  the normal sourced Python command. The temporary tree was removed; no inventory-shaped pytest
+  was added.
+- The optional full suite reached 2,416 passes and the one pre-existing link-bucket failure recorded
+  above; the requested focused, Markdown-link, and diff gates are green.
+
 ## 2026-09-06
 
 ### Additions and New Features

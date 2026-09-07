@@ -17,6 +17,11 @@ origin belongs there too. Rules: [REPO_STYLE.md](REPO_STYLE.md).
 
 ## Working style
 
+- I want `tools/` for optional standalone user utilities that remain independent of repository-local
+  packages, `devel/` for repository engineering, and the application for primary workflows and
+  reusable behavior. A standalone tool may be a self-contained directory with its own helpers.
+- A repository may use `launchers/` for thin application delegates when it needs them. Keep that
+  convention optional rather than making it a propagated directory requirement.
 - Use positive, action-oriented instructions for AI agents. State the desired artifact, action, and
   evidence with phrases such as "Use Y" or "Do X", and omit boundaries that do not aid the task.
 - Ship `docs/PYTEST_STYLE.md` and `docs/PYTEST_AUTHORING_GUIDE.md`: the style guide defines

@@ -25,35 +25,34 @@ seeds a commented override file for new consumers and preserves each established
 
 ## Repository structure
 
-### Support directories follow their audience
+### Placement policy ships without launcher routing
 
-**Decision.** Place optional domain-facing utilities for regular users in `tools/`, and place
-repository-engineering commands for highly technical maintainers in `devel/`. Put primary product
-workflows in the application CLI and shared behavior in an importable package.
+**Decision.** Propagate the canonical classifier, audience-specific support READMEs, and import
+gate through their existing universal routes. Keep `launchers/` as an optional consumer-local
+convention with no dedicated propagation route.
 
-**Why.** Audience plus input and output gives each command a durable home. User data producing a
-domain result indicates `tools/`; source, Git state, manifests, tests, or internal fixtures
-producing repository state or engineering evidence indicates `devel/`.
+**Why.** Every consumer needs the same distinction between standalone user utilities, repository
+engineering, and application behavior, but a policy should not create a directory that a repository
+does not need.
 
-**Consequence.** Graphify and dependency refresh ship from `devel/`. Direct domain conversions such
-as HTML-to-PDF belong in `tools/`. Future placement decisions apply the same boundary before adding
-or moving a command.
+**Consequence.** Root `tools/` and `devel/` keep their current location-based routing. The template
+does not create or register `launchers/`; a consumer adds it only for a concrete thin delegate.
 
-**Owner.** [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md),
-[tools/TOOLS_README.md](../../tools/TOOLS_README.md), and
-[devel/DEVEL_README.md](../../devel/DEVEL_README.md).
+**Owner.** [PROPAGATION_RULES.md](PROPAGATION_RULES.md),
+[docs/REPO_STYLE.md](../../docs/REPO_STYLE.md), and
+[tests/test_support_dirs_not_imported.py](../../tests/test_support_dirs_not_imported.py).
 
 ### One native package stays at root
 
-**Decision.** Place a repository's only native application, library, or tool-helper package in a
-named folder at the repository root. Use `packages/` to group multiple native products or packages.
+**Decision.** Place a repository's only native application or library package in a named folder at
+the repository root. Use `packages/` to group multiple native applications or libraries.
 
 **Why.** A root-level package makes one code owner immediately visible. The additional `packages/`
 layer earns its place when it separates multiple independently named code owners.
 
-**Consequence.** A large `tools/` or `devel/` command can move reusable behavior into one clear
-root-level helper package while retaining a thin command entry point. Repositories with multiple
-native packages give each one a distinct home under `packages/`.
+**Consequence.** Application code uses the named root package when the repository has one and gives
+each package a distinct home under `packages/` when it has several. A standalone tool keeps its
+helpers inside its own self-contained directory instead of creating a root helper package.
 
 **Owner.** [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) and the repository's package manifests.
 
