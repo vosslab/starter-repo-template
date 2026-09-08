@@ -12,6 +12,9 @@
 
 ### Fixes and Maintenance
 
+- Corrected the GitHub About source-paragraph limit from 250 to 350 Python characters in the
+  canonical repository policy and the vendored README gate, including its test name and failure
+  message.
 - Rewrote the vendored `tools/TOOLS_README.md` and `devel/DEVEL_README.md` as concise,
   audience-specific explanations of the canonical policy. Removed the historical tools migration
   material and aging devel inventory while preserving current Graphify and release instructions.
@@ -38,6 +41,10 @@
 
 ### Developer Tests and Notes
 
+- `source source_me.sh && python3 -m pytest tests/test_readme_first_paragraph.py
+  tests/test_pytest_hygiene.py tests/test_function_typing.py tests/test_ascii_compliance.py
+  tests/test_whitespace.py tests/test_vendored_headers.py tests/test_markdown_links.py -q` passes
+  all 585 focused cases.
 - `source source_me.sh && python3 -m pytest tests/test_support_dirs_not_imported.py
   tests/test_import_requirements.py -q` passes all 261 focused cases.
 - The related pyflakes, typing, pytest-hygiene, source-limit, ASCII, whitespace, indentation,
