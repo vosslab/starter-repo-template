@@ -1,3 +1,67 @@
+## 2026-09-11
+
+### Behavior or Interface Changes
+
+- Reframed the shipped testing guidance around fewer, stronger permanent tests. Permanent tests
+  now earn their place by protecting intentionally stable behavior worth preserving without
+  unnecessarily constraining future design.
+- Established the ignored `tests/_temp/` subtree for temporary tests, reproductions, and one-time
+  checks. Pytest-suitable `test_*.py` files participate in the normal `pytest tests/` run while
+  heavier checks run explicitly; plan closeout promotes tests that deserve lasting protection and
+  removes the rest.
+- Added repo-wide principles to ground requirements and gates in actual needs and to give every new
+  blocking CI, build, release, or repository-wide behavior gate an actionable failure plan.
+- Kept `tests/_temp/` local to the template checkout during propagation. The universal tests walker
+  now skips `_temp*` subtrees even though pytest continues to collect suitable local Python tests.
+- Clarified that permanent tests follow native language and framework conventions. Rust keeps
+  durable unit tests inline under `#[cfg(test)]`, durable integration tests in crate-level `tests/`,
+  and temporary verification in the repository-root `tests/_temp/` workspace.
+
+### Fixes and Maintenance
+
+- Reorganized testing documentation by decision point: `docs/PYTEST_STYLE.md` owns permanent-test
+  policy, `docs/PYTEST_AUTHORING_GUIDE.md` owns pytest construction and hygiene mechanics,
+  `docs/E2E_TESTS.md` owns permanent whole-system testing, and `tests/TESTS_README.md` remains the
+  noexist test map and command reference.
+- Preserved concise permanence, temporary-test, and removal guidance in the Python, Rust, Swift,
+  TypeScript, Playwright, E2E, pytest-authoring, test-folder, and template-meta documents so each is
+  independently useful when skimmed. Retained short checklists at the relevant decision points.
+- Added the exact whole-file overwrite disclaimer to all eleven overwrite-shipped Markdown sources
+  under the Rust, Swift, TypeScript, and website overlays. Noexist seeds, header-merge documents,
+  and template-only files retain their distinct ownership signals.
+- Added the universal `/tests/_temp/` ignore rule to `templates/gitignore.universal` and the
+  template repository's rendered `.gitignore`, and documented its collection and propagation
+  behavior in the meta gitignore guide.
+- Removed the universal pytest authoring guide's link to the template-meta changelog, resolving the
+  previously recorded link-bucket isolation failure while preserving the changelog instruction.
+- Corrected both Python `assert` location summaries to include `tests/_temp/`, and refined the
+  permanent-test and E2E checklist wording to emphasize stable behavior and temporary-first proof.
+- Distinguished pytest-suitable temporary tests from heavier temporary checks. Only suitable
+  `test_*.py` files join the pytest fast lane; service, network, and other whole-system checks run
+  explicitly from `tests/_temp/`.
+
+### Decisions and Failures
+
+- Kept short, important policy repetition in satellite test guides because skim-reading agents
+  benefit from seeing the decision rule where they act. Canonical documents remain linked for
+  rationale and implementation details.
+- Retained the overwrite-disclaimer sweep after an external review suggested pulling it back; the
+  human explicitly included that ownership audit in this work.
+- Extended the existing propagation scratch-path regression test rather than adding a policy-text
+  inventory test. The stable behavior under protection is that ignored temporary tests never ship
+  to consumer repositories.
+
+### Developer Tests and Notes
+
+- A disposable `tests/_temp/test_testing_policy_cleanup.py` was ignored by Git and collected through
+  the normal `pytest tests/` path. Its two checks passed: temporary pytest collection worked, every
+  whole-file overwrite Markdown source carried the exact disclaimer, and every noexist Markdown
+  seed omitted it. The disposable test and empty folder were removed before closeout.
+- The focused documentation, hygiene, link-bucket, propagation-source, folder-routing, inheritance,
+  and overlay suite passes all 836 cases.
+- `source source_me.sh && python3 -m pytest tests/ -q` passes all 2,417 tests.
+- `git diff --check` is clean.
+
 ## 2026-09-07
 
 ### Behavior or Interface Changes

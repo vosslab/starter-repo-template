@@ -21,6 +21,9 @@
 _temp*.?*
 /temp/
 
+# Temporary tests and one-time checks
+/tests/_temp/
+
 # Sibling repos checked out for local cross-repo work
 /OTHER_REPOS/
 

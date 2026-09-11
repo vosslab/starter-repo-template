@@ -134,10 +134,13 @@ def test_tests_denylist_ships_non_test_helper(tmp_path: pathlib.Path) -> None:
 
 
 def test_tests_denylist_skips_scratch(tmp_path: pathlib.Path) -> None:
-	"""An underscore-prefixed scratch file under tests/ is never shipped."""
+	"""Scratch files and the tests/_temp/ workspace are never shipped."""
 	tests_dir = tmp_path / 'tests'
 	tests_dir.mkdir()
 	(tests_dir / '_scratch.py').write_text('test')
+	temp_dir = tests_dir / '_temp'
+	temp_dir.mkdir()
+	(temp_dir / 'test_active_work.py').write_text('test')
 	plan = repolib.plan.compute_propagation_plan(str(tmp_path), 'python')
 	all_entries = (
 		plan['overwrite_files']
@@ -146,6 +149,7 @@ def test_tests_denylist_skips_scratch(tmp_path: pathlib.Path) -> None:
 		+ plan['test_files']
 	)
 	assert not any(entry.endswith('_scratch.py') for entry in all_entries)
+	assert not any(entry.startswith('tests/_temp/') for entry in all_entries)
 
 
 def test_tests_denylist_skips_conftest(tmp_path: pathlib.Path) -> None:

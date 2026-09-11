@@ -12,8 +12,18 @@ origin belongs there too. Rules: [REPO_STYLE.md](REPO_STYLE.md).
 
 ## Review expectations
 
-- Classify one-time rebuild checks separately from permanent pytest. Keep only deterministic,
-  offline, quick behavior contracts; when in doubt, remove the test.
+- Prefer fewer, stronger permanent tests. Each test should protect behavior worth preserving
+  without unnecessarily constraining future design.
+- Treat tests as liabilities as well as assets. Tests can lock in undesirable behavior, so when in
+  doubt, remove the test.
+- Let permanent tests follow native language and framework conventions. Rust unit tests may stay
+  inline under `#[cfg(test)]`, with durable integration tests in crate-level `tests/` directories.
+- Use the ignored `tests/_temp/` subtree for temporary tests and one-time checks. Let pytest-suitable
+  `test_*.py` files join the normal suite, run heavier checks explicitly, then promote or remove
+  them before completion.
+- Give each new blocking behavior gate a failure plan grounded in an actual need.
+- Keep testing documentation concise, positive, and independently useful when skimmed. Repeat
+  short principles where decisions happen and cross-reference the canonical details.
 
 ## Working style
 

@@ -14,6 +14,8 @@ if _repo_root not in sys.path:
 # holds browser-driven tests (Playwright), and tests/e2e/ holds heavier
 # shell/Python whole-system runners. Both run outside pytest -- see
 # docs/PLAYWRIGHT_USAGE.md and docs/E2E_TESTS.md.
+# tests/_temp/ stays collectable so pytest-suitable temporary test_*.py files
+# run in the normal fast lane. Heavier temporary checks run explicitly.
 collect_ignore = ["e2e", "playwright"]
 
 

@@ -21,6 +21,9 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 
 ## Documentation ownership
 
+- Give every overwrite-shipped Markdown source the exact disclaimer, "This file is vendored. Local
+  changes can and will be overwritten by propagation." Keep it out of noexist seeds, header-merge
+  documents, and template-only files whose local content persists.
 - Keep the propagated `docs/HUMAN_GUIDANCE.md` and `docs/DESIGN_DECISIONS.md` seeds minimal.
   Record starter-template-specific guidance in this file instead of shipping it to consumer repos.
 - Keep one native application or library package in a named root-level folder. Use a `packages/`
@@ -62,15 +65,15 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
   [docs/PYTEST_STYLE.md](../../docs/PYTEST_STYLE.md),
   [tests/TESTS_README.md](../../tests/TESTS_README.md),
   [devel/DEVEL_README.md](../../devel/DEVEL_README.md), and relevant language guides.
-- Ground acceptance gates in product behavior, repository policy, or measured evidence.
-  Use byte equality, pixel equality, and timing thresholds only when exactness or
-  performance is an explicit contract supported by a realistic baseline.
-- Classify implementation probes separately from permanent tests. Keep useful
-  one-time checks during the rebuild, then remove them before handoff.
-- Apply the permanent-test checklist in
-  [docs/PYTEST_STYLE.md](../../docs/PYTEST_STYLE.md). Permanent pytest stays
-  deterministic, offline, fixture-light, fast, and behavior-focused. When in
-  doubt, remove the test.
+- Prefer fewer, stronger permanent tests. Protect intentionally stable behavior worth preserving,
+  not incidental implementation. When in doubt, remove the test.
+- Ground acceptance gates in product behavior, repository policy, security, demonstrated failure,
+  or measured evidence. Use exactness and thresholds when the actual contract requires them.
+- Give each new blocking gate a failure plan that names the failure and the decision, correction,
+  or recovery that follows.
+- Put implementation probes and one-time checks in the ignored `tests/_temp/` subtree. Let
+  pytest-suitable `test_*.py` files run with pytest, run heavier checks explicitly, then promote or
+  remove them before handoff.
 
 ## Shebang semantics
 
@@ -258,7 +261,8 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 
 ## Test fixture policy
 
-- Use inline setup first. For fixture cases, see the Fixture policy in [docs/PYTEST_STYLE.md](../../docs/PYTEST_STYLE.md).
+- Use inline setup first. For fixture cases, see
+  [docs/PYTEST_AUTHORING_GUIDE.md](../../docs/PYTEST_AUTHORING_GUIDE.md).
 
 ## Prefer rule-based routing over per-file customization
 

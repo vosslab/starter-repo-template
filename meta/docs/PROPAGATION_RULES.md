@@ -320,7 +320,10 @@ deprecation-strip list); consumer keeps any local `@`-imports and non-`@` conten
 
 - Adding `docs/SHELL_STYLE.md` -- drop in `docs/`, no manifest edit. Every repo gets it.
 - Adding `docs/PYTHON_STYLE.md` -- already universal; drop in `docs/`. Every repo type gets it.
-- Adding `tests/test_security_audit.py` -- drop in `tests/`, every repo gets it. The `tests/` walk is a denylist: it ships every non-meta `tests/` file by location and skips only dotfiles, `_`-prefixed scratch, `conftest.py` (owned by `merge_conftest`), and `META_TEST_PREFIXES`. A non-`test_`-prefixed helper like `tests/helper_thing.py` ships too.
+- Adding `tests/test_security_audit.py` -- drop in `tests/`, every repo gets it. The `tests/` walk
+  is a denylist: it ships every non-meta `tests/` file by location and skips dotfiles,
+  `_`-prefixed scratch files, `_temp*` subtrees, `conftest.py` (owned by `merge_conftest`), and
+  `META_TEST_PREFIXES`. A non-`test_`-prefixed helper like `tests/helper_thing.py` ships too.
 - Adding `templates/typescript/.eslintignore` -- drop under `templates/typescript/`. TypeScript repos get it at consumer root.
 - Adding a new starter `Makefile` that must not clobber existing ones -- drop at `templates/<type>/noexist/Makefile` (per type) or add path to `UNIVERSAL_NOEXIST` + place at template root.
 - Adding a PyPI-package tool -- place it under `templates/pypi/<consumer-path>`. The `pypi` child type inherits all Python files and adds that overlay. Example: `devel/submit_to_pypi.py` lives at `templates/pypi/devel/submit_to_pypi.py`.

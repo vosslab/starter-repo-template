@@ -39,20 +39,35 @@ self-contained tool directory. `launchers/` remains optional and is not propagat
 **Owner.** [REPO_STYLE.md](REPO_STYLE.md#scripts-and-executables) and
 [../tests/test_support_dirs_not_imported.py](../tests/test_support_dirs_not_imported.py)
 
-### Pytest documentation has three roles
+### Testing documentation separates decision points
 
-**Decision.** Ship `docs/PYTEST_STYLE.md` and `docs/PYTEST_AUTHORING_GUIDE.md`, and retain
-`PYTEST_META_GUIDE.md` for template-specific pytest rules.
+**Decision.** Use `PYTEST_STYLE.md` for permanent-test policy, `PYTEST_AUTHORING_GUIDE.md` for
+pytest construction, `E2E_TESTS.md` for permanent whole-system tests, `tests/TESTS_README.md` for
+the test map and commands, and `PYTEST_META_GUIDE.md` for template-only rules.
 
-**Why.** The style guide defines permanent-test policy. The authoring guide provides shared pytest
-implementation conventions. Template propagation, vendoring, and meta-test coverage serve starter
-template maintenance.
+**Why.** Each document answers one primary question while remaining useful to an agent that skims
+it alone. Short policy repetition reinforces the decision at the point of use; cross-references
+keep the full rationale authoritative.
 
-**Consequence.** Keep policy in `PYTEST_STYLE.md`, implementation in
-`PYTEST_AUTHORING_GUIDE.md`, and template-specific coverage in `PYTEST_META_GUIDE.md`.
+**Consequence.** Keep detailed policy in `PYTEST_STYLE.md`, repeat its short permanence rule in
+each test guide, and keep low-level pytest mechanics in `PYTEST_AUTHORING_GUIDE.md`.
 
 **Owner.** [PYTEST_STYLE.md](PYTEST_STYLE.md) and
 [PYTEST_AUTHORING_GUIDE.md](PYTEST_AUTHORING_GUIDE.md)
+
+### Temporary tests use an ignored pytest-visible subtree
+
+**Decision.** Put temporary tests and one-time checks in `tests/_temp/`. Ignore the subtree in Git
+while allowing pytest-suitable `test_*.py` files to participate in the normal `pytest tests/` run.
+Run heavier temporary checks explicitly with their appropriate tool.
+
+**Why.** Implementation proof remains easy to run while active without becoming permanent policy
+or repository history by accident.
+
+**Consequence.** Before plan completion, promote tests that earn lasting protection and remove the
+rest. Plan closeout supplies the cleanup check.
+
+**Owner.** [PYTEST_STYLE.md](PYTEST_STYLE.md#temporary-verification)
 
 ### Bash scripts stay small orchestration front doors
 

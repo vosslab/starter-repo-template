@@ -189,7 +189,8 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 	Routing rules:
 	- Universal docs/ (not in META_FILES/META_DIRS) -> overwrite_files
 	- Universal tests/ (denylist): ship all non-meta tests/ files by location;
-	  skip dotfiles, `_`-scratch, conftest.py (merge-owned), and META_TEST_PREFIXES
+	  skip dotfiles, `_`-scratch files, `_temp*` subtrees, conftest.py (merge-owned),
+	  and META_TEST_PREFIXES
 	- Universal devel/ -> devel_files
 	- Universal tools/ -> overwrite_files
 	- Root files in ROOT_PROPAGATE_ALLOWLIST -> overwrite_files
@@ -281,8 +282,12 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 				elif file_rel.startswith('tests/'):
 					bare_name = os.path.basename(file_rel)
 					# Denylist routing: ship all non-meta tests/ files by location.
-					# Skip underscore-prefixed scratch files (repo convention: _temp
-					# = scratch, safe to delete).
+					# Keep the ignored tests/_temp/ workspace local even while its
+					# test_*.py files participate in the template repo's pytest run.
+					test_parts = file_rel.split(os.sep)[1:]
+					if any(part.startswith('_temp') for part in test_parts):
+						continue
+					# Skip other underscore-prefixed scratch files.
 					if bare_name.startswith('_'):
 						continue
 					# conftest.py is owned by merge_conftest (process.py), which

@@ -46,6 +46,7 @@ that file.
 | `/output*/` | Root directories whose names begin with `output` |
 | `output*/` | Matching directories at any depth |
 | `/graphify-out/` | The root Graphify artifact directory only |
+| `/tests/_temp/` | The root temporary-test subtree only |
 | `*.out` | Matching basenames at any depth; not an output-directory alias |
 | `/out/` | A root directory named exactly `out` |
 | `**/target/` | A directory named `target` at any depth |
@@ -58,6 +59,14 @@ directory matching.
 Adding an ignore rule does not untrack a file already in Git. Use `git ls-files` to establish the
 tracked boundary and `git check-ignore --no-index` when testing ignore behavior independent of
 tracking state.
+
+## Temporary verification
+
+The universal `/tests/_temp/` rule keeps implementation-time tests and one-time checks untracked.
+Pytest collection is a separate concern: `tests/conftest.py` leaves this subtree visible, so
+pytest-suitable `test_*.py` files run with `pytest tests/` while work is active. Heavier temporary
+checks run explicitly with their appropriate tool. Plan closeout promotes or removes each remaining
+temporary check.
 
 ## Rendered ownership
 
