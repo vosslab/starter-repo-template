@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# This file is vendored. Local changes can and will be overwritten by propagation.
+
 # run_web_server.sh - local dev preview for the GitHub Pages build.
 #
 # Front door: run this directly as ./run_web_server.sh. It is the interface

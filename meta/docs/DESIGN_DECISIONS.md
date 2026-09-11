@@ -58,6 +58,22 @@ helpers inside its own self-contained directory instead of creating a root helpe
 
 ## Propagation
 
+### Whole-file overwrite sources declare their ownership
+
+**Decision.** Put the exact message, "This file is vendored. Local changes can and will be
+overwritten by propagation.", in a native header comment on every source copied through the
+whole-file overwrite, devel, or test bucket. Keep a required shebang first.
+
+**Why.** A warning at the top is visible before a consumer edits a centrally maintained file, and
+the same ownership rule applies regardless of the file's extension or propagation route.
+
+**Consequence.** Noexist seeds and partial-ownership buckets omit the whole-file warning. A
+plan-derived meta test checks every currently resolved canonical overwrite source across every
+repository type.
+
+**Owner.** [PROPAGATION_RULES.md](PROPAGATION_RULES.md#classification-criterion) and
+[tests/meta/test_vendored_docs.py](../../tests/meta/test_vendored_docs.py).
+
 ### Development requirements have split ownership
 
 **Decision.** Propagate `pip_requirements-dev.txt` through a dedicated bucket that owns a marked

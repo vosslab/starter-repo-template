@@ -32,13 +32,14 @@ by its folder.
 Use its `REPO_HYGIENE_FILTERS` registry for consumer-specific hygiene patterns; keep template tests
 focused on universal behavior.
 
-## Vendored footer
+## Vendored header
 
-End every shipped template pytest module with this exact final line:
+Start every shipped template pytest module with this exact comment:
 
 ```python
-# Vendored pytest file. Local changes can and will be overwritten.
+# This file is vendored. Local changes can and will be overwritten by propagation.
 ```
 
-The footer marks tests that propagation maintains and may refresh. Template-meta and consumer-local
-tests retain their own ownership conventions.
+The header makes overwrite ownership visible before an editor reaches the implementation. Put it
+after a required shebang in any shipped executable source. Template-meta, noexist, and
+consumer-local tests retain their own ownership conventions.

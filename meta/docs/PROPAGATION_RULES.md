@@ -263,7 +263,11 @@ File routing honors a strict precedence order; earlier rules win on conflict:
 
 Every file the propagator ships is classified into one policy category. The classification rule for new files:
 
-- **OVERWRITE** -- template centrally owns the file; consumer divergence is a bug to erase on next sync. Use for style guides, shared lint tests, shared helper scripts, and the universal clean sweep.
+- **OVERWRITE** -- template centrally owns the file; consumer divergence is a bug to erase on next
+  sync. Use for style guides, shared lint tests, shared helper scripts, and the universal clean
+  sweep. Every canonical source copied through `overwrite_files`, `devel_files`, or `test_files`
+  starts with the exact message, "This file is vendored. Local changes can and will be overwritten
+  by propagation.", in its native comment syntax. A required shebang remains first.
 - **MERGE** -- template ships an `@`-import set; the propagator union-adds it to the consumer file and strips entries listed in `meta/propagation/deprecated_claude_md.txt`. Consumer-local `@`-imports and non-`@` content are preserved. Currently used by `CLAUDE.md` only. See [MERGE_BUCKET_SPEC.md](MERGE_BUCKET_SPEC.md).
 - **NOEXIST** -- starter seed; consumer owns the file thereafter. Use when the consumer reasonably extends the file with project-specific content the template cannot anticipate (e.g., `AGENTS.md`, `source_me.sh`, `tsconfig.json`, deploy scripts).
 - **HEADER** -- starter seed whose vendored marker region the template keeps current. The consumer owns every entry outside that region; the template rewrites the region on every sync. Use when the consumer owns the content but the template ships instructions that must stay correctable, rather than freezing at seed time. See [HEADER_BUCKET_SPEC.md](HEADER_BUCKET_SPEC.md).

@@ -21,9 +21,10 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 
 ## Documentation ownership
 
-- Give every overwrite-shipped Markdown source the exact disclaimer, "This file is vendored. Local
-  changes can and will be overwritten by propagation." Keep it out of noexist seeds, header-merge
-  documents, and template-only files whose local content persists.
+- Give every whole-file overwrite source, across all file extensions, the exact header message,
+  "This file is vendored. Local changes can and will be overwritten by propagation." Use the
+  format's native comment syntax and place it after a required shebang. Keep it out of noexist
+  seeds, partial-ownership buckets, and template-only files whose local content persists.
 - Keep the propagated `docs/HUMAN_GUIDANCE.md` and `docs/DESIGN_DECISIONS.md` seeds minimal.
   Record starter-template-specific guidance in this file instead of shipping it to consumer repos.
 - Keep one native application or library package in a named root-level folder. Use a `packages/`

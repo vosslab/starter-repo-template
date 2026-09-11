@@ -2,6 +2,9 @@
 
 ### Behavior or Interface Changes
 
+- Required every canonical source copied through a whole-file overwrite route, across all file
+  extensions, to carry the exact propagation warning in a native header comment. Required
+  shebangs remain first; noexist and partial-ownership buckets remain outside this rule.
 - Reframed the shipped testing guidance around fewer, stronger permanent tests. Permanent tests
   now earn their place by protecting intentionally stable behavior worth preserving without
   unnecessarily constraining future design.
@@ -19,6 +22,9 @@
 
 ### Fixes and Maintenance
 
+- Replaced the shipped pytest footer convention with the visible, exact propagation warning at the
+  top of every overwrite-shipped test, and added the same header to other overwrite-shipped code,
+  configuration, developer utilities, and test helpers.
 - Reorganized testing documentation by decision point: `docs/PYTEST_STYLE.md` owns permanent-test
   policy, `docs/PYTEST_AUTHORING_GUIDE.md` owns pytest construction and hygiene mechanics,
   `docs/E2E_TESTS.md` owns permanent whole-system testing, and `tests/TESTS_README.md` remains the
@@ -42,6 +48,9 @@
 
 ### Decisions and Failures
 
+- Treated `overwrite_files`, `devel_files`, and `test_files` as one whole-file ownership class for
+  warning purposes. Kept the format's native comment syntax instead of imposing one wrapper on
+  Markdown, Python, shell, JavaScript, and configuration sources.
 - Kept short, important policy repetition in satellite test guides because skim-reading agents
   benefit from seeing the decision rule where they act. Canonical documents remain linked for
   rationale and implementation details.
@@ -53,6 +62,14 @@
 
 ### Developer Tests and Notes
 
+- The plan-derived vendored-header gate resolves all 76 current canonical sources across
+  `overwrite_files`, `devel_files`, and `test_files`; every source carries the exact warning within
+  its first five lines. The initial sweep added headers to 54 previously unmarked sources.
+- `templates/typescript/.prettierrc` parses as YAML to its unchanged option mapping after receiving
+  its `#` header. `bash -n` passes for every changed shipped shell script.
+- `source source_me.sh && python3 -m pytest tests/ -q` passes all 2,417 tests, and the focused
+  vendored-header, pyflakes, whitespace, ASCII, shebang, source-size, and Bash-size suite passes all
+  918 cases.
 - A disposable `tests/_temp/test_testing_policy_cleanup.py` was ignored by Git and collected through
   the normal `pytest tests/` path. Its two checks passed: temporary pytest collection worked, every
   whole-file overwrite Markdown source carried the exact disclaimer, and every noexist Markdown
