@@ -1,3 +1,34 @@
+## 2026-09-18
+
+### Fixes and Maintenance
+
+- Restored the canonical inline-first fixture policy in `docs/PYTEST_STYLE.md` after the testing
+  guidance rewrite accidentally removed it. The policy covers custom `@pytest.fixture` functions
+  and on-disk test data, keeps its closed three-case durable allowlist, and requires explicit human
+  approval before adding a committed `tests/fixtures/` directory.
+- Recorded the human's guidance that most fixtures are liabilities in `docs/HUMAN_GUIDANCE.md` and
+  the canonical policy. Fixture use now requires an actual product dependency on shared setup,
+  file shape, or loader behavior; test-author convenience is insufficient.
+- Gave the canonical fixture rules a dedicated uppercase `FIXTURE POLICY` heading so the human's
+  case-sensitive `grep 'FIXTURE' docs/PYTEST_STYLE.md` sharing workflow finds it directly.
+- Audited the pre-split pytest guide against `docs/PYTEST_STYLE.md` and
+  `docs/PYTEST_AUTHORING_GUIDE.md`, then restored substantive authoring rules lost during the split:
+  brittle-test criteria, external-data rationale, test structure, command variants, hygiene
+  discovery layers and helper contracts, report lifecycle, and scaffold guard ownership.
+
+### Decisions and Failures
+
+- Coding agents overproduce fixtures when guidance merely describes when fixtures can be useful.
+  Restored the July 5 inline-first wording from `docs/CHANGELOG-2026-08a.md`: fixtures remain
+  available for three named durable cases, rather than becoming a default abstraction.
+- Recorded that splitting testing guidance changes document ownership, not policy; substantive
+  requirements move to their owning document instead of being discarded during condensation.
+
+### Developer Tests and Notes
+
+- Verified Markdown whitespace, links, and repository diff hygiene after the documentation-only
+  restoration.
+
 ## 2026-09-11
 
 ### Behavior or Interface Changes

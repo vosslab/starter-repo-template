@@ -50,7 +50,9 @@ it alone. Short policy repetition reinforces the decision at the point of use; c
 keep the full rationale authoritative.
 
 **Consequence.** Keep detailed policy in `PYTEST_STYLE.md`, repeat its short permanence rule in
-each test guide, and keep low-level pytest mechanics in `PYTEST_AUTHORING_GUIDE.md`.
+each test guide, and keep low-level pytest mechanics in `PYTEST_AUTHORING_GUIDE.md`. Moving content
+between the two documents preserves its substantive requirements; the split changes ownership,
+not policy.
 
 **Owner.** [PYTEST_STYLE.md](PYTEST_STYLE.md) and
 [PYTEST_AUTHORING_GUIDE.md](PYTEST_AUTHORING_GUIDE.md)

@@ -12,6 +12,11 @@ origin belongs there too. Rules: [REPO_STYLE.md](REPO_STYLE.md).
 
 ## Review expectations
 
+- I find most fixtures are liabilities. Use inline test setup by default; require custom
+  `@pytest.fixture` functions to earn their place through an actual product need, not test-author
+  convenience, and add a committed `tests/fixtures/` directory only with my explicit approval.
+- Keep a dedicated `FIXTURE POLICY` section in `docs/PYTEST_STYLE.md` so I can find and share it
+  with agents using a case-sensitive `grep 'FIXTURE' docs/PYTEST_STYLE.md`.
 - Prefer fewer, stronger permanent tests. Each test should protect behavior worth preserving
   without unnecessarily constraining future design.
 - Treat tests as liabilities as well as assets. Tests can lock in undesirable behavior, so when in
@@ -23,7 +28,8 @@ origin belongs there too. Rules: [REPO_STYLE.md](REPO_STYLE.md).
   them before completion.
 - Give each new blocking behavior gate a failure plan grounded in an actual need.
 - Keep testing documentation concise, positive, and independently useful when skimmed. Repeat
-  short principles where decisions happen and cross-reference the canonical details.
+  short principles where decisions happen and cross-reference the canonical details. Splitting
+  testing policy across documents must preserve the policy's substantive content.
 
 ## Working style
 
