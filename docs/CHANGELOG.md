@@ -2,6 +2,9 @@
 
 ### Additions and New Features
 
+- Added mandatory base-lane disk-budget checks for machine-wide Podman storage and Rust `target/`
+  build artifacts. The Podman guard ships universally; the target guard ships through the Rust
+  overlay.
 - Added the consumer-owned TypeScript `.prettierignore.local` noexist seed for repository-specific
   exclusions. Propagation ships it once and never overwrites it.
 - Added a non-blocking 900-999 line advisory band to the source-file gate. Advisories appear in
@@ -9,6 +12,9 @@
 
 ### Behavior or Interface Changes
 
+- Reduced the propagated Human Guidance seed to its managed instructions and the Design Decisions
+  seed to its managed instructions plus a blank entry template. Receiving repositories now start
+  with fresh ledgers instead of inheriting starter-template history.
 - Updated the vendored TypeScript aggregate check and the seeded `format:write` script to pass
   `.gitignore`, `.prettierignore`, and `.prettierignore.local` through repeated `--ignore-path`
   flags. Existing consumers receive the check update automatically but must update their owned
@@ -21,6 +27,9 @@
 
 ### Decisions and Failures
 
+- Kept both disk guards in ordinary pytest rather than E2E. Podman storage is machine-wide, so its
+  guard ships to every repository; `target/` is repository-local Rust output, so its guard ships
+  only to Rust repositories. Budget failures direct developers to inspect and remove stale data.
 - Chose a companion Prettier ignore file over a LOCAL section inside the overwrite-owned
   `.prettierignore`. This matches the `eslint.config.local.js` precedent without adding a new
   propagation bucket or merge format. Recorded this template-only decision and the related human

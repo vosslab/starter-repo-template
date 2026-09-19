@@ -6,6 +6,24 @@ and propagates them.
 
 ## Testing and hygiene
 
+### Disk-budget guards follow storage scope
+
+**Decision.** Ship the checkout and machine-wide Podman disk-budget guards universally in the base
+pytest lane. Ship the repository-local `target/` guard through the Rust overlay.
+
+**Why.** Responsible continuous development includes stewardship of finite hard-drive space.
+Routine builds can accumulate enough generated data to fill a developer volume; one observed Rust
+cache reached 130 GiB. Optional or E2E-only guards do not protect the development loop that creates
+the data.
+
+**Consequence.** Propagation restores all three mandatory vendored guards after deletion. Podman
+storage is checked from every consumer because it is machine-wide; `target/` is checked only in
+Rust consumers because it is repository-local Rust output.
+
+**Owner.** [docs/PYTEST_STYLE.md](../../docs/PYTEST_STYLE.md),
+[tests/test_podman_disk_budget.py](../../tests/test_podman_disk_budget.py), and
+[templates/rust/tests/test_target_disk_budget.py](../../templates/rust/tests/test_target_disk_budget.py).
+
 ### Planning and archive Markdown has no source-code line budget
 
 **Decision.** Exclude `.md` files beneath any `docs/active_plans/` or `docs/archive/` tree from the
@@ -57,6 +75,22 @@ helpers inside its own self-contained directory instead of creating a root helpe
 **Owner.** [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) and the repository's package manifests.
 
 ## Propagation
+
+### Consumer ledgers seed only instructions
+
+**Decision.** Keep the propagated `docs/HUMAN_GUIDANCE.md` seed to its managed instructions and
+keep `docs/DESIGN_DECISIONS.md` to its managed instructions plus the blank decision template.
+
+**Why.** Receiving repositories need fresh ledgers for their own guidance and decisions. Shared
+policy belongs in the relevant propagated `docs/*_STYLE.md` file, while template-specific records
+belong under `meta/docs/` and must not preload consumer history.
+
+**Consequence.** Adding a shared rule changes its authoritative style document rather than adding a
+seed entry. Propagation continues to refresh only each ledger's marked header and preserves every
+consumer-owned entry below it.
+
+**Owner.** [HEADER_BUCKET_SPEC.md](HEADER_BUCKET_SPEC.md) and
+[docs/REPO_STYLE.md](../../docs/REPO_STYLE.md#human-guidance-and-design-decisions).
 
 ### Repo-owned Prettier ignores live in `.prettierignore.local`
 

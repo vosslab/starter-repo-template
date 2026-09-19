@@ -30,6 +30,11 @@ from pytest collection.
   `source source_me.sh && python3 tests/e2e/e2e_<name>.py`
 - Browser: use the repository's Playwright runner or explicit Playwright command.
 
+The fast pytest command always runs the mandatory checkout and Podman disk-budget guards. Rust
+repositories also run the mandatory `target/` disk-budget guard. These checks make responsible use
+of the developer volume part of continuous development; do not move them to E2E, skip them, or
+delete their vendored files.
+
 ## Plan closeout checklist
 
 Before completing a plan, review its files under `tests/_temp/`:

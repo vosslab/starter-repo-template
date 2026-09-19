@@ -215,8 +215,9 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 - Render propagated `.gitignore` blocks first and the consumer-owned LOCAL block last; preserve its
   body verbatim when rebuilding managed content.
 
-- Keep `tests/test_checkout_disk_budget.py` in the base pytest lane: its local `du` is accepted and
-  the vendored test returns after deletion because propagation restores it.
+- Keep checkout, machine-wide Podman, and Rust `target/` disk-budget checks mandatory in the base
+  pytest lane. Continuous development must use hard-drive space responsibly, and propagation
+  restores the vendored checks after deletion.
 - Treat `tools/`, `devel/`, `tests/`, and `launchers/` as support locations rather than
   repository-level import packages. Keep standalone tools independent of repository-local packages,
   while allowing a self-contained tool directory to own helpers and a launcher to delegate into the
