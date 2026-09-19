@@ -62,6 +62,8 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 
 ## Plan and test gates
 
+- Trimming a file to just under its line limit pushes the problem onto the next editor. Split long
+  files into cohesive modules by responsibility.
 - Review implementation plans against [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md),
   [docs/PYTEST_STYLE.md](../../docs/PYTEST_STYLE.md),
   [tests/TESTS_README.md](../../tests/TESTS_README.md),

@@ -58,6 +58,22 @@ helpers inside its own self-contained directory instead of creating a root helpe
 
 ## Propagation
 
+### Repo-owned Prettier ignores live in `.prettierignore.local`
+
+**Decision.** Put repository-specific Prettier exclusions in the consumer-owned
+`.prettierignore.local` file and pass it with `.gitignore` and `.prettierignore` to every Prettier
+check and write command.
+
+**Why.** A separate noexist file keeps shared and repository-owned exclusions distinct, mirrors
+the established `eslint.config.local.js` convention, and uses Prettier's repeated `--ignore-path`
+interface without adding a propagation merge format.
+
+**Consequence.** Propagation ships `.prettierignore.local` once and never overwrites it. Existing
+consumers update their owned `package.json` format script manually; the vendored aggregate check
+updates automatically.
+
+**Owner.** [templates/typescript/check_codebase.sh](../../templates/typescript/check_codebase.sh)
+
 ### Whole-file overwrite sources declare their ownership
 
 **Decision.** Put the exact message, "This file is vendored. Local changes can and will be

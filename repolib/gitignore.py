@@ -8,6 +8,7 @@ GITIGNORE_LOCAL_HEADER_PREFIX = '# ADD YOUR CUSTOM IGNORES BELOW'
 GITIGNORE_LOCAL_HEADER = GITIGNORE_LOCAL_HEADER_PREFIX
 GITIGNORE_LOCAL_NOTICE = '# Propagation preserves this section.'
 GITIGNORE_LOCAL_RULE = '# -------------------- LOCAL REPOSITORY RULES --------------------'
+# Accepted on input for legacy consumers, but never rendered.
 GITIGNORE_LOCAL_RULE_END = '# ------------------ END LOCAL REPOSITORY RULES ------------------'
 GITIGNORE_PREVIOUS_LOCAL_RULES = frozenset({
 	'# -----------------------------------------------------------------------------',
@@ -64,15 +65,7 @@ def _is_gitignore_local_heading(lines: list[str], index: int) -> bool:
 	if line == GITIGNORE_PREVIOUS_LOCAL_HEADER:
 		return True
 	if line == GITIGNORE_LOCAL_HEADER:
-		current_banner = (
-			index > 0
-			and lines[index - 1] == GITIGNORE_LOCAL_RULE
-			and index + 2 < len(lines)
-			and lines[index + 1] == GITIGNORE_LOCAL_NOTICE
-			and lines[index + 2] == GITIGNORE_LOCAL_RULE_END
-		)
-		previous_banner = index + 1 < len(lines) and lines[index + 1] == GITIGNORE_LOCAL_NOTICE
-		return current_banner or previous_banner
+		return index + 1 < len(lines) and lines[index + 1] == GITIGNORE_LOCAL_NOTICE
 	if line != GITIGNORE_PREVIOUS_LOCAL_HEADER_PREFIX:
 		return False
 	result = (
@@ -104,8 +97,8 @@ def ensure_gitignore_local_section(lines: list[str]) -> list[str]:
 			local_body_start += 1
 			if local_body_start < len(lines) and lines[local_body_start] == GITIGNORE_LOCAL_RULE_END:
 				local_body_start += 1
-				if local_index > 0 and lines[local_index - 1] == GITIGNORE_LOCAL_RULE:
-					local_start -= 1
+			if local_index > 0 and lines[local_index - 1] == GITIGNORE_LOCAL_RULE:
+				local_start -= 1
 		elif (
 			local_index > 0
 			and lines[local_index - 1] in GITIGNORE_PREVIOUS_LOCAL_RULES
@@ -147,7 +140,6 @@ def ensure_gitignore_local_section(lines: list[str]) -> list[str]:
 		GITIGNORE_LOCAL_RULE,
 		GITIGNORE_LOCAL_HEADER,
 		GITIGNORE_LOCAL_NOTICE,
-		GITIGNORE_LOCAL_RULE_END,
 	]
 	output = result + local_banner + local_body
 	return output

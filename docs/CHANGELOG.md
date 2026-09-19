@@ -1,3 +1,53 @@
+## 2026-09-19
+
+### Additions and New Features
+
+- Added the consumer-owned TypeScript `.prettierignore.local` noexist seed for repository-specific
+  exclusions. Propagation ships it once and never overwrites it.
+- Added a non-blocking 900-999 line advisory band to the source-file gate. Advisories appear in
+  pytest's warnings summary and in `report_source_file_line_limit_warnings.txt`.
+
+### Behavior or Interface Changes
+
+- Updated the vendored TypeScript aggregate check and the seeded `format:write` script to pass
+  `.gitignore`, `.prettierignore`, and `.prettierignore.local` through repeated `--ignore-path`
+  flags. Existing consumers receive the check update automatically but must update their owned
+  `package.json` script manually.
+- Removed the closing divider from the rendered `.gitignore` LOCAL banner so all following content
+  is visibly repository-owned. Legacy four-line banners remain accepted and converge without
+  losing their body.
+- Replaced the bare 1000-line failure with guidance to split a file into cohesive modules by
+  responsibility instead of trimming it to 999 lines.
+
+### Decisions and Failures
+
+- Chose a companion Prettier ignore file over a LOCAL section inside the overwrite-owned
+  `.prettierignore`. This matches the `eslint.config.local.js` precedent without adding a new
+  propagation bucket or merge format. Recorded this template-only decision and the related human
+  guidance in the `meta/docs/` ledgers rather than the propagated consumer seeds.
+- Rejected a generic vendor-directory exclusion because repository review boundaries vary, and
+  rejected a hard-coded PLE path because product-specific paths do not belong in shared tooling.
+  Removed the superseded root proposal after recording the settled decision.
+- Exempted `docs/CHANGELOG.md` and `docs/CHANGELOG-*.md` from the advisory band because the
+  changelog rotation policy already owns their intended size.
+- The first focused gitignore run exposed a non-idempotent three-line banner parse. Moving opening
+  divider recognition outside legacy-END handling made both old and new inputs converge.
+- The completion audit found that `devel/markdown_section_sizes.py` lacked the whole-file
+  propagation warning, preventing the plan's required full-suite verification. Added the exact
+  vendored header after its required shebang.
+
+### Developer Tests and Notes
+
+- The focused gitignore, line-limit, and folder-convention suite passes all 233 tests and emits the
+  expected two `UserWarning` advisories for `devel/changelog_lib.py` at 940 lines and
+  `templates/pypi/devel/submit_to_pypi.py` at 990 lines. Changelog archives remain silent.
+- The full meta suite passes all 581 tests. The full repository suite passes all 2,434 tests with
+  the two expected non-blocking line-limit warnings.
+- A dry-run propagation to the local Fold-Spacer TypeScript/Rust consumer reports the new
+  `.prettierignore.local` as a noexist copy and `check_codebase.sh` as an overwrite update, with no
+  errors. Shell syntax, documentation bucket isolation, meta-content isolation, and
+  `git diff --check` pass.
+
 ## 2026-09-18
 
 ### Fixes and Maintenance

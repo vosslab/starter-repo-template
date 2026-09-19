@@ -247,8 +247,7 @@ class TestMergeGitignoreBlocksMultiType:
 		local_header_index = rendered_lines.index(repolib.gitignore.GITIGNORE_LOCAL_HEADER)
 		assert rendered_lines[local_header_index - 1] == repolib.gitignore.GITIGNORE_LOCAL_RULE
 		assert rendered_lines[local_header_index + 1] == repolib.gitignore.GITIGNORE_LOCAL_NOTICE
-		assert rendered_lines[local_header_index + 2] == repolib.gitignore.GITIGNORE_LOCAL_RULE_END
-		return rendered_lines[local_header_index + 3:]
+		return rendered_lines[local_header_index + 2:]
 
 	def test_local_section_converges_last_without_losing_its_body(self, tmp_path: pathlib.Path) -> None:
 		"""Every historical LOCAL placement preserves its body and ends after live blocks."""
@@ -270,8 +269,16 @@ class TestMergeGitignoreBlocksMultiType:
 			*body,
 		]
 		legacy_local = [repolib.gitignore.GITIGNORE_LEGACY_LOCAL_HEADER, *body]
+		divided_local = [
+			repolib.gitignore.GITIGNORE_LOCAL_RULE,
+			repolib.gitignore.GITIGNORE_LOCAL_HEADER,
+			repolib.gitignore.GITIGNORE_LOCAL_NOTICE,
+			repolib.gitignore.GITIGNORE_LOCAL_RULE_END,
+			*body,
+		]
 		inputs = {
 			'legacy': [*legacy_local, *old_universal, *old_typed],
+			'divided': [*old_universal, *divided_local, *old_typed],
 			'top': [*current_local, *old_universal, *old_typed],
 			'middle': [*old_universal, *current_local, *old_typed],
 			'previous-top': [*previous_local, *old_universal, *old_typed],
@@ -296,6 +303,7 @@ class TestMergeGitignoreBlocksMultiType:
 			assert actual_propagated_headers == propagated_headers
 			assert all(rendered_lines.index(header) < local_header_index for header in propagated_headers)
 			assert self._local_body(rendered_lines) == body
+			assert repolib.gitignore.GITIGNORE_LOCAL_RULE_END not in rendered_lines
 			assert first_render == second_render
 			renders.append(first_render)
 

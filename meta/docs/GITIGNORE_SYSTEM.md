@@ -80,7 +80,6 @@ last. The local banner is deliberately unlike a propagated heading:
 # -------------------- LOCAL REPOSITORY RULES --------------------
 # ADD YOUR CUSTOM IGNORES BELOW
 # Propagation preserves this section.
-# ------------------ END LOCAL REPOSITORY RULES ------------------
 # Template-only ignores.
 ```
 
@@ -89,7 +88,7 @@ last. The local banner is deliberately unlike a propagated heading:
 - Propagation relocates the local section after all propagated blocks, preserving its body in order.
 - Propagation recognizes and replaces the legacy `# === LOCAL ===`, the previous
   `# === LOCAL REPOSITORY RULES === [ADD CUSTOM IGNORES HERE]` heading, and the older divided
-  `LOCAL REPOSITORY RULES` banner.
+  `LOCAL REPOSITORY RULES` banner, including its former `END LOCAL REPOSITORY RULES` line.
 - Propagation rebuilds active managed blocks from their canonical templates rather than updating
   blocks in place.
 - Canonical rebuild removes every recognized stale managed type block. Removing a token from
