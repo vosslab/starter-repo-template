@@ -144,7 +144,7 @@ def print_next_steps(project_type: str) -> None:
 	print("\nNext steps:")
 	if "python" in type_chain:
 		print("  pip install -r pip_requirements.txt && pip install -r pip_requirements-dev.txt")
-	elif project_type == "typescript":
+	elif "typescript" in type_chain:
 		print("  npm install && bash devel/setup_playwright.sh")
 		print("  pip install -r pip_requirements-dev.txt")
 	elif project_type == "rust":

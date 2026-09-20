@@ -147,6 +147,21 @@ class TestAnswersFromConfigOptionalDefaults:
 class TestFinishPrompt:
 	"""The interactive finish prompt controls every consumer Git finish step."""
 
+	def test_typescript_pages_followup_promotes_marker(
+		self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path,
+	) -> None:
+		"""An affirmative Pages follow-up writes the GitHub Pages child type."""
+		consumer_path = tmp_path / "consumer"
+		consumer_path.mkdir()
+		(consumer_path / "REPO_TYPE").write_text("typescript\n")
+		responses = iter(["typescript", "y", "m", "", "n"])
+		def next_response(_prompt: str) -> str:
+			"""Return the next complete-interview response."""
+			return next(responses)
+		monkeypatch.setattr("builtins.input", next_response)
+		answers = repolib.reset_answers.answers_from_interview(str(consumer_path))
+		assert answers.project_type == "githubpages"
+
 	def test_default_yes_enables_stage_commit_and_push(
 		self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path,
 	) -> None:

@@ -43,6 +43,25 @@ seeds a commented override file for new consumers and preserves each established
 
 ## Repository structure
 
+### PyPI publishing separates operational boundaries
+
+**Decision.** Keep `submit_to_pypi.py` as the publishing coordinator. Put project metadata and
+version files in `pypi_project.py`, Git and release preconditions in `pypi_release.py`, and build,
+upload, and installation verification in `pypi_distribution.py`.
+
+**Why.** The former entry script mixed local metadata, repository mutation, credentialed network
+operations, artifact lifecycle, and orchestration. These responsibilities have different failure
+modes and security boundaries and can change independently.
+
+**Consequence.** The coordinator preserves release-step ordering and production confirmation while
+the focused modules own their inputs and side effects. Every module remains in the PyPI overlay and
+ships automatically by location without manifest registration.
+
+**Owner.** [templates/pypi/devel/submit_to_pypi.py](../../templates/pypi/devel/submit_to_pypi.py),
+[templates/pypi/devel/pypi_project.py](../../templates/pypi/devel/pypi_project.py),
+[templates/pypi/devel/pypi_release.py](../../templates/pypi/devel/pypi_release.py), and
+[templates/pypi/devel/pypi_distribution.py](../../templates/pypi/devel/pypi_distribution.py).
+
 ### Placement policy ships without launcher routing
 
 **Decision.** Propagate the canonical classifier, audience-specific support READMEs, and import
@@ -91,6 +110,27 @@ consumer-owned entry below it.
 
 **Owner.** [HEADER_BUCKET_SPEC.md](HEADER_BUCKET_SPEC.md) and
 [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md#human-guidance-and-design-decisions).
+
+### GitHub Pages is a child of TypeScript
+
+**Decision.** Define `githubpages -> typescript -> website` in the repository-type inheritance
+graph. Keep `build_github_pages.sh`, `deploy-pages.yml`, `run_playwright_tests.sh`, and
+`run_web_server.sh` in the `templates/githubpages/` overlay rather than the generic TypeScript
+overlay.
+
+**Why.** Every Pages project uses TypeScript conventions, but not every TypeScript repository uses
+the template's single-page esbuild bundle, preview server, deployment workflow, or build-aware
+Playwright runner. Shipping those front doors to complex TypeScript repositories gives them
+commands whose assumptions do not fit their build.
+
+**Consequence.** A Pages consumer declares `REPO_TYPE=githubpages` and inherits TypeScript and
+website content automatically. A generic `REPO_TYPE=typescript` consumer omits the four Pages
+files. Its noexist `package.json` uses Playwright directly and does not advertise missing build or
+serve scripts. Existing consumers require an explicit marker choice because the template cannot
+infer whether their previously copied Pages files remain intentional.
+
+**Owner.** [REPO_TYPE.md](REPO_TYPE.md) and
+[build_github_pages.sh](../../templates/githubpages/noexist/build_github_pages.sh).
 
 ### Repo-owned Prettier ignores live in `.prettierignore.local`
 

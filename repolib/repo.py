@@ -19,6 +19,7 @@ REPO_TYPE_CHOICE_ALIASES = {
 	'pypi': 'pypi',
 	't': 'typescript',
 	'typescript': 'typescript',
+	'githubpages': 'githubpages',
 	'r': 'rust',
 	'rust': 'rust',
 	's': 'swift',
@@ -49,8 +50,8 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 	universal walker-routed files still ship.
 
 	Returns a marker string: one type, or several comma-separated types when the
-	repo declares more than one family (python, typescript, rust, swift, other,
-	all, scripted, website, compiled, unknown).
+	repo declares more than one family (python, typescript, githubpages, rust, swift, other,
+	all, githubpages, scripted, website, compiled, unknown).
 	Marker validation is delegated to repolib.model.validate_marker, which drops
 	unrecognized types with a warning and keeps the valid half, and falls back to
 	other only when no type is recognized, so a bad marker never aborts a batch run.
@@ -180,7 +181,7 @@ def write_repo_type_marker(path: str, marker: str, dry_run: bool = False) -> boo
 	Args:
 		path (str): Path to REPO_TYPE marker file.
 		marker (str): Canonical marker: one type or a comma-separated list
-			(python, typescript, rust, swift, other, all, ...).
+			(python, typescript, githubpages, rust, swift, other, all, ...).
 		dry_run (bool): If True, do not write changes.
 
 	Returns:
@@ -255,8 +256,8 @@ def parse_repo_type_choice(text: str, default: str | None = None) -> str | None:
 		default (str): Default marker if no piece of the input is recognized.
 
 	Returns:
-		str: Canonical marker of one or more types (python, typescript, rust,
-			swift, other, all, scripted, website, compiled) or default.
+		str: Canonical marker of one or more types (python, typescript,
+			githubpages, rust, swift, other, all, scripted, website, compiled) or default.
 	"""
 	if not text:
 		return default

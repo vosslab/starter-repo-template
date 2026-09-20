@@ -66,8 +66,9 @@ routing coverage are present in the template.
 | Universal test or helper | tests/ (any non-meta file) | every repo, overwrite |
 | Helper script in devel/ | devel/ | every repo, overwrite |
 | Starter file that must not clobber existing | templates/<type>/noexist/<consumer-path> | only when missing |
-| TypeScript-only file (any subpath, including tools/) | templates/typescript/<consumer-path> | typescript repos only |
-| Web-general file (playwright style, web docs) | templates/website/<consumer-path> | the website family: website repos plus inheriting types (typescript) |
+| TypeScript-family file (any subpath, including tools/) | templates/typescript/<consumer-path> | typescript repos and inheriting children |
+| GitHub Pages build file | templates/githubpages/<consumer-path> | githubpages repos only; inherits TypeScript and website files |
+| Web-general file (playwright style, web docs) | templates/website/<consumer-path> | the website family: website repos plus inheriting types |
 | Rust-only file (any subpath, including tools/) | templates/rust/<consumer-path> | rust repos only |
 | PyPI-package file | templates/pypi/<consumer-path> | `pypi` repos; also inherits the Python overlay |
 | Conditionally-shipped overlay | templates/<type>/_overlay/<consumer-path> + conditional_overlays rule | selected repos only (see below) |
@@ -119,7 +120,7 @@ retained for future state-dependent routing.
 Each repo type token inherits from at most one parent, forming an inheritance
 DAG declared in the `repo_type_inherits` manifest
 (`meta/propagation/manifests.yaml`): `pypi -> python -> scripted`, `rust -> compiled`,
-`swift -> compiled`, `typescript -> website`. `scripted`, `website`,
+`swift -> compiled`, `githubpages -> typescript -> website`. `scripted`, `website`,
 `compiled`, and `other` are roots with no parent; every token (including the
 roots) is a directly usable `REPO_TYPE` marker.
 
@@ -139,8 +140,9 @@ followed by its ancestors, nearest-first and deduped across the whole marker,
 and is the one expansion every routing path consumes:
 
 - **Typed overlays**: a consumer receives its own `templates/<type>/` overlay
-  PLUS every ancestor's overlay, unioned. A `typescript` repo ships
-  `templates/typescript/` and `templates/website/` content; a `website` repo
+  PLUS every ancestor's overlay, unioned. A `githubpages` repo ships
+  `templates/githubpages/`, `templates/typescript/`, and `templates/website/`
+  content; a `typescript` repo ships the latter two, while a `website` repo
   ships only `templates/website/`. Ancestor conditional overlays
   (`templates/<ancestor>/_<name>/`) are inherited the same way. A multi-token
   marker unions the overlays of every declared token, and the first declared
@@ -329,6 +331,8 @@ deprecation-strip list); consumer keeps any local `@`-imports and non-`@` conten
   `_`-prefixed scratch files, `_temp*` subtrees, `conftest.py` (owned by `merge_conftest`), and
   `META_TEST_PREFIXES`. A non-`test_`-prefixed helper like `tests/helper_thing.py` ships too.
 - Adding `templates/typescript/.eslintignore` -- drop under `templates/typescript/`. TypeScript repos get it at consumer root.
+- Adding a Pages-specific front door -- drop under `templates/githubpages/`. GitHub Pages repos
+  get it alongside the inherited TypeScript and website files; generic TypeScript repos do not.
 - Adding a new starter `Makefile` that must not clobber existing ones -- drop at `templates/<type>/noexist/Makefile` (per type) or add path to `UNIVERSAL_NOEXIST` + place at template root.
 - Adding a PyPI-package tool -- place it under `templates/pypi/<consumer-path>`. The `pypi` child type inherits all Python files and adds that overlay. Example: `devel/submit_to_pypi.py` lives at `templates/pypi/devel/submit_to_pypi.py`.
 - Adding an `exclude_repos` exception -- add to `ROUTING_OVERRIDES` in `meta/propagation/manifests.yaml` with `exclude_repos: [<repo-basename>]`. Use only to prevent a mirror file from shipping back to its source repo.

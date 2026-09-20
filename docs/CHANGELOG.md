@@ -2,6 +2,9 @@
 
 ### Additions and New Features
 
+- Added `githubpages` as a repository type inheriting `typescript` and `website`.
+- Added the reset interview follow-up that promotes a selected `typescript` repository to
+  `githubpages` when it uses the template's Pages build, parallel to Python's PyPI follow-up.
 - Added mandatory base-lane disk-budget checks for machine-wide Podman storage and Rust `target/`
   build artifacts. The Podman guard ships universally; the target guard ships through the Rust
   overlay.
@@ -12,6 +15,14 @@
 
 ### Behavior or Interface Changes
 
+- Moved the Pages build, deployment seed, preview server, and build-aware Playwright runner from
+  the generic TypeScript overlay to `templates/githubpages/`. Plain TypeScript repositories no
+  longer receive those four build-specific files or package aliases that point to them. Existing
+  Pages consumers change `REPO_TYPE` from `typescript` to `githubpages`; generic consumers can
+  remove old copies explicitly because propagation does not guess ownership of existing files.
+- Refactored the PyPI publishing tool into a thin coordinator plus focused project, release, and
+  distribution modules. CLI modes and release order remain unchanged, while validated import names
+  now travel as subprocess arguments instead of interpolated Python source.
 - Reduced the propagated Human Guidance seed to its managed instructions and the Design Decisions
   seed to its managed instructions plus a blank entry template. Receiving repositories now start
   with fresh ledgers instead of inheriting starter-template history.
@@ -25,8 +36,20 @@
 - Replaced the bare 1000-line failure with guidance to split a file into cohesive modules by
   responsibility instead of trimming it to 999 lines.
 
+### Fixes and Maintenance
+
+- Split changelog parsing records and state machines into `devel/changelog_parse.py`, leaving
+  `changelog_lib.py` as the stable public API for file mutation, Git, and console helpers.
+- Kept PyPI tokens out of source, command arguments, and logs during the module split. Preserved
+  list-based subprocess execution, ordered preflight gates, and explicit production confirmation.
+- Applied the independent split audit's low-risk findings: removed an unused project-metadata
+  field, corrected import ordering, and restored Google-style boundary docstrings.
+
 ### Decisions and Failures
 
+- Made GitHub Pages a child capability instead of an assumption of every TypeScript repository.
+  A Pages consumer writes `REPO_TYPE=githubpages`; inheritance supplies TypeScript automatically,
+  so a redundant `githubpages,typescript` marker is unnecessary.
 - Kept both disk guards in ordinary pytest rather than E2E. Podman storage is machine-wide, so its
   guard ships to every repository; `target/` is repository-local Rust output, so its guard ships
   only to Rust repositories. Budget failures direct developers to inspect and remove stale data.
@@ -47,6 +70,10 @@
 
 ### Developer Tests and Notes
 
+- Temporary pure-behavior checks passed for metadata resolution, import-name validation, pip index
+  parsing, and repository selection, then were removed. A plan assertion confirms every PyPI helper
+  ships only to PyPI consumers. The focused suite passes 1,291 checks; the full suite passes 2,520
+  tests without warnings after the changelog parser split.
 - The focused gitignore, line-limit, and folder-convention suite passes all 233 tests and emits the
   expected two `UserWarning` advisories for `devel/changelog_lib.py` at 940 lines and
   `templates/pypi/devel/submit_to_pypi.py` at 990 lines. Changelog archives remain silent.

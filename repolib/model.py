@@ -365,12 +365,12 @@ def select_overlay_dirs(repo_type: str, repo_dir: str) -> list[str]:
 	Runs each member of effective_type_chain(repo_type) through the base-plus-
 	conditional expansion (single_type_overlay_dirs) and unions the segments
 	nearest-first: the concrete type's own overlays come first, then each ancestor
-	base's overlays. So a typescript repo picks up its own overlay AND the website
-	base overlay it inherits.
+	base's overlays. Thus a githubpages repo receives its own overlay plus the
+	typescript and website overlays it inherits.
 
 	Args:
 		repo_type (str): Consumer repository marker: one type token or a comma-separated
-			list (python, typescript, rust, swift, other, all, ...).
+			list (python, typescript, githubpages, rust, swift, other, all, ...).
 		repo_dir (str): Consumer repository directory to test marker files against.
 
 	Returns:
@@ -418,13 +418,14 @@ def overlay_roots_for_type(template_root: str, repo_type: str) -> list[str]:
 	Runs each member of effective_type_chain(repo_type) through the single-type
 	root expansion and unions the roots nearest-first, so a source resolver for a
 	concrete type also searches the roots of every base it inherits (e.g. a
-	typescript lookup searches templates/typescript/ and templates/website/). The
+	githubpages lookup searches templates/githubpages/, templates/typescript/,
+	and templates/website/). The
 	universal template root is handled separately by each resolver.
 
 	Args:
 		template_root (str): Template root directory.
 		repo_type (str): Repository marker: one type token or a comma-separated
-			list (python, typescript, rust, swift, other, all, ...).
+			list (python, typescript, githubpages, rust, swift, other, all, ...).
 
 	Returns:
 		list[str]: Ordered, deduplicated candidate overlay root directories under

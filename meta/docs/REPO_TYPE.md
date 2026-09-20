@@ -15,12 +15,13 @@ style. Repository conventions live in [docs/REPO_STYLE.md](../../docs/REPO_STYLE
 ## Available types
 
 The available names, in canonical display order, are `python`, `pypi`,
-`typescript`, `rust`, `swift`, `other`, `scripted`, `website`, `compiled`, and
-`all`.
+`typescript`, `githubpages`, `rust`, `swift`, `other`, `scripted`, `website`,
+`compiled`, and `all`.
 
 Inheritance adds the complete parent rule set:
 
 - `pypi` -> `python` -> `scripted`
+- `githubpages` -> `typescript` -> `website`
 - `typescript` -> `website`
 - `rust` -> `compiled`
 - `swift` -> `compiled`
@@ -28,6 +29,20 @@ Inheritance adds the complete parent rule set:
 `scripted`, `website`, `compiled`, and `other` are root types. Every listed type
 is valid as a direct marker. `all` expands to every concrete type supported by
 the template.
+
+Use `githubpages` alone for a TypeScript repository deployed with the template's
+GitHub Pages build. Inheritance already supplies the TypeScript and website
+families; writing `githubpages,typescript` is redundant.
+
+During `reset_repo.py`, selecting `typescript` prompts whether the repository
+uses the template's GitHub Pages build. An affirmative answer writes the
+canonical `githubpages` child marker, matching the Python-to-PyPI promotion flow.
+
+Existing Pages consumers previously marked `typescript` must change their marker
+to `githubpages` to keep receiving updates to the four Pages front doors. Existing
+generic TypeScript consumers may remove old copies of those files when they do not
+fit the repository; propagation does not infer whether a previously copied file is
+still locally owned.
 
 ## Multiple types
 

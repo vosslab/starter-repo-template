@@ -677,7 +677,7 @@ def main() -> int:
 
 	# === phase: gather answers (config or interview) ===
 	# Config mode (--config) is non-interactive; the interview asks, in order:
-	# project type, code license, docs license, PyPI (python only), then one
+	# project type, child-type follow-ups, licenses, then one
 	# stage/commit/push finish decision. Config push defaults off to keep
 	# unattended runs offline.
 	if args.config:
@@ -737,7 +737,7 @@ def main() -> int:
 
 	# === phase: typescript-specific work ===
 	# Must run AFTER propagate so the noexist bucket has placed package.json at repo root.
-	if project_type == "typescript":
+	if "typescript" in repolib.model.effective_type_chain(project_type):
 		action_count += substitute_typescript_package_json(repo_root, args.dry_run)
 
 	# === phase: replace boilerplate ===

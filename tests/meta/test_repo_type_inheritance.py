@@ -151,7 +151,7 @@ def assert_chain_disjoint(template_root: str, repo_type: str) -> None:
 			)
 
 
-@pytest.mark.parametrize('repo_type', ['python', 'rust', 'swift', 'typescript'])
+@pytest.mark.parametrize('repo_type', ['python', 'rust', 'swift', 'typescript', 'githubpages'])
 def test_live_chain_is_disjoint(repo_type: str) -> None:
 	"""Every concrete type's live overlay chain ships distinct consumer paths."""
 	assert_chain_disjoint(TEMPLATE_ROOT, repo_type)
@@ -285,6 +285,7 @@ ROUTING_MATRIX = [
 	('rust', False, False, True),
 	('swift', False, False, True),
 	('typescript', True, True, False),
+	('githubpages', True, True, False),
 	('website', True, False, False),
 	('other', False, False, True),
 	('scripted', False, False, True),
@@ -307,6 +308,22 @@ def test_routing_matrix_anchor_assets(
 	assert (PLAYWRIGHT_TEST_STYLE_MD in plan['overwrite_files']) == expect_playwright_style
 	assert (TSCONFIG_JSON in plan['noexist_files']) == expect_tsconfig
 	assert (MAKE_RELEASE_PY in plan['devel_files']) == expect_make_release
+
+
+def test_githubpages_owns_pages_front_doors() -> None:
+	"""Pages front doors ship to the child type, never generic TypeScript."""
+	typescript_plan = repolib.plan.compute_propagation_plan(TEMPLATE_ROOT, 'typescript')
+	githubpages_plan = repolib.plan.compute_propagation_plan(TEMPLATE_ROOT, 'githubpages')
+	noexist_paths = {
+		'build_github_pages.sh',
+		'deploy-pages.yml',
+		'run_playwright_tests.sh',
+	}
+	for path_value in noexist_paths:
+		assert path_value not in typescript_plan['noexist_files']
+		assert path_value in githubpages_plan['noexist_files']
+	assert 'run_web_server.sh' not in typescript_plan['overwrite_files']
+	assert 'run_web_server.sh' in githubpages_plan['overwrite_files']
 
 
 #============================================
@@ -350,7 +367,7 @@ def _union_plan(repo_types: tuple) -> dict:
 def test_all_set_equals_concrete_union() -> None:
 	"""REPO_TYPE=all ships the union of every concrete type, including pypi."""
 	all_plan = repolib.plan.compute_propagation_plan(TEMPLATE_ROOT, 'all')
-	concrete_types = LEGACY_CONCRETE_TYPES + ('pypi',)
+	concrete_types = LEGACY_CONCRETE_TYPES + ('pypi', 'githubpages')
 	concrete_union = _union_plan(concrete_types)
 	for bucket in concrete_union:
 		assert set(all_plan[bucket]) == concrete_union[bucket], (

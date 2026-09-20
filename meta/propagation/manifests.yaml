@@ -67,7 +67,7 @@ shared_overlays:
   source_release:
     # Base-targeted: the scripted and compiled families inherit release tooling,
     # so any future scripted/compiled language receives it with no further manifest
-    # edit. The website family (website, typescript) stays out because a docs or
+    # edit. The website family (website, typescript, githubpages) stays out because a docs or
     # game site publishes builds, not GitHub source releases.
     paths:
       - devel/make_release.py
@@ -196,6 +196,7 @@ known_repo_types:
   - python
   - pypi
   - typescript
+  - githubpages
   - rust
   - swift
   - other
@@ -217,3 +218,4 @@ repo_type_inherits:
   rust: compiled
   swift: compiled
   typescript: website
+  githubpages: typescript

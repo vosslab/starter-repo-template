@@ -6,12 +6,10 @@
 	"scripts": {
 		"setup": "./devel/setup_typescript.sh",
 		"setup:playwright": "./devel/setup_playwright.sh",
-		"build": "./build_github_pages.sh",
-		"serve": "./run_web_server.sh",
 		"check": "./check_codebase.sh",
 		"clean": "./dist_clean.sh",
 		"format:write": "npx prettier --write --ignore-path .gitignore --ignore-path .prettierignore --ignore-path .prettierignore.local '**/*.{ts,tsx,mts,cts,js,mjs,cjs}'",
-		"test:playwright": "./run_playwright_tests.sh"
+		"test:playwright": "npx playwright test"
 	},
 	"devDependencies": {
 		"@types/node": ">=26.0.1",

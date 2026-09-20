@@ -210,6 +210,46 @@ def promote_pypi_type(project_type: str) -> str:
 
 
 #============================================
+def resolve_githubpages(project_type: str) -> bool:
+	"""Ask whether a TypeScript-capable project uses the Pages workflow.
+
+	Args:
+		project_type: Canonical project-type marker selected for the repository.
+
+	Returns:
+		True when the selected project uses the template's GitHub Pages build.
+	"""
+	declared_types = repolib.model.expand_marker_types(project_type)
+	if "githubpages" in declared_types:
+		return True
+	typescript_capable = "typescript" in repolib.model.effective_type_chain(project_type)
+	if not typescript_capable:
+		return False
+	user_input = input(
+		"Will this TypeScript project use the template's GitHub Pages build? [y/N]: "
+	).strip()
+	return user_input.lower() == "y"
+
+
+#============================================
+def promote_githubpages_type(project_type: str) -> str:
+	"""Replace a declared TypeScript type with its GitHub Pages child.
+
+	Args:
+		project_type: Comma-separated canonical project-type marker.
+
+	Returns:
+		Project-type marker with TypeScript declarations promoted to GitHub Pages.
+	"""
+	promoted_types = []
+	for declared_type in project_type.split(","):
+		promoted_type = "githubpages" if declared_type == "typescript" else declared_type
+		if promoted_type not in promoted_types:
+			promoted_types.append(promoted_type)
+	return ",".join(promoted_types)
+
+
+#============================================
 def resolve_licenses() -> tuple[str, str]:
 	"""Prompt for code and documentation licenses.
 
@@ -293,10 +333,13 @@ def answers_from_interview(repo_root: str) -> ResetAnswers:
 		SystemExit: An entered project type or documentation license is invalid.
 	"""
 	project_type = resolve_project_type(repo_root)
-	code_license, docs_license = resolve_licenses()
 	pypi = resolve_pypi(project_type)
 	if pypi:
 		project_type = promote_pypi_type(project_type)
+	githubpages = resolve_githubpages(project_type)
+	if githubpages:
+		project_type = promote_githubpages_type(project_type)
+	code_license, docs_license = resolve_licenses()
 	finish = resolve_finish()
 	return ResetAnswers(
 		project_type=project_type,

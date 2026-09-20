@@ -35,6 +35,9 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
   relationships to semantic HTML or an appropriate publishing pipeline.
 - [REPO_TYPE.md](REPO_TYPE.md) owns marker format, names, inheritance, and
   multi-type behavior.
+- Keep generic TypeScript repositories independent of the template's GitHub Pages build.
+  Pages build, deployment, preview-server, and build-aware Playwright scripts belong to the
+  `githubpages` child type, which inherits `typescript`.
 - [GITIGNORE_SYSTEM.md](GITIGNORE_SYSTEM.md) owns `.gitignore` sources, rendered ownership,
   canonicalization, cleanup, pattern semantics, and validation.
 - [LICENSE_POLICY.md](LICENSE_POLICY.md) owns license filenames, canonical body sources,
@@ -62,8 +65,8 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 
 ## Plan and test gates
 
-- Trimming a file to just under its line limit pushes the problem onto the next editor. Split long
-  files into cohesive modules by responsibility.
+- Treat a source-size advisory as a prompt to make the best cohesive responsibility split, not as
+  a target line count. Trimming just below the threshold pushes the problem to the next editor.
 - Review implementation plans against [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md),
   [docs/PYTEST_STYLE.md](../../docs/PYTEST_STYLE.md),
   [tests/TESTS_README.md](../../tests/TESTS_README.md),
