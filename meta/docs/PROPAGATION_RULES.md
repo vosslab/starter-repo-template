@@ -7,6 +7,11 @@ See [HUMAN_GUIDANCE.md](HUMAN_GUIDANCE.md) for human-stated guidance and
 
 ## Hardcoding principles
 
+Markdown-only repositories use the explicit `markdown_files` subset in
+`meta/propagation/manifests.yaml`. It filters every file bucket after normal routing; automatic
+test discovery cannot expand it. This exception keeps one canonical copy of the three hygiene
+checks and their helpers. Mixed types retain the normal baseline. See [REPO_TYPE.md](REPO_TYPE.md).
+
 Manifests live in `meta/propagation/manifests.yaml` (loaded by `repolib/manifests.py:load_manifests()`
 and assigned to `repolib/model.py` module-level names). Three hardcoding categories apply:
 

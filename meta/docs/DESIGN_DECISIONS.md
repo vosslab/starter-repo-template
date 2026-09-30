@@ -43,6 +43,20 @@ seeds a commented override file for new consumers and preserves each established
 
 ## Repository structure
 
+### Markdown uses a small content baseline
+
+**Decision.** Filter Markdown-only propagation through the manifest's `markdown_files` subset;
+reuse the canonical hygiene checks and provide lean agent, repository-style, and dependency overlays.
+
+**Why.** Writing repositories need link, character, and whitespace validation without code tooling.
+
+**Consequence.** Automatic discovery cannot add tests. Mixed markers omit lean overlays and retain
+the normal development baseline. Reset prunes unselected template files; ordinary propagation
+preserves existing consumer files. Prompt input remains constrained to known aliases (ASVS 2.2.1),
+and local link destinations retain repository containment checks (ASVS 5.3.2).
+
+**Owner.** [REPO_TYPE.md](REPO_TYPE.md) and [PROPAGATION_RULES.md](PROPAGATION_RULES.md).
+
 ### PyPI publishing separates operational boundaries
 
 **Decision.** Keep `submit_to_pypi.py` as the publishing coordinator. Put project metadata and

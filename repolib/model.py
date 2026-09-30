@@ -102,6 +102,7 @@ ROOT_PROPAGATE_ALLOWLIST = _MANIFESTS['root_propagate_allowlist']
 UNIVERSAL_NOEXIST = _MANIFESTS['universal_noexist']
 MERGE_FILES = _MANIFESTS['merge_files']
 HEADER_FILES = _MANIFESTS['header_files']
+MARKDOWN_FILES = _MANIFESTS['markdown_files']
 REQUIREMENTS_FILES = _MANIFESTS['requirements_files']
 META_FILES = _MANIFESTS['meta_files']
 # Glob patterns (template-root-relative) that never ship, e.g. changelog archives.
@@ -380,6 +381,8 @@ def select_overlay_dirs(repo_type: str, repo_dir: str) -> list[str]:
 	# Union the per-type segments across the inheritance chain, nearest-first.
 	overlay_dirs: list[str] = []
 	for chain_type in effective_type_chain(repo_type):
+		if chain_type == 'markdown' and not is_markdown_only(repo_type):
+			continue
 		for segment in single_type_overlay_dirs(chain_type, repo_dir):
 			# Dedup while preserving nearest-first order.
 			if segment not in overlay_dirs:
@@ -434,11 +437,20 @@ def overlay_roots_for_type(template_root: str, repo_type: str) -> list[str]:
 	# Union the per-type roots across the inheritance chain, nearest-first.
 	roots: list[str] = []
 	for chain_type in effective_type_chain(repo_type):
+		if chain_type == 'markdown' and not is_markdown_only(repo_type):
+			continue
 		for root in single_type_overlay_roots(template_root, chain_type):
 			# Dedup while preserving nearest-first order.
 			if root not in roots:
 				roots.append(root)
 	return roots
+
+
+#============================================
+def is_markdown_only(repo_type: str) -> bool:
+	"""Return whether the marker selects only the lean content profile."""
+	known_types, _unknown_types = partition_known_types(repo_type)
+	return known_types == ['markdown']
 
 
 #============================================

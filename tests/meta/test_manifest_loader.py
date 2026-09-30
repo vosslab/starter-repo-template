@@ -26,6 +26,7 @@ import repolib.model
 # A minimal manifests.yaml that exercises every section the loader reads.
 # Values are synthetic; only their types and structure are asserted below.
 SYNTHETIC_MANIFEST_YAML = """\
+markdown_files: []
 routing_overrides:
   "docs/SYNTH.md":
     exclude_repos:

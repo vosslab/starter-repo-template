@@ -28,15 +28,14 @@ def test_universal_doc_routes_overwrite(tmp_path: pathlib.Path) -> None:
 def test_universal_doc_reaches_every_type(tmp_path: pathlib.Path) -> None:
 	"""A universal docs/ file reaches python, typescript, and other alike.
 
-	Under the location model, universal-root placement means universal delivery;
-	there is no per-type gating for a file that lives at the universal root.
+	Development profiles receive root docs; markdown uses its explicit subset.
 	"""
 	docs_dir = tmp_path / 'docs'
 	docs_dir.mkdir()
 	(docs_dir / 'SHARED.md').write_text('test')
 	for repo_type in repolib.model.REPO_TYPE_ORDER:
 		plan = repolib.plan.compute_propagation_plan(str(tmp_path), repo_type)
-		assert 'docs/SHARED.md' in plan['overwrite_files']
+		assert ('docs/SHARED.md' in plan['overwrite_files']) == (repo_type != 'markdown')
 
 
 def test_meta_file_excluded_basename_form(tmp_path: pathlib.Path) -> None:
@@ -62,7 +61,7 @@ def test_root_tools_routes_universal(tmp_path: pathlib.Path) -> None:
 	(tools_dir / 'user_report.py').write_text('test')
 	for repo_type in repolib.model.REPO_TYPE_ORDER:
 		plan = repolib.plan.compute_propagation_plan(str(tmp_path), repo_type)
-		assert 'tools/user_report.py' in plan['overwrite_files']
+		assert ('tools/user_report.py' in plan['overwrite_files']) == (repo_type != 'markdown')
 
 
 def test_typescript_overlay_tools_ships(tmp_path: pathlib.Path) -> None:

@@ -193,6 +193,7 @@ default_repo_skip_names:
 # matters here; do not sort. Internal routing pseudo-types (universal, unknown)
 # are NOT consumer tokens and are added at their own guard in repolib.files.
 known_repo_types:
+  - markdown
   - python
   - pypi
   - typescript
@@ -219,3 +220,22 @@ repo_type_inherits:
   swift: compiled
   typescript: website
   githubpages: typescript
+
+# Markdown-only consumers take this small subset of the universal tree.
+# Mixed markers retain the normal baseline and omit the lean markdown overlays.
+markdown_files:
+  - AGENTS.md
+  - CLAUDE.md
+  - source_me.sh
+  - pip_requirements-dev.txt
+  - docs/REPO_STYLE.md
+  - docs/MARKDOWN_STYLE.md
+  - docs/HUMAN_GUIDANCE.md
+  - docs/DESIGN_DECISIONS.md
+  - tests/file_utils.py
+  - tests/test_markdown_links.py
+  - tests/test_ascii_compliance.py
+  - tests/check_ascii_compliance.py
+  - tests/fix_ascii_compliance.py
+  - tests/test_whitespace.py
+  - tests/fix_whitespace.py

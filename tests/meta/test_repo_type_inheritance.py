@@ -185,6 +185,7 @@ def test_disjointness_guard_fails_on_synthetic_collision(
 #============================================
 
 SYNTHETIC_INHERITANCE_YAML = """\
+markdown_files: []
 routing_overrides: {}
 conditional_overlays:
   website:

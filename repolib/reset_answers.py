@@ -163,11 +163,7 @@ def resolve_project_type(repo_root: str) -> str:
 		else:
 			default_type = "python"
 
-	user_input = input(
-		"Project type? [p]ython / pypi / [t]ypescript / [r]ust / [s]wift / [o]ther / "
-		"[a]ll / scripted / website / compiled "
-		f"(list allowed, e.g. python,rust or pr) [{default_type}]: "
-	).strip()
+	user_input = input(repolib.repo.project_type_prompt(default_type)).strip()
 	return normalize_project_type(user_input, default_type)
 
 

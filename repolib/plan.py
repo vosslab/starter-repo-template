@@ -57,6 +57,8 @@ def auto_discover_test_files(template_root: str, repo_type: str) -> list[str]:
 		list[str]: Test paths relative to the consumer repository.
 	"""
 	spec = resolve_spec_for_type(repo_type, template_root)
+	if repolib.model.is_markdown_only(repo_type):
+		return []
 	spec_test_files = set(spec['test_files'])
 
 	discovered = []
@@ -497,4 +499,9 @@ def compute_propagation_plan(template_root: str, repo_type: str, counters: dict 
 			assert_not_meta(path)
 			plan['requirements_files'].append(path)
 
+	# Restrict every bucket after policy routing, which also injects universal seeds.
+	if repolib.model.is_markdown_only(repo_type):
+		for bucket, paths in plan.items():
+			if bucket != 'gitignore_block':
+				plan[bucket] = [path for path in paths if path in repolib.model.MARKDOWN_FILES]
 	return plan

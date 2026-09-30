@@ -21,6 +21,10 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 
 ## Documentation ownership
 
+- Add a stripped-down `markdown` repository type for Markdown and Djot, retaining link, ASCII,
+  and whitespace checks plus `REPO_STYLE.md` and `MARKDOWN_STYLE.md`.
+- Display project-type choices on separate lines, like the license selection menu.
+
 - Give every whole-file overwrite source, across all file extensions, the exact header message,
   "This file is vendored. Local changes can and will be overwritten by propagation." Use the
   format's native comment syntax and place it after a required shebang. Keep it out of noexist

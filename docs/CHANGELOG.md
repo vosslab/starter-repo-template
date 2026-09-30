@@ -1,3 +1,28 @@
+## 2026-09-30
+
+### Additions and New Features
+
+- Added the `markdown` repository type for Markdown and Djot, with local-link, ASCII/ISO-8859-1,
+  and whitespace checks, shared helpers, two style guides, and pytest-only development dependencies.
+
+### Behavior or Interface Changes
+
+- Display project-type choices vertically like the license menu, including `[m] markdown`.
+- Keep Markdown-only propagation small; mixed types retain normal development tooling.
+- Include `.djot` in all three checks and check reference-link destinations outside code blocks.
+
+### Fixes and Maintenance
+
+- Prevent automatic discovery from restoring omitted tests to Markdown consumers.
+- Prune unselected template files during Markdown reset and seed content-only agent imports.
+- Keep permanent coverage focused on the profile boundary, mixed types, and Djot links; validate
+  menu layout, source resolution, and fresh consumer setup with temporary checks.
+
+### Decisions and Failures
+
+- Keep one canonical copy of hygiene checks; use a manifest subset and lean typed overlays.
+- Existing consumers retain their files when changing markers; migration cleanup remains explicit.
+
 ## 2026-09-19
 
 ### Additions and New Features

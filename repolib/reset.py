@@ -25,6 +25,7 @@ import subprocess
 # local repo modules
 import repolib.repo
 import repolib.model
+import repolib.plan
 import repolib.console
 import repolib.process
 import repolib.reset_answers
@@ -648,7 +649,23 @@ def clean_template_files(repo_root: str, project_type: str, dry_run: bool) -> in
 	Returns:
 		int: Number of cleanup actions taken or announced.
 	"""
-	action_count = remove_changelog_archives(repo_root, dry_run)
+	action_count = 0
+	if repolib.model.is_markdown_only(project_type):
+		# Reset starts from a template clone. Remove its unselected universal files;
+		# ordinary propagation never deletes an established consumer's files.
+		baseline = repolib.plan.compute_propagation_plan(repo_root, 'other')
+		for bucket, paths in baseline.items():
+			if bucket == 'gitignore_block':
+				continue
+			for path in paths:
+				if bucket == 'devel_files':
+					path = 'devel/' + path
+				if path not in repolib.model.MARKDOWN_FILES:
+					action_count += git_rm(path, repo_root, dry_run)
+		for path in ('VERSION', 'pip_extras.txt', 'docs/TODO.md',
+			'docs/GRAPHIFY.md', 'docs/GRAPHIFY_map.svg'):
+			action_count += git_rm(path, repo_root, dry_run)
+	action_count += remove_changelog_archives(repo_root, dry_run)
 	action_count += remove_templates_directory(repo_root, dry_run)
 	action_count += git_rm("propagate_style_guides.py", repo_root, dry_run)
 	action_count += git_rm_recursive("repolib/", repo_root, dry_run)
@@ -726,6 +743,10 @@ def main() -> int:
 		action_count += seed_pyproject(repo_root, args.dry_run)
 
 	# === phase: propagate (direct repolib call) ===
+	if repolib.model.is_markdown_only(project_type):
+		# Seed only the content-profile imports during bootstrap; later merges
+		# continue preserving the consumer's own additions.
+		action_count += git_rm('CLAUDE.md', repo_root, args.dry_run)
 	action_count += run_propagate(repo_root, args.dry_run)
 
 	# === phase: scaffold sentinel check ===

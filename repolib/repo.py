@@ -14,6 +14,8 @@ import repolib.console
 # types. The base types (scripted, website, compiled) are full-name only: their
 # single letters are already claimed by concrete descendants (p, t, r, s).
 REPO_TYPE_CHOICE_ALIASES = {
+	'm': 'markdown',
+	'markdown': 'markdown',
 	'p': 'python',
 	'python': 'python',
 	'pypi': 'pypi',
@@ -32,6 +34,23 @@ REPO_TYPE_CHOICE_ALIASES = {
 	'website': 'website',
 	'compiled': 'compiled',
 }
+
+
+#============================================
+def project_type_prompt(default: str | None = None) -> str:
+	"""Display each canonical type on its own line, like the license menu."""
+	import repolib.model
+	lines = ['Project type?']
+	for name in repolib.model.REPO_TYPE_ORDER:
+		aliases = [key for key, value in REPO_TYPE_CHOICE_ALIASES.items()
+			if value == name and len(key) == 1]
+		label = f'[{aliases[0]}] {name}' if aliases else name
+		if name == 'markdown':
+			label += ' (Markdown and Djot)'
+		lines.append(f'  {label}')
+	lines.append('Select names or letters; lists allowed (python,rust or pr).')
+	lines.append(f'Choice [{default}]: ' if default else 'Choice: ')
+	return '\n'.join(lines)
 
 
 #============================================
@@ -123,11 +142,7 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 					else:
 						# User rejected; re-prompt for explicit type
 						while True:
-							user_type = input(
-								"Project type? [p]ython / pypi / [t]ypescript / [r]ust / [s]wift / [o]ther / "
-								"[a]ll / scripted / website / compiled "
-								"(list allowed, e.g. python,rust or pr) [p]: "
-							).strip()
+							user_type = input(project_type_prompt('python')).strip()
 							chosen_type = parse_repo_type_choice(user_type, 'python')
 							write_repo_type_marker(marker_path, chosen_type, dry_run=False)
 							return chosen_type
@@ -143,11 +158,7 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 
 			# Interactive prompt for ambiguous
 			while True:
-				user_type = input(
-					"Project type? [p]ython / pypi / [t]ypescript / [r]ust / [s]wift / [o]ther / "
-					"scripted / website / compiled "
-					"(list allowed, e.g. python,rust or pr): "
-				).strip()
+				user_type = input(project_type_prompt(None)).strip()
 				chosen_type = parse_repo_type_choice(user_type, None)
 				if chosen_type is None:
 					print("Invalid choice. Try again.")
