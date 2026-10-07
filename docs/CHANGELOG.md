@@ -1,3 +1,21 @@
+## 2026-10-07
+
+### Fixes and Maintenance
+
+- Added a removable Cargo-alias normalization helper before Rust map reclustering.
+  Reconcile exact Cargo/AST package twins and redirect their original links, then
+  verify the JSON node set matches Graphify's loaded representation before saving.
+  Graphify's shrinkage guard remains active; no installed package patches or forced writes.
+  Remove `normalize_cargo_twins` from `devel/graphify_prune_tests.py`, its call, and
+  `tests/meta/test_graphify_cargo_normalize_temp.py` when upstream
+  reclustering handles normalization and preserves remapped links.
+- Verified the exact clean `-F` command in qti-package-maker-rs with official
+  Graphify 0.9.80: 2,142 extracted nodes, 251 test nodes pruned, six Cargo aliases
+  reconciled, and 1,885 final nodes. All 4,383 links and ten Cargo dependencies
+  survive, with no missing production symbols or dangling endpoints. Clustering,
+  labeling, benchmarking, and context generation complete; 677 focused tests and
+  repository checks pass, including rejection of unexpected production-node loss.
+
 ## 2026-09-30
 
 ### Additions and New Features
