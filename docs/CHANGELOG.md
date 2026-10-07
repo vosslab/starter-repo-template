@@ -2,6 +2,10 @@
 
 ### Fixes and Maintenance
 
+- Documented the temporary Graphify workaround, ownership, safety checks, upstream
+  removal conditions, and exact cleanup steps in
+  [GRAPHIFY_CARGO_NORMALIZATION_WORKAROUND.md](../meta/docs/GRAPHIFY_CARGO_NORMALIZATION_WORKAROUND.md).
+
 - Added a removable Cargo-alias normalization helper before Rust map reclustering.
   Reconcile exact Cargo/AST package twins and redirect their original links, then
   verify the JSON node set matches Graphify's loaded representation before saving.
