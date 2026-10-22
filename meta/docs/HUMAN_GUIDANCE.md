@@ -21,6 +21,24 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 
 ## Documentation ownership
 
+- Use WebP at quality 90 (`-q 90`) for all final named screenshots from now on; I am retiring PNG.
+  In my comparison, it preserved screenshot quality at about 25% of the PNG size, and Preview.app
+  support on my macOS setup makes it practical.
+- Enrich the TypeScript game guides with the four local game-design books and lessons from
+  bad-cell-day, glycolysis-okimon, ms-taq-man, plaque-attack, super-bowling, and
+  steroid-quest-into-the-nucleus, which I consider some of our better games.
+- When gameplay and teaching compete: "Fun first, teaching when relevant."
+- Organize both game guides with proper tables of contents so agents can use them easily.
+  Overlap is fine. They originally targeted different age groups; we usually write games for
+  both audiences and should consider the needs of both at the same time.
+- Plan milestones should not require human interaction. If I go to sleep, the manager and
+  subagents still need a complete path to finish the entire plan. Remove visible and hidden
+  human dependencies; replace them with independent agent assessments and automated behavior tests.
+- Encourage "expect the unexpected = fun": the player should have new things thrown at them
+  regularly.
+- Encourage fun, unique, organic artwork that feels lived in, using the SVG creator expert style.
+- I consider M.U.L.E. a failed project. Its artwork bake-off kind of worked, but it used too many
+  tokens, so I stopped it.
 - Add a stripped-down `markdown` repository type for Markdown and Djot, retaining link, ASCII,
   and whitespace checks plus `REPO_STYLE.md` and `MARKDOWN_STYLE.md`.
 - Display project-type choices on separate lines, like the license selection menu.

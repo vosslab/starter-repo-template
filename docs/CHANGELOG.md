@@ -2,6 +2,32 @@
 
 ### Behavior or Interface Changes
 
+- Swept screenshot-format drift: replaced broad PNG recommendations in Python and TypeScript
+  style guidance, refreshed image-export examples, and applied WebP quality 90 to Swift screenshot
+  evidence. Preserved scientific image-format choices and transient PNG capture inputs.
+- Standardized new and refreshed final named screenshots on WebP at quality 90. Updated the
+  repo-wide policy, both game guides, and Playwright usage and test guidance; the capture example
+  converts an in-memory PNG buffer with `cwebp -q 90` and retains only the named WebP artifact.
+- Organized both game guides into task-based sections with complete linked tables of contents.
+  Preserved existing section anchors and useful overlap. Clarified how the original younger-player
+  and older-learner perspectives apply together to one game serving both audiences.
+- Required an agent-executable path through every game-plan milestone and final acceptance.
+  Replaced human-dependent playtesting, art review, learner-transfer checks, and manual gates
+  with independent agent assessments and automated behavior evidence; kept human feedback
+  optional and preserved the distinction between agent acceptance and measured human outcomes.
+- Made "expect the unexpected" explicit in both game guides: introduce fresh situations
+  throughout play, including helpful surprises and spectacle, with breathing room and dependable
+  controls. Linked the matching Steroid Quest design philosophy and recorded the human guidance.
+- Refined game art direction from cross-project human guidance: make settings tangible,
+  characters recognizable, and accomplishments visibly transform subjects players care about.
+  Preserve identity across state changes and compare them at gameplay size. Keep creative briefs
+  open to invention and exploration economical; record M.U.L.E.'s mixed bake-off result and cost.
+- Reworked the TypeScript game guides around fun first, teaching when relevant, drawing on four
+  local game-design books and six maintainer-selected games. Added practical guidance for feel,
+  meaningful choices, varied encounters, recovery, and visible payoffs; made quiz economies optional.
+- Added original, organic, lived-in artwork guidance using the SVG creator workflow, including
+  distinctive silhouettes, purposeful wear and growth, editable assets, and review at gameplay size.
+  Recorded the human priorities and the shared-guide ownership decision in the template ledgers.
 - Added a plain-language core principle: familiar words, direct sentences, technical terms that
   earn their place, and descriptive variable names chosen for clarity rather than brevity.
 - Made avoiding edge-case overengineering explicit: require a credible supported-use scenario
@@ -18,6 +44,26 @@
 
 ### Developer Tests and Notes
 
+- Screenshot drift sweep found an existing broken cross-overlay link in the touched TypeScript
+  style guide; changed it to the template's portable document-reference convention.
+  All 424 focused documentation checks and `git diff --check` passed afterward.
+- The generated `docs/CLAUDE_HOOK_USAGE_GUIDE.md` still has a `screenshot.png` permission example.
+  Its owning `claude-code-permissions-hook` repository must refresh that example; the local mirror
+  remains unchanged. Historical records and transient capture inputs retain their PNG references.
+- Screenshot-format follow-up: 427 focused documentation checks passed. Executed the documented
+  conversion with a fixture capture buffer and verified a valid WebP with unchanged dimensions
+  and no retained PNG file; `git diff --check` passed.
+- Game-guide organization: all 424 focused documentation checks passed. Verified complete TOCs
+  and all 50 local fragment links across both guides; `git diff --check` passed.
+- Independent-completion follow-up: all 424 focused documentation, guidance-format, character,
+  whitespace, and vendored-source checks passed; `git diff --check` passed.
+- Art-direction follow-up: 424 focused documentation, guidance-format, character, whitespace,
+  and vendored-source checks passed; `git diff --check` passed.
+- Game-guide review used focused book passages, selected game implementation paths, and existing
+  screenshots from all six games; no new gameplay or human-enjoyment validation is claimed.
+- Documentation checks: 679 passed with three pre-existing Markdown-link failures in Rust, Swift,
+  and general TypeScript style guides, confirmed in HEAD. All five changed documents passed their
+  targeted link checks, and both guidance-format checks passed. Whitespace diff checks passed.
 - Reviewed dependency manifests and conflicting style guidance; existing Python and TypeScript
   dependency requirements already use unbounded names or open-ended minimums.
 

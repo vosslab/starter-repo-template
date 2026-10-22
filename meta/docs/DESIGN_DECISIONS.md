@@ -43,6 +43,62 @@ seeds a commented override file for new consumers and preserves each established
 
 ## Repository structure
 
+### Final screenshots use WebP
+
+**Decision.** Save new and refreshed final named screenshots as WebP at quality 90. Keep any
+tool-required PNG capture transient, in memory or a temporary file.
+
+**Why.** The human reports comparable visible quality at about one quarter of the PNG size and
+usable Preview.app support. This is an observed benefit, not a guaranteed compression ratio.
+
+**Consequence.** Screenshot examples, documentation embeds, and review evidence use `.webp`.
+Playwright passes its capture buffer to `cwebp -q 90`; final encoded images receive visual review.
+Python and TypeScript format guidance and Swift screenshot evidence follow the same policy.
+Image-export examples use WebP or format-neutral names so they do not reintroduce a PNG default.
+
+**Owner.** [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md); the executable example lives in
+[PLAYWRIGHT_USAGE.md](../../templates/website/docs/PLAYWRIGHT_USAGE.md#take-a-screenshot).
+
+### Game guides share a gameplay foundation
+
+**Decision.** Keep common gameplay, art direction, book attribution, and local game examples in
+the fun-vibes guide. Let the training guide add relevant teaching and subject-model guidance.
+Both follow the human priority: fun first, teaching when relevant.
+
+Organize each guide by task with a linked table of contents, keeping useful overlap and stable
+section anchors. Apply both guides to the usual shared-audience game: the original younger-player
+and older-learner emphases provide complementary perspectives. Consider age, reading confidence,
+subject knowledge, and gaming experience separately; provide accessible entry and optional depth.
+
+Treat recurring surprise as a shared design principle. Steroid Quest's recorded direction to
+keep players wondering what strange thing comes next provides a concrete example. Introduce
+fresh situations throughout play, with stable controls, readable danger, and time to enjoy each
+discovery; surprises can be helpful, funny, or spectacular as well as challenging.
+
+**Why.** The selected games span cooperation, traversal, arcade action, and physical spectacle.
+Their useful patterns extend beyond quiz rewards or an age-based split in visual style.
+
+**Consequence.** Shops, currencies, daily goals, and persistent saves remain optional. Original
+SVG guidance emphasizes recognizable shapes, purposeful material detail, and inspection in play.
+Source and screenshot observations stay distinct from human enjoyment or learning evidence.
+Edit these canonical templates; consumer propagation is a separate operation.
+
+Plan acceptance must remain executable by the manager and subagents through the final milestone.
+Replace human playtesting, art sign-off, and manual acceptance gates with automated behavior
+checks and independent agent assessments. Audit their prerequisites for hidden human actions.
+Human feedback remains optional refinement input; agent judgment and automated completion do
+not establish human enjoyment or learning gains.
+
+The supplied cross-project art guidance informs tangible settings, distinctive identities, and
+visible consequences that preserve continuity. Treat art as part of enjoyment in its own right.
+Keep briefs focused on intended effects and necessary constraints; develop one direction by
+default and use inexpensive alternatives only to resolve a worthwhile choice. M.U.L.E. supplies
+cautions about constraint accumulation and token cost, not a successful-project endorsement.
+
+**Owner.**
+[FUN_VIBES_DESIGN_STYLE.md](../../templates/typescript/docs/FUN_VIBES_DESIGN_STYLE.md) and
+[PLAYFUL_TRAINING_GAME_STYLE.md](../../templates/typescript/docs/PLAYFUL_TRAINING_GAME_STYLE.md).
+
 ### Markdown uses a small content baseline
 
 **Decision.** Filter Markdown-only propagation through the manifest's `markdown_files` subset;

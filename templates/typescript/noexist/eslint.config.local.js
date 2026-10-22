@@ -12,7 +12,7 @@
 //   import globals from "globals";
 //   export default [
 //     {
-//       files: ["tools/scene_to_png.mjs", "tools/svg_picker/**"],
+//       files: ["tools/scene_to_webp.mjs", "tools/svg_picker/**"],
 //       languageOptions: { globals: { ...globals.browser } },
 //     },
 //   ];

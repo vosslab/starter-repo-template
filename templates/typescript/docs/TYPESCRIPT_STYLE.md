@@ -17,7 +17,7 @@ never goes stale against a sync run.
   High floors only buy newer bug fixes and diagnostics (better AI-assisted coding) at zero
   cost. A published library does the opposite and keeps floors low and wide.
 - Requirement shape: use `>=` without upper bounds. Follow the latest-version policy in
-  [REPO_STYLE.md](REPO_STYLE.md); repair incompatibilities against current releases.
+  `docs/REPO_STYLE.md`; repair incompatibilities against current releases.
 - Refresh command: `devel/sync_typescript_package_pins.py` rewrites every minimum to `>={latest}`
   from the npm registry. It is a refresh HELPER, not a dependency solver: it writes `>=`
   uniformly and never emits `<` caps, compound ranges, non-`latest` dist-tags, or
@@ -412,7 +412,7 @@ Alias rules:
   mirrors a real tool command: the optional `pdf` alias (`node tools/html_to_pdf.mjs`) is
   present in several repos and is a fine thin mirror of a real tool.
 - Repo-specific domain scripts are acceptable additions when they mirror a real tool, e.g.
-  `virtual-lab-protocol-simulation`'s `layout:*` and `*:png` scripts (`node tools/...`). They
+  `virtual-lab-protocol-simulation`'s layout and image-export scripts (`node tools/...`). They
   are optional per-repo extras, not part of the canonical alias set.
 - Keep a small mirror set. Do not gut all npm scripts unless the repo is
   intentionally non-idiomatic TypeScript; a TypeScript developer expects some
@@ -461,7 +461,7 @@ Consumer repos often add thin domain-specific commands beyond the shared front
 doors. Examples in the current corpus include:
 
 - `layout:*` scripts for layout metrics and diffs
-- `protocol:png` and `scene:png` for image export helpers
+- `protocol:*` and `scene:*` for image export helpers; final named screenshots use WebP at quality 90
 - `pdf` as a thin wrapper around `node tools/html_to_pdf.mjs`
 - a `dev` command for watch-mode builds in some browser-game repos
 
@@ -540,7 +540,8 @@ This is the canonical floor, not a ceiling. Per-repo additions (`src/*.ts` modul
 * YAML favorite, readable, editable
 * CSV spreadsheet input and output
 * JSON good for larger structured data
-* PNG images, graphics, figures, pixel data
+* WebP at quality 90 for final named screenshots; follow the screenshot policy in `docs/REPO_STYLE.md`.
+* Choose other image and scientific pixel-data formats for the artifact's requirements.
 
 ## GENERAL STYLE
 

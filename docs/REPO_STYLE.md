@@ -329,6 +329,17 @@ report.
 - When referencing files, use Markdown links so users can click through. Markdown links are created using the syntax `[link text](URL)`, where "link text" is the clickable text that appears in the document, and "URL" is the web address or file path the link points to. This allows users to navigate between different content easily. Use file-path link text so readers know the exact filename (good: `[docs/MARKDOWN_STYLE.md](docs/MARKDOWN_STYLE.md)`, bad: `[Style Guide for Markdown](docs/MARKDOWN_STYLE.md)`). Only include a backticked path when the link text is not the path.
 
 
+### Screenshot format
+
+- Save all new or refreshed final named screenshots as `.webp` files encoded at quality 90.
+  This includes README images, documentation screenshots, walkthroughs, and review evidence.
+- Use `cwebp -q 90` or the encoder's equivalent quality setting. For file-based conversion:
+  `cwebp -q 90 capture.png -o capture.webp`.
+- When a capture tool requires PNG, keep it in memory or as a temporary intermediate. Retain
+  the WebP output and remove the intermediate after successful conversion.
+- Inspect the final WebP at its intended display size for readable text and visual detail.
+  Update embeds, links, and artifact manifests to the final `.webp` filename.
+
 ### Recommended common docs
 - `AGENTS.md`: agent instructions, tool constraints, and repo-specific workflow guardrails.
 - `README.md`: project purpose, quick start, and links to deeper documentation.

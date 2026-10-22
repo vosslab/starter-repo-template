@@ -381,7 +381,8 @@ def parse_args():
 * YAML favorite, readable, editable
 * CSV spreadsheet input/output
 * JSON good for large, wordy data
-* PNG images, graphics, figures, pixel data
+* WebP at quality 90 for final named screenshots; see [REPO_STYLE.md](REPO_STYLE.md#screenshot-format).
+* Choose other image and scientific pixel-data formats for the artifact's requirements.
 
 ## AVAILABLE MODULES
 
