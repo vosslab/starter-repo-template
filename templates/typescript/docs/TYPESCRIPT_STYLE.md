@@ -11,25 +11,20 @@ downstream consumers), so dependency floors are set as high as practical and ref
 toward newest, not kept low and wide. State the policy, not a frozen version, so this doc
 never goes stale against a sync run.
 
-- Policy: pin every dependency `>={latest}`, with floors raised as high as practical at each
+- Policy: give every dependency an open-ended minimum of `>={latest}`, with floors raised as high as practical at each
   template refresh. The policy is the rule; do not hardcode a major version here.
 - Rationale: an application carries no compatibility burden for nonexistent library users.
   High floors only buy newer bug fixes and diagnostics (better AI-assisted coding) at zero
   cost. A published library does the opposite and keeps floors low and wide.
-- Pin shape: use `>=` always. Add a `<` upper bound ONLY for a confirmed incompatibility,
-  never as a default. Live example: typescript-eslint caps the TypeScript it supports
-  (currently `<6.1.0`); if TypeScript outruns typescript-eslint, a temporary `<` cap waits
-  for the matching typescript-eslint release rather than breaking lint.
-- Refresh command: `devel/sync_typescript_package_pins.py` rewrites every pin to `>={latest}`
+- Requirement shape: use `>=` without upper bounds. Follow the latest-version policy in
+  [REPO_STYLE.md](REPO_STYLE.md); repair incompatibilities against current releases.
+- Refresh command: `devel/sync_typescript_package_pins.py` rewrites every minimum to `>={latest}`
   from the npm registry. It is a refresh HELPER, not a dependency solver: it writes `>=`
   uniformly and never emits `<` caps, compound ranges, non-`latest` dist-tags, or
   `workspace:*`, and it leaves private/E404 and consumer-extra packages untouched.
-- Manual `<` exception: the tool rewrites a hand-placed `<` cap back to `>={latest}` on its
-  next run, so a necessary cap is a MANUAL exception re-applied after each sync. Teaching the
-  tool to preserve caps is separate follow-up.
 - `allowScripts` keys are version-pinned (`name@version`): after a sync that bumps esbuild or
-  fsevents, re-apply the matching `allowScripts` entry by hand in `noexist/package.json`, the
-  same class of manual exception as a `<` cap. Without it, esbuild's postinstall binary gate
+  fsevents, re-apply the matching `allowScripts` entry by hand in `noexist/package.json`, an
+  execution permission for that resolved package, not a dependency version constraint. Without it, esbuild's postinstall binary gate
   returns and fresh `npm install` runs will miss the platform binary.
 - Lockfile: the committed `package-lock.json` is a snapshot regenerated forward on each
   refresh, so installs move to the newest resolved set. It records the current resolution and

@@ -1,3 +1,26 @@
+## 2026-10-22
+
+### Behavior or Interface Changes
+
+- Added a plain-language core principle: familiar words, direct sentences, technical terms that
+  earn their place, and descriptive variable names chosen for clarity rather than brevity.
+- Made avoiding edge-case overengineering explicit: require a credible supported-use scenario
+  and material impact, and keep handling proportional to the likelihood and consequence of failure.
+- Added shared KISS, review-simplification, and configuration principles: complexity must address
+  demonstrated needs and justify its full maintenance cost. Recorded the human guidance and
+  linked Python argparse guidance to the shared configuration principle.
+- Added the naming preference for library directories and executables to differ near the
+  beginning, making shell autocomplete useful after a short prefix.
+- Made latest software and dependency releases the shared style policy: unpinned requirements
+  or open-ended `>=` floors, with no exact-pin or upper-bound exceptions. Record the human
+  preference and align Python, Swift, Rust, and TypeScript guidance. Generated lockfiles
+  remain tested-resolution records refreshed forward with updates.
+
+### Developer Tests and Notes
+
+- Reviewed dependency manifests and conflicting style guidance; existing Python and TypeScript
+  dependency requirements already use unbounded names or open-ended minimums.
+
 ## 2026-10-07
 
 ### Fixes and Maintenance

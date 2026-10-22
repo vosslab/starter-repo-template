@@ -9,6 +9,35 @@ Repo-wide conventions for this project and related repos.
 Core principles guide work in this repo. Cite them by name when making judgment calls. This file is the canonical home for all core principles; sibling docs and `AGENTS.md` should cross-reference, not restate.
 
 - **Focus on important issues.** Make sure we are worrying about the correct things, and not bikeshedding i.e. spending excessive time discussing trivial issues while neglecting more important ones.
+- **Use plain, concrete language.** Prefer familiar words and direct sentences over elevated
+  vocabulary, abstract phrasing, or jargon. Treat specialized and uncommon terms as liabilities
+  as well as assets: each adds cognitive load and should earn its place. Use technical terms when
+  they add precision or express an established concept more clearly. Write to clarify the plan,
+  not to make it sound sophisticated. When a simpler word conveys the same meaning accurately,
+  use it; when in doubt, choose the simpler word. In code, choose descriptive variable names:
+  shorter names do not make code run faster. Use a longer name when it makes the meaning clearer.
+- **Keep it simple (KISS).** Apply the Keep It Simple, Stupid philosophy aggressively. Prefer the
+  smallest coherent design that satisfies actual requirements and known failure modes. Add
+  mechanisms, abstractions, policies, state, and tests only when they solve a demonstrated need.
+  Complexity should earn its place.
+- **Avoid overengineering for edge cases.** A conceivable edge case is not by itself a requirement.
+  Before adding special handling, identify a credible scenario in supported use and its material
+  impact. Match the solution's complexity to the likelihood and consequence of failure; a serious
+  risk need not occur first to warrant action. Prefer a clear existing boundary or explicit error
+  over a new recovery mechanism when that meets the requirement. Leave unsupported hypothetical
+  cases unimplemented until evidence warrants them, and keep the design easy to adapt.
+- **Reviews should simplify.** Justify each recommendation's added complexity against a concrete
+  requirement, demonstrated failure, or meaningful risk. Prefer simplifying the existing design
+  over adding abstractions, safeguards, configuration, validation gates, or tests for hypothetical
+  problems. Consider implementation, testing, documentation, and ongoing maintenance costs. A good
+  review reduces unnecessary code. When the existing plan is sufficient, say so and let the
+  manager proceed.
+- **Keep configuration simple.** Add options, parameters, modes, overrides, and extension points
+  only for demonstrated needs. Prefer sensible fixed behavior for internal implementation
+  decisions. Each choice adds code, tests, documentation, maintenance, and combinations to support.
+  When callers need different behavior, first determine whether the shared design should handle
+  it automatically or whether the tasks are genuinely different. When in doubt, use the simpler
+  shared design.
 - **Use the scientific method.** Treat plans as hypotheses, not conclusions. Use small experiments, comparisons, and measurements to reduce uncertainty before locking in a design. Let evidence refine the plan as work proceeds.
 - **Fix the design, not the symptom.** When something behaves wrong, fix the design that allowed the problem. Do not add fallbacks, special cases, or broad try/except blocks just to hide the symptom.
 - **Long-term over short-term.** Accept a small cost now to avoid larger costs later. Prefer the durable fix over the quick patch, even when the durable fix takes more effort today.
@@ -97,6 +126,9 @@ Preferred structure:
 - Use underscores between words and avoid spaces.
 - Use `.md` for docs, `.sh` for shell, `.py` for Python.
 - Keep filenames descriptive, and consistent with the primary thing the file provides.
+- Give the library directory and executable distinct initial characters so shell autocomplete
+  can distinguish them after a short prefix. Prefer names that differ near the beginning rather
+  than names distinguished only by a suffix such as `_lib`.
 
 ## Git moves, renames, and index locks
 - Use `git mv` for all renames and moves.
@@ -252,6 +284,14 @@ report.
   ```
 
 ## Dependency manifests
+
+- Prefer the latest available software and dependency releases. Prioritize receiving current
+  security and bug fixes over supply-chain concerns used to justify holding older versions.
+- Keep dependency requirements unpinned. When a version constraint is required, use an open-ended
+  `>=` minimum; never add exact pins, upper bounds, or ranges that exclude newer releases.
+- Refresh generated lockfiles forward with dependency updates; use them as records of tested
+  resolutions, not as a reason to retain older software. Fix incompatibilities against current
+  releases rather than pinning older dependencies.
 - Store Python standard dependencies in `pip_requirements.txt` at the repo root and developer dependencies, e.g., pytest in `pip_requirements-dev.txt`.
 - Use `pip_requirements.txt` not `requirements.txt` for clarity reasons
 - Store Homebrew packages in `Brewfile` at the repo root.
