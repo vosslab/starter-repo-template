@@ -368,7 +368,7 @@ def _union_plan(repo_types: tuple) -> dict:
 def test_all_set_equals_concrete_union() -> None:
 	"""REPO_TYPE=all ships the union of every concrete type, including pypi."""
 	all_plan = repolib.plan.compute_propagation_plan(TEMPLATE_ROOT, 'all')
-	concrete_types = LEGACY_CONCRETE_TYPES + ('pypi', 'githubpages')
+	concrete_types = tuple(name for name in repolib.model.REPO_TYPE_ORDER if name != 'all')
 	concrete_union = _union_plan(concrete_types)
 	for bucket in concrete_union:
 		assert set(all_plan[bucket]) == concrete_union[bucket], (

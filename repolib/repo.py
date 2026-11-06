@@ -26,6 +26,7 @@ REPO_TYPE_CHOICE_ALIASES = {
 	'rust': 'rust',
 	's': 'swift',
 	'swift': 'swift',
+	'podman': 'podman',
 	'o': 'other',
 	'other': 'other',
 	'a': 'all',

@@ -200,6 +200,7 @@ known_repo_types:
   - githubpages
   - rust
   - swift
+  - podman
   - other
   - scripted
   - website

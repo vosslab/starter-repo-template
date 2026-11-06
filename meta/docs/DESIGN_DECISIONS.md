@@ -8,8 +8,8 @@ and propagates them.
 
 ### Disk-budget guards follow storage scope
 
-**Decision.** Ship the checkout and machine-wide Podman disk-budget guards universally in the base
-pytest lane. Ship the repository-local `target/` guard through the Rust overlay.
+**Decision.** Ship the checkout disk-budget guard universally in the base pytest lane. Ship Podman through
+its independent opt-in overlay and the repository-local `target/` guard through the Rust overlay.
 
 **Why.** Responsible continuous development includes stewardship of finite hard-drive space.
 Routine builds can accumulate enough generated data to fill a developer volume; one observed Rust
@@ -17,11 +17,15 @@ cache reached 130 GiB. Optional or E2E-only guards do not protect the developmen
 the data.
 
 **Consequence.** Propagation restores all three mandatory vendored guards after deletion. Podman
-storage is checked from every consumer because it is machine-wide; `target/` is checked only in
-Rust consumers because it is repository-local Rust output.
+storage is checked only by consumers declaring `podman` (including `all`); `target/` is checked only in
+Rust consumers because it is repository-local Rust output. When a previously shipped Podman guard
+exists without opt-in, propagation searches container build/config and runtime shell-script
+filenames, excluding `OTHER_REPOS`. Evidence adds the
+marker before selecting overlays; absent evidence removes only recognized unchanged copies.
+Locally edited guards remain with a warning, and dry runs preview migration without mutation.
 
 **Owner.** [docs/PYTEST_STYLE.md](../../docs/PYTEST_STYLE.md),
-[tests/test_podman_disk_budget.py](../../tests/test_podman_disk_budget.py), and
+[templates/podman/tests/test_podman_disk_budget.py](../../templates/podman/tests/test_podman_disk_budget.py), and
 [templates/rust/tests/test_target_disk_budget.py](../../templates/rust/tests/test_target_disk_budget.py).
 
 ### Planning and archive Markdown has no source-code line budget

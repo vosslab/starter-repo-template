@@ -1,9 +1,9 @@
 # This file is vendored. Local changes can and will be overwritten by propagation.
 
-"""Keep the mandatory Podman disk budget in pytest's base lane.
+"""Keep the Podman disk budget in opted-in repositories' base lane.
 
 Run this guard with ``source source_me.sh && python3 -m pytest tests/``.
-Podman storage is shared across repositories, so every normal test run checks it.
+Repositories declaring the podman type check shared storage on every normal test run.
 Continuous development must use the developer volume responsibly, so this is
 not an optional or E2E-only check. If it fails, inspect the detailed usage and
 deliberately remove stale resources before continuing development.

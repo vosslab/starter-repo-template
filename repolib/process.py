@@ -12,6 +12,7 @@ import repolib.console
 import repolib.files
 import repolib.header_sync
 import repolib.license_migration
+import repolib.podman_migration
 import repolib.requirements_sync
 import repolib.plan
 import repolib.model
@@ -434,7 +435,11 @@ def process_repo(repo_dir: str, context: repolib.model.PropagateContext, counter
 		counters['created_count'] += 1
 
 	# Per-repo counters for summary line
-	repo_updates = 0
+	repo_type, podman_changes = repolib.podman_migration.migrate_podman_guard(
+		repo_dir, repo_type, context.template_root, context.dry_run,
+	)
+	repo_updates = podman_changes
+	counters['updated_count'] += podman_changes
 	repo_copies = 0
 	repo_skips = 0
 

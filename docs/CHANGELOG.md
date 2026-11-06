@@ -1,3 +1,25 @@
+## 2026-11-06
+
+### Behavior or Interface Changes
+
+- Expanded migration evidence from the maintainer's survey to custom Dockerfile variants,
+  Podman YAML configs, and shell scripts naming Podman or Docker; documentation alone stays out.
+- Added the independent `podman` repo type and moved its disk-budget guard out of universal tests.
+- Propagation migrates existing guards: container build/Compose filenames append `podman`;
+  absent evidence removes recognized unchanged guards and preserves local edits with a warning.
+  Dry runs preview migration. Fresh consumers opt in explicitly.
+
+### Developer Tests and Notes
+
+- Survey follow-up: 71 focused checks, direct pyflakes, and diff whitespace checks passed.
+  Read-only detection found evidence in all eight surveyed operational repositories and none in
+  vosslab-skills or SwiftlyCodeEdit; excluded `OTHER_REPOS` copies from migration evidence.
+- Validation: 1,576 checks passed; four failures remain in unchanged HEAD files: guidance-header
+  sync, the COLOR_PALETTE vendored header, and Rust/Swift style links. Podman routing, parser,
+  migration, dry-run, and propagation integration checks passed; new modules passed pyflakes.
+- Collected 2,592 base-suite tests; the moved runtime guard is outside that suite. No consumer
+  repositories were changed and no live container runtime was exercised.
+
 ## 2026-10-22
 
 ### Behavior or Interface Changes

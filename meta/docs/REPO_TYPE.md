@@ -15,7 +15,7 @@ style. Repository conventions live in [docs/REPO_STYLE.md](../../docs/REPO_STYLE
 ## Available types
 
 The available names, in canonical display order, are `markdown`, `python`, `pypi`,
-`typescript`, `githubpages`, `rust`, `swift`, `other`, `scripted`, `website`,
+`typescript`, `githubpages`, `rust`, `swift`, `podman`, `other`, `scripted`, `website`,
 `compiled`, and `all`.
 
 Inheritance adds the complete parent rule set:
@@ -26,7 +26,7 @@ Inheritance adds the complete parent rule set:
 - `rust` -> `compiled`
 - `swift` -> `compiled`
 
-`markdown`, `scripted`, `website`, `compiled`, and `other` are root types. Every listed type
+`markdown`, `podman`, `scripted`, `website`, `compiled`, and `other` are root types. Every listed type
 is valid as a direct marker. `all` expands to every concrete type supported by
 the template.
 
@@ -70,3 +70,21 @@ Declare several types only when a repository genuinely ships several families,
 such as a Python CLI with a Rust extension. The repository receives the union of
 the declared types and their inherited rule sets. Declaration order determines
 which typed overlay wins if several overlays provide the same path.
+
+## Podman opt-in and migration
+
+Declare `podman` alone or alongside a language, for example `python,podman`, to receive the
+mandatory Podman disk-budget guard. It has no parent type; `all` includes it. There is no
+container-runtime fallback and no automatic detection for fresh repositories.
+
+During propagation, an existing guard without this marker triggers a filename search for
+Dockerfile/Containerfile (including prefix and dotted-suffix variants), compose/docker-compose
+YAML, Podman-prefixed YAML, and shell scripts containing `podman` or `docker` in their filenames,
+including nested deployment folders. Documentation and skill references alone do not opt in.
+Hidden folders, `OTHER_REPOS`, dependency/build trees, and
+symlinked directories are excluded. No runtime is started and file contents are not interpreted.
+Container evidence appends `podman` to the marker and refreshes the guard. Without evidence,
+recognized unchanged vendored copies are removed; locally modified copies remain with a warning.
+Dry runs preview these actions without writing the marker or deleting the guard. Repositories
+without an existing guard must opt in explicitly. Docker evidence selects the Podman check,
+which still requires Podman; Docker alone does not satisfy it.

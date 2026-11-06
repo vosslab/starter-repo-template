@@ -240,7 +240,14 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 - Render propagated `.gitignore` blocks first and the consumer-owned LOCAL block last; preserve its
   body verbatim when rebuilding managed content.
 
-- Keep checkout, machine-wide Podman, and Rust `target/` disk-budget checks mandatory in the base
+- Ship the Podman disk-budget guard only to repositories declaring `podman`; shipping it to all
+  repositories confuses managers. During propagation, inspect container build/Compose filenames
+  when an existing guard lacks the marker: add `podman` when found, otherwise remove stale guards.
+- Use the container filename survey to recognize custom Dockerfile variants, Podman YAML configs,
+  and Podman/Docker shell scripts as migration evidence; documentation references alone are not enough.
+- `OTHER_REPOS/` contains other packages for reference, not my packages. Never use its contents
+  as container migration evidence for the host repository.
+- Keep checkout, opted-in Podman, and Rust `target/` disk-budget checks mandatory in the base
   pytest lane. Continuous development must use hard-drive space responsibly, and propagation
   restores the vendored checks after deletion.
 - Treat `tools/`, `devel/`, `tests/`, and `launchers/` as support locations rather than
