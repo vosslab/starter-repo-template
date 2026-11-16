@@ -60,9 +60,9 @@ fi
 rm -rf dist
 mkdir -p dist
 
-npx tsc --noEmit -p tsconfig.json
+./node_modules/.bin/tsc --noEmit -p tsconfig.json
 
-npx esbuild "$ENTRY" \
+./node_modules/.bin/esbuild "$ENTRY" \
 	--bundle \
 	--format=esm \
 	--target=es2020 \

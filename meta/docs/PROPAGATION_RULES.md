@@ -335,7 +335,8 @@ deprecation-strip list); consumer keeps any local `@`-imports and non-`@` conten
   is a denylist: it ships every non-meta `tests/` file by location and skips dotfiles,
   `_`-prefixed scratch files, `_temp*` subtrees, `conftest.py` (owned by `merge_conftest`), and
   `META_TEST_PREFIXES`. A non-`test_`-prefixed helper like `tests/helper_thing.py` ships too.
-- Adding `templates/typescript/.eslintignore` -- drop under `templates/typescript/`. TypeScript repos get it at consumer root.
+- Adding `templates/typescript/oxlint.base.json` -- drop under `templates/typescript/`.
+  TypeScript repos get it at consumer root; seed local overrides through `noexist/`.
 - Adding a Pages-specific front door -- drop under `templates/githubpages/`. GitHub Pages repos
   get it alongside the inherited TypeScript and website files; generic TypeScript repos do not.
 - Adding a new starter `Makefile` that must not clobber existing ones -- drop at `templates/<type>/noexist/Makefile` (per type) or add path to `UNIVERSAL_NOEXIST` + place at template root.

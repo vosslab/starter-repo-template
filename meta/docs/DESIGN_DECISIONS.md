@@ -6,6 +6,23 @@ and propagates them.
 
 ## Testing and hygiene
 
+### Local TypeScript maintenance and Pages publishing
+
+**Decision.** Maintain current dependency and override floors locally through one orchestrator,
+with offline manifest policy and live registry, audit, code, build, and lockfile checks. Use
+TypeScript with typed Oxlint. Pages installs the committed lockfile and builds the artifact.
+
+**Why.** Agents need one actionable maintenance interface, and deployment should publish the
+dependency resolution already validated locally. Compiler upgrades should not wait for ESLint's
+compiler API support.
+
+**Consequence.** Failed maintenance keeps changes for forward repair. Consumer-owned configuration
+and workflows survive propagation. Routine security overrides need review but no separate ledger;
+document significant compatibility exceptions when they require ongoing explanation.
+
+**Owner.** [TYPESCRIPT_MODERNIZATION_PLAN.md](TYPESCRIPT_MODERNIZATION_PLAN.md) and
+[templates/typescript/docs/TYPESCRIPT_STYLE.md](../../templates/typescript/docs/TYPESCRIPT_STYLE.md).
+
 ### Disk-budget guards follow storage scope
 
 **Decision.** Ship the checkout disk-budget guard universally in the base pytest lane. Ship Podman through
@@ -213,7 +230,7 @@ infer whether their previously copied Pages files remain intentional.
 check and write command.
 
 **Why.** A separate noexist file keeps shared and repository-owned exclusions distinct, mirrors
-the established `eslint.config.local.js` convention, and uses Prettier's repeated `--ignore-path`
+the consumer-owned `.oxlintrc.json` convention, and uses Prettier's repeated `--ignore-path`
 interface without adding a propagation merge format.
 
 **Consequence.** Propagation ships `.prettierignore.local` once and never overwrites it. Existing

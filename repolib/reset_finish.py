@@ -22,7 +22,7 @@ TEMPLATE_OWNED_PREFIXES = [
 # Type-specific paths that prove propagation created a usable scaffold.
 SCAFFOLD_SENTINELS: dict[str, str] = {
 	"markdown": "tests/test_markdown_links.py",
-	"typescript": "eslint.config.js",
+	"typescript": "oxlint.base.json",
 	"python": "docs/PYTHON_STYLE.md",
 	"website": "mkdocs.yml",
 }

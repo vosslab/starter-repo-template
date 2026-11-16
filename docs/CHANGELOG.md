@@ -1,3 +1,40 @@
+## 2026-11-16
+
+### Behavior or Interface Changes
+
+- Modernized TypeScript templates to TypeScript 7 and typed Oxlint with consumer-owned local
+  lint configuration. Checks use installed tools and support macOS Bash and empty test/tool trees.
+- Kept the dependency updater and bounded it to one selected git-tracked project manifest.
+  Registry dependencies and nested overrides refresh to current open-ended minimums; npm aliases,
+  local requirements, and override references retain their meaning.
+- Added one local dependency-maintenance command and offline manifest-policy pytest. Maintenance
+  reports update, installation, freshness, audit, code, build, and clean-install outcomes, retaining
+  failed updates for agents to repair forward.
+- Version synchronization now includes root package.json and package-lock root metadata, including
+  repair of stale nested root metadata without altering locked dependency versions.
+- Pages installs the committed lockfile, builds with local tools, and publishes the artifact.
+  Added Pages-specific guidance, retaining existing GitHub/Dependabot setup. Active consumer
+  workflows and local configuration remain consumer-owned.
+- Saved the approved implementation plan in meta/docs/TYPESCRIPT_MODERNIZATION_PLAN.md.
+- Applied the six-pass audit's low-risk fixes: corrected the npm light-clean alias, clarified
+  offline versus live checks, rejected unsupported maintenance flags, removed dead compatibility
+  code, and refreshed stale tool and deployment guidance.
+- Pruned 30 repository-owned tests and 619 lines, removing report-formatting, cache-count,
+  environment-dependent, and duplicate setup checks. Kept updater, override, version-integrity,
+  failure-preservation, and explicitly requested license-migration coverage. Vendored checks remain.
+
+### Developer Tests and Notes
+
+- Live generated Pages maintenance passed through current dependency resolution, zero-finding
+  audit, typed checks, tests, production build, and clean lockfile installation. A vulnerable
+  glob/minimatch tree moved from three high findings to zero; fresh override retirement passed.
+- After pruning, full pytest: 2,672 passed, five existing failures in unchanged header, Graphify indentation,
+  and Rust/Swift link checks. Shell syntax and diff whitespace checks passed. Detailed evidence
+  is recorded in meta/docs/TYPESCRIPT_MODERNIZATION_PLAN.md.
+- Two one-time audit checks passed: npm light-clean retained dependencies and unsupported updater
+  flags failed before maintenance. Removed the temporary checks after verification.
+- No consumer repositories or hosted Pages deployments were changed.
+
 ## 2026-11-06
 
 ### Behavior or Interface Changes

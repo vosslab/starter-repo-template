@@ -57,15 +57,31 @@ if [ ! -f package-lock.json ]; then
 fi
 
 echo "==> typecheck"
-npx tsc --noEmit -p tsconfig.json
+./node_modules/.bin/tsc --noEmit -p tsconfig.json
 
 # tsconfig.lint.json covers TypeScript in tests/ and tools/.
-echo "==> typecheck:lint"
-npx tsc --noEmit -p tsconfig.lint.json
+lint_dirs=()
+[ -d tests ] && lint_dirs+=(tests)
+[ -d tools ] && lint_dirs+=(tools)
+if [ "${#lint_dirs[@]}" -gt 0 ] && \
+	find "${lint_dirs[@]}" -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.mts' -o -name '*.cts' \) \
+	-print -quit | grep -q .; then
+	echo "==> typecheck:lint"
+	./node_modules/.bin/tsc --noEmit -p tsconfig.lint.json
+else
+	echo "==> SKIP typecheck:lint (no TypeScript under tests/ or tools/)"
+fi
 echo "==> lint"
-npx eslint --max-warnings 0 '**/*.{ts,tsx,mts,cts,js,mjs,cjs}'
+./node_modules/.bin/oxlint --type-aware \
+	--ignore-pattern 'node_modules/**' \
+	--ignore-pattern 'dist/**' \
+	--ignore-pattern 'dist_*/**' \
+	--ignore-pattern '**/dist_*/**' \
+	--ignore-pattern 'OTHER_REPOS/**' \
+	--ignore-pattern '_temp*' \
+	--ignore-pattern '**/_temp*' .
 echo "==> format:check"
-npx prettier --check --ignore-path .gitignore --ignore-path .prettierignore \
+	./node_modules/.bin/prettier --check --ignore-path .gitignore --ignore-path .prettierignore \
 	--ignore-path .prettierignore.local '**/*.{ts,tsx,mts,cts,js,mjs,cjs}'
 if compgen -G 'tests/test_*.mjs' >/dev/null; then
 	echo "==> test:node"

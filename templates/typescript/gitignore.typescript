@@ -5,7 +5,6 @@ _site/
 *.tsbuildinfo
 
 # Lint / format caches
-.eslintcache
 .prettiercache
 
 # Test outputs

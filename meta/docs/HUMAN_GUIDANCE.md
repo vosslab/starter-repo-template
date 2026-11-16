@@ -7,6 +7,16 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
 
 ## Decision priority
 
+- Leave GitHub's defaults and existing Dependabot setup alone; do not ship or suggest a
+  replacement dependabot.yml in the Pages template.
+
+- I prefer the latest TypeScript dependencies. Keep the custom updater and improve it;
+  select git-controlled manifests in the current repository, asking via CLI when ambiguous.
+- TypeScript linting is for my AI agents. Local dependency maintenance and production-build
+  validation should be easy to run with one command; do version testing locally before Pages.
+- Keep GitHub Pages guidance in its own style document. Implement template changes here;
+  I will propagate them and have agents update consumer repositories individually.
+
 - Optimize repository tools for the human maintainer's real workflow and stated preferences.
 - Address the highest-impact risks first. Spend review and validation time on decisions that
   affect correctness, maintainability, delivery, or the maintainer's routine use.
