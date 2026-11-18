@@ -12,6 +12,11 @@
   Report each overlong line, wrap existing violations, and document the ceiling in the Python
   style guide.
 
+### Fixes and Maintenance
+
+- Use numeric character references when cleaning SVG and XML source to preserve non-ASCII text
+  and attribute values.
+
 ## 2026-11-16
 
 ### Behavior or Interface Changes
