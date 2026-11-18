@@ -20,7 +20,7 @@ compiler API support.
 and workflows survive propagation. Routine security overrides need review but no separate ledger;
 document significant compatibility exceptions when they require ongoing explanation.
 
-**Owner.** [TYPESCRIPT_MODERNIZATION_PLAN.md](TYPESCRIPT_MODERNIZATION_PLAN.md) and
+**Owner.** [TYPESCRIPT_MODERNIZATION_PLAN.md](archive/TYPESCRIPT_MODERNIZATION_PLAN.md) and
 [templates/typescript/docs/TYPESCRIPT_STYLE.md](../../templates/typescript/docs/TYPESCRIPT_STYLE.md).
 
 ### Disk-budget guards follow storage scope
@@ -201,6 +201,19 @@ consumer-owned entry below it.
 
 **Owner.** [HEADER_BUCKET_SPEC.md](HEADER_BUCKET_SPEC.md) and
 [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md#human-guidance-and-design-decisions).
+
+### Shared colors and local assignments
+
+**Decision.** Publish exact color values in the vendored palette. Keep recurring concept and
+role assignments in each repository's own `docs/REPO_COLOR_PALETTE.md` when needed.
+
+**Why.** Shared values give authors a common vocabulary. Local keys preserve the meaning of
+colors across related materials and survive updates to the shared guide.
+
+**Consequence.** Authors combine the fixed source colors freely. Assess contrast and
+distinguishability on the actual combination using the existing accessibility guide.
+
+**Owner.** [docs/COLOR_PALETTE.md](../../docs/COLOR_PALETTE.md).
 
 ### GitHub Pages is a child of TypeScript
 

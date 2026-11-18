@@ -1,3 +1,14 @@
+## 2026-11-18
+
+### Behavior or Interface Changes
+
+- Define the vendored 91-color palette for authored visuals, with fixed hex values,
+  flexible color combinations, and repository-owned semantic assignments.
+- Include application visualizations and clarify the roles of rendered colors and local
+  assignments in the shared palette.
+- Keep template-specific entries in the meta ledgers and point agents to the template
+  and consumer paths in `AGENTS.md`. Update the archived TypeScript plan link.
+
 ## 2026-11-16
 
 ### Behavior or Interface Changes

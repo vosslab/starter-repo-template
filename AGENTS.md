@@ -3,7 +3,9 @@ See Python coding style in docs/PYTHON_STYLE.md.
 See Markdown style in docs/MARKDOWN_STYLE.md.
 See repo style in docs/REPO_STYLE.md.
 When making edits, document them in docs/CHANGELOG.md.
-Record human-stated guidance in docs/HUMAN_GUIDANCE.md; record design decisions in docs/DESIGN_DECISIONS.md.
+In the starter template checkout (`meta/propagation/` is present), record human guidance in
+`meta/docs/HUMAN_GUIDANCE.md` and design decisions in `meta/docs/DESIGN_DECISIONS.md`.
+Consumer repositories use `docs/HUMAN_GUIDANCE.md` and `docs/DESIGN_DECISIONS.md`.
 
 ## Python Environment
 AI agents (Codex/Claude) must run Python using `source source_me.sh && python3`

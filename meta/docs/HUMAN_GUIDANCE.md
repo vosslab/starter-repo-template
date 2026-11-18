@@ -58,7 +58,10 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
   format's native comment syntax and place it after a required shebang. Keep it out of noexist
   seeds, partial-ownership buckets, and template-only files whose local content persists.
 - Keep the propagated `docs/HUMAN_GUIDANCE.md` and `docs/DESIGN_DECISIONS.md` seeds minimal.
-  Record starter-template-specific guidance in this file instead of shipping it to consumer repos.
+  Record template-specific human guidance here and design decisions in
+  [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md).
+- Use one fixed palette of 91 colors, with five shades and one pastel per hue plus neutrals.
+  Use the palette colors freely in gradients and layers, and keep concept assignments local.
 - Keep one native application or library package in a named root-level folder. Use a `packages/`
   grouping layer when multiple native applications or libraries need separation.
 - Keep `docs/MARKDOWN_STYLE.md` high-level. Use GitHub Flavored Markdown as its syntax baseline and
