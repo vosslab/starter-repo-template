@@ -45,6 +45,21 @@ Locally edited guards remain with a warning, and dry runs preview migration with
 [templates/podman/tests/test_podman_disk_budget.py](../../templates/podman/tests/test_podman_disk_budget.py), and
 [templates/rust/tests/test_target_disk_budget.py](../../templates/rust/tests/test_target_disk_budget.py).
 
+### Python source has a physical line-length limit
+
+**Decision.** Extend the shared source-file line-limit test with a 120-character maximum per
+physical Python line. Count the source spelling of escapes and exclude line terminators.
+
+**Why.** Packed test fixtures can fit under the file line-count limit and still be hard to read.
+The ceiling matches the slide builder's Python development guidance.
+
+**Consequence.** The existing report includes the path, line number, and length of each violation.
+Wrap expressions and fixture text at logical boundaries. The file line-count policy still covers
+the full set of tracked authored source files.
+
+**Owner.** [tests/test_source_file_line_limit.py](../../tests/test_source_file_line_limit.py) and
+[docs/PYTHON_STYLE.md](../../docs/PYTHON_STYLE.md#line-length).
+
 ### Planning and archive Markdown has no source-code line budget
 
 **Decision.** Exclude `.md` files beneath any `docs/active_plans/` or `docs/archive/` tree from the

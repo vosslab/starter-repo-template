@@ -91,6 +91,8 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
   `REPO_HYGIENE_FILTERS`.
 - The line-limit gate keeps only its exact-path manager approval list because
   that policy is specific to the gate.
+- Check physical line length as well as file line count so packed inline fixtures stay readable.
+  Keep Python line-length guidance in `docs/PYTHON_STYLE.md`.
 - Automatically exclude Markdown under any `docs/active_plans/` or `docs/archive/` tree from the
   source-code line limit while retaining the limit for other authored source files.
 - Use one exact repo-relative path for each source-line-limit override. Encode universal folder

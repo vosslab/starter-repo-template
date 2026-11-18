@@ -16,7 +16,10 @@ from repolib.files import (
 
 
 #============================================
-def resolve_spec_for_type(repo_type: str, template_root: str | None = None, counters: dict | None = None, repo_dir: str | None = None) -> dict:
+def resolve_spec_for_type(
+	repo_type: str, template_root: str | None = None,
+	counters: dict | None = None, repo_dir: str | None = None,
+) -> dict:
 	"""Build the propagation spec for a repository marker.
 
 	Args:
@@ -150,7 +153,9 @@ def _route_overlay_file(plan: dict, file_rel: str, name: str) -> None:
 
 
 #============================================
-def compute_propagation_plan(template_root: str, repo_type: str, counters: dict | None = None, repo_dir: str | None = None) -> dict:
+def compute_propagation_plan(
+	template_root: str, repo_type: str, counters: dict | None = None, repo_dir: str | None = None,
+) -> dict:
 	"""
 	Compute the propagation plan by walking the filesystem.
 

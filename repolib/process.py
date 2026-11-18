@@ -126,7 +126,10 @@ def remove_deprecated_paths(repo_dir: str, dry_run: bool) -> int:
 
 
 #============================================
-def apply_file_bucket(bucket_name: str, spec: dict, repo_dir: str, repo_type: str, context: repolib.model.PropagateContext, counters: dict) -> tuple[int, int, int]:
+def apply_file_bucket(
+	bucket_name: str, spec: dict, repo_dir: str, repo_type: str,
+	context: repolib.model.PropagateContext, counters: dict,
+) -> tuple[int, int, int]:
 	"""
 	Process one file bucket by name.
 
@@ -183,7 +186,10 @@ def apply_file_bucket(bucket_name: str, spec: dict, repo_dir: str, repo_type: st
 			def _format_overwrite_path(s: str, d: str) -> str:
 				"""Format path for overwrite bucket with context."""
 				return repolib.model.format_path_pair(s, d, repo_dir, context)
-			result = repolib.files.copy_if_changed(source_file, dest_file, context.dry_run, counters, action_label='update', format_path=_format_overwrite_path)
+			result = repolib.files.copy_if_changed(
+				source_file, dest_file, context.dry_run, counters,
+				action_label='update', format_path=_format_overwrite_path,
+			)
 			if not context.dry_run:
 				if result == 'copied':
 					counters['copied_count'] += 1
@@ -225,7 +231,10 @@ def apply_file_bucket(bucket_name: str, spec: dict, repo_dir: str, repo_type: st
 				repolib.files.make_dir_safe(dest_parent, context.dry_run)
 
 			formatted_path = repolib.model.format_path_pair(source_file, dest_file, repo_dir, context)
-			repolib.files.copy_file_safe(source_file, dest_file, context.dry_run, action='copy', message=formatted_path if context.dry_run else None)
+			repolib.files.copy_file_safe(
+				source_file, dest_file, context.dry_run, action='copy',
+				message=formatted_path if context.dry_run else None,
+			)
 			if not context.dry_run:
 				repolib.console.log_action("copy", formatted_path)
 				counters['copied_count'] += 1
@@ -251,7 +260,10 @@ def apply_file_bucket(bucket_name: str, spec: dict, repo_dir: str, repo_type: st
 			def _format_devel_path(s: str, d: str) -> str:
 				"""Format path for devel bucket with context."""
 				return repolib.model.format_path_pair(s, d, repo_dir, context)
-			result = repolib.files.copy_if_changed(source_file, dest_file, context.dry_run, counters, action_label='update', format_path=_format_devel_path)
+			result = repolib.files.copy_if_changed(
+				source_file, dest_file, context.dry_run, counters,
+				action_label='update', format_path=_format_devel_path,
+			)
 			if not context.dry_run:
 				if result == 'copied':
 					counters['copied_count'] += 1
@@ -358,7 +370,10 @@ def apply_file_bucket(bucket_name: str, spec: dict, repo_dir: str, repo_type: st
 			def _format_test_path(s: str, d: str) -> str:
 				"""Format path for test bucket with context."""
 				return repolib.model.format_path_pair(s, d, repo_dir, context)
-			result = repolib.files.copy_if_changed(source_file, dest_file, context.dry_run, counters, action_label='update', format_path=_format_test_path)
+			result = repolib.files.copy_if_changed(
+				source_file, dest_file, context.dry_run, counters,
+				action_label='update', format_path=_format_test_path,
+			)
 			if not context.dry_run:
 				if result == 'copied':
 					counters['copied_count'] += 1
@@ -374,7 +389,9 @@ def apply_file_bucket(bucket_name: str, spec: dict, repo_dir: str, repo_type: st
 
 
 #============================================
-def process_repo(repo_dir: str, context: repolib.model.PropagateContext, counters: dict, emit_per_repo_summary: bool = True) -> dict | None:
+def process_repo(
+	repo_dir: str, context: repolib.model.PropagateContext, counters: dict, emit_per_repo_summary: bool = True,
+) -> dict | None:
 	"""
 	Process a single repository: read type, discover files, and perform propagation.
 

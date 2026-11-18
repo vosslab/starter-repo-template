@@ -240,7 +240,9 @@ class TestParseRepoTypeChoice:
 class TestReadRepoType:
 	"""Test read_repo_type marker reading: unknown-token fallback and precedence."""
 
-	def test_unknown_repo_type_token_falls_back_to_other(self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture) -> None:
+	def test_unknown_repo_type_token_falls_back_to_other(
+		self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture,
+	) -> None:
 		"""Unknown REPO_TYPE token warns (naming token + REPO_TYPE) and returns other, no raise."""
 		marker = tmp_path / "REPO_TYPE"
 		marker.write_text("pyton\n", encoding='utf-8')
@@ -292,7 +294,9 @@ class TestCopyIfChanged:
 		# Quiet tag suppressed when counters passed
 		assert "skip" not in captured.out
 
-	def test_copy_if_changed_source_missing_no_counters(self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture) -> None:
+	def test_copy_if_changed_source_missing_no_counters(
+		self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture,
+	) -> None:
 		"""Test source missing prints skip line when counters=None."""
 		source = tmp_path / "missing.txt"
 		dest = tmp_path / "dest.txt"
@@ -320,7 +324,9 @@ class TestCopyIfChanged:
 		assert "copy" in captured.out
 		assert "->" in captured.out
 
-	def test_copy_if_changed_dest_exists_same_no_change(self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture) -> None:
+	def test_copy_if_changed_dest_exists_same_no_change(
+		self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture,
+	) -> None:
 		"""Test returns no_change and suppresses output when files identical + counters passed."""
 		source = tmp_path / "source.txt"
 		dest = tmp_path / "dest.txt"
@@ -337,7 +343,9 @@ class TestCopyIfChanged:
 		# Quiet tag suppressed when counters passed
 		assert "no change" not in captured.out
 
-	def test_copy_if_changed_dest_exists_same_no_change_no_counters(self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture) -> None:
+	def test_copy_if_changed_dest_exists_same_no_change_no_counters(
+		self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture,
+	) -> None:
 		"""Test no_change prints NO CHANGE line when counters=None."""
 		source = tmp_path / "source.txt"
 		dest = tmp_path / "dest.txt"
@@ -351,7 +359,9 @@ class TestCopyIfChanged:
 		captured = capsys.readouterr()
 		assert "no change" in captured.out
 
-	def test_copy_if_changed_dest_exists_differs_updated(self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture) -> None:
+	def test_copy_if_changed_dest_exists_differs_updated(
+		self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture,
+	) -> None:
 		"""Test returns updated and prints UPDATED line when files differ."""
 		source = tmp_path / "source.txt"
 		dest = tmp_path / "dest.txt"
@@ -417,7 +427,9 @@ class TestCopyIfChanged:
 class TestApplyFileBucket:
 	"""Test apply_file_bucket helper covering per-bucket special cases."""
 
-	def test_noexist_bucket_skip_policy(self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch) -> None:
+	def test_noexist_bucket_skip_policy(
+		self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch,
+	) -> None:
 		"""Test noexist bucket: skip when dest exists and --initial_setup not set."""
 		# Setup
 		repo_dir = tmp_path / "repo"
@@ -475,7 +487,9 @@ class TestApplyFileBucket:
 		assert skips == 1
 		assert counters['skipped_policy'] == 1
 
-	def test_noexist_bucket_source_me_sh_path_skip(self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch) -> None:
+	def test_noexist_bucket_source_me_sh_path_skip(
+		self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch,
+	) -> None:
 		"""Test noexist bucket: skip source_me.sh when repo is on PATH."""
 		# Setup
 		repo_dir = tmp_path / "repo"
@@ -529,7 +543,9 @@ class TestApplyFileBucket:
 		assert skips == 0
 		assert counters['skipped_path'] == 1
 
-	def test_devel_bucket_no_change_check(self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch) -> None:
+	def test_devel_bucket_no_change_check(
+		self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch,
+	) -> None:
 		"""Test devel bucket: filecmp no-change check when files identical."""
 		# Setup
 		repo_dir = tmp_path / "repo"
@@ -594,7 +610,9 @@ class TestApplyFileBucket:
 		assert updates == 0
 		assert skips == 0
 
-	def test_test_bucket_auto_discovered_files_handled(self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch) -> None:
+	def test_test_bucket_auto_discovered_files_handled(
+		self, tmp_path: pathlib.Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch,
+	) -> None:
 		"""Test test_files bucket: auto-discovered files are handled correctly."""
 		# Setup
 		repo_dir = tmp_path / "repo"

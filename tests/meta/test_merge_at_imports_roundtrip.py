@@ -39,7 +39,9 @@ def test_creates_when_dest_missing(tmp_path: pathlib.Path) -> None:
 	assert dest.read_text(encoding='utf-8') == TEMPLATE_BODY
 
 
-def test_unchanged_when_consumer_has_all_template_imports(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_unchanged_when_consumer_has_all_template_imports(
+	tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
 	"""Consumer already carries every template @-import and no deprecated lines."""
 	monkeypatch.setattr(repolib.files, '_load_claude_md_deprecated', lambda: [])
 	source = tmp_path / "template.md"

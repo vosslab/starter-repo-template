@@ -66,7 +66,9 @@ def write_file(path: pathlib.Path, content: str) -> None:
 
 
 #============================================
-def run_sync(tmp_path: pathlib.Path, dest_text: str | None, source_text: str = TEMPLATE_SOURCE) -> tuple[str, pathlib.Path]:
+def run_sync(
+	tmp_path: pathlib.Path, dest_text: str | None, source_text: str = TEMPLATE_SOURCE,
+) -> tuple[str, pathlib.Path]:
 	"""Write a source and optional dest, run one sync, and return the outcome and dest path."""
 	source = tmp_path / "template.md"
 	dest = tmp_path / "consumer" / "guidance.md"

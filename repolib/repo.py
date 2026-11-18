@@ -61,7 +61,10 @@ def is_repo_dir(repo_dir: str) -> bool:
 
 
 #============================================
-def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker: bool = False, skip_confirm: bool = False, non_interactive: bool = False, counters: dict | None = None) -> str:
+def read_repo_type(
+	repo_path: str, single_repo_mode: bool = False, write_marker: bool = False,
+	skip_confirm: bool = False, non_interactive: bool = False, counters: dict | None = None,
+) -> str:
 	"""Read REPO_TYPE marker file and return the repository's type marker.
 
 	In single-repo mode with write_marker, predicts type and writes marker.
@@ -118,12 +121,17 @@ def read_repo_type(repo_path: str, single_repo_mode: bool = False, write_marker:
 			if confidence == 'high' and detected_type in repolib.model.KNOWN_REPO_TYPES:
 				# High confidence: write silently
 				write_repo_type_marker(marker_path, detected_type, dry_run=False)
-				repolib.console.log_action("skip", f"repo={os.path.basename(repo_path)} type={detected_type} confidence=high (auto-wrote marker, predicted)", counters)
+				repolib.console.log_action(
+					"skip", f"repo={os.path.basename(repo_path)} type={detected_type} "
+					"confidence=high (auto-wrote marker, predicted)", counters,
+				)
 				return detected_type
 
 			if confidence == 'medium':
 				# Medium confidence: print and ask
-				repolib.console.log_action("warn", f"repo={os.path.basename(repo_path)} type={detected_type} (predicted, medium confidence)")
+				repolib.console.log_action(
+					"warn", f"repo={os.path.basename(repo_path)} type={detected_type} (predicted, medium confidence)",
+				)
 				repolib.console.CONSOLE.print("  reasoning:")
 				for bullet in reasoning:
 					repolib.console.CONSOLE.print(f"    - {bullet}")

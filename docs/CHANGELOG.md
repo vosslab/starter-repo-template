@@ -8,6 +8,9 @@
   assignments in the shared palette.
 - Keep template-specific entries in the meta ledgers and point agents to the template
   and consumer paths in `AGENTS.md`. Update the archived TypeScript plan link.
+- Enforce a 120-character ceiling for tracked Python lines in the source-file line-limit test.
+  Report each overlong line, wrap existing violations, and document the ceiling in the Python
+  style guide.
 
 ## 2026-11-16
 

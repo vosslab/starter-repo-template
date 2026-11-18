@@ -172,7 +172,10 @@ def make_dir_safe(path: str, dry_run: bool) -> bool:
 	return True
 
 
-def copy_if_changed(source: str, dest: str, dry_run: bool, counters: dict, action_label: str = 'copy', format_path: collections.abc.Callable | None = None) -> str:
+def copy_if_changed(
+	source: str, dest: str, dry_run: bool, counters: dict,
+	action_label: str = 'copy', format_path: collections.abc.Callable | None = None,
+) -> str:
 	"""
 	Copy source to dest only if they differ; return indicator and suppress or log outcome.
 
@@ -675,7 +678,10 @@ def merge_conftest(source_file: str, dest_file: str) -> str | None:
 
 
 #============================================
-def merge_gitignore_blocks(repo_dir: str, repo_type: str, template_root: str, context: 'repolib.model.PropagateContext', counters: dict | None = None) -> None:
+def merge_gitignore_blocks(
+	repo_dir: str, repo_type: str, template_root: str,
+	context: 'repolib.model.PropagateContext', counters: dict | None = None,
+) -> None:
 	"""
 	Manage .gitignore as a sequence of named blocks delimited by '# === <NAME> ==='.
 	Blocks: UNIVERSAL (always), then one <TYPE_UPPERCASE> block per declared type

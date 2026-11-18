@@ -203,7 +203,10 @@ def print_summary(counters: dict, repo_results: list = None, dry_run: bool = Fal
 			(action_labels['merged_count'], counters['merged_count']),
 			(action_labels['created_count'], counters['created_count']),
 			('unchanged', counters['unchanged']),
-			('skipped', counters['skipped_source'] + counters['skipped_self'] + counters['skipped_path'] + counters['skipped_policy']),
+			(
+				'skipped',
+				counters['skipped_source'] + counters['skipped_self'] + counters['skipped_path'] + counters['skipped_policy'],
+			),
 			('errors', counters['errors']),
 		]
 	else:
@@ -215,7 +218,10 @@ def print_summary(counters: dict, repo_results: list = None, dry_run: bool = Fal
 			(action_labels['merged_count'], counters['merged_count']),
 			(action_labels['created_count'], counters['created_count']),
 			('unchanged', counters['unchanged']),
-			('skipped', counters['skipped_source'] + counters['skipped_self'] + counters['skipped_path'] + counters['skipped_policy']),
+			(
+				'skipped',
+				counters['skipped_source'] + counters['skipped_self'] + counters['skipped_path'] + counters['skipped_policy'],
+			),
 			('errors', counters['errors']),
 		]
 

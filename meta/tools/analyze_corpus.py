@@ -274,7 +274,9 @@ def build_report(data: dict) -> str:
 		"non_canonical_category": "`### Category` heading not in CANONICAL_CATEGORIES (strict mode only).",
 		"legacy_flat_summary": "Per-file summary: N day blocks in this file have bullets with no `### Category` heading.",
 		"bullets_before_first_category": "Per-block: bullets appear in a block before its first `### Category` heading.",
-		"lead_text_under_heading": "Per-block: non-bullet, non-heading text appeared under a day heading; captured on `DayBlock.lead_text`.",
+		"lead_text_under_heading": (
+			"Per-block: non-bullet, non-heading text appeared under a day heading; captured on `DayBlock.lead_text`."
+		),
 		"no_headings_in_file": "File contains zero `## YYYY-MM-DD` headings (informational, not warning).",
 		"other": "Warning shape not matched by any known bucket marker.",
 	}
