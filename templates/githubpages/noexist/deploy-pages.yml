@@ -1,4 +1,7 @@
-# Build and publish the committed site. Run release checks locally before pushing.
+# Install the committed dependencies, build and verify the required site files,
+# then upload and publish the Pages artifact.
+# Run type checks, lint, unit and browser tests, font checks, audits, and
+# dependency updates locally before pushing.
 name: Deploy GitHub Pages
 
 on:

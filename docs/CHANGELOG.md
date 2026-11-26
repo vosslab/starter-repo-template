@@ -14,6 +14,10 @@
   and Playwright guidance with native browser behavior and verification in the rendered site.
 - Document browser-relative text sizing, blocked-font checks, and PDF font embedding verification.
 
+### Fixes and Maintenance
+
+- List the local release checks in the Pages workflow comment to keep deployment focused on the artifact.
+
 ## 2026-11-18
 
 ### Behavior or Interface Changes
