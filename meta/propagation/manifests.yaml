@@ -231,6 +231,7 @@ markdown_files:
   - pip_requirements-dev.txt
   - docs/REPO_STYLE.md
   - docs/MARKDOWN_STYLE.md
+  - docs/FONT_STYLE.md
   - docs/HUMAN_GUIDANCE.md
   - docs/DESIGN_DECISIONS.md
   - tests/file_utils.py

@@ -230,6 +230,19 @@ distinguishability on the actual combination using the existing accessibility gu
 
 **Owner.** [docs/COLOR_PALETTE.md](../../docs/COLOR_PALETTE.md).
 
+### Shared font style
+
+**Decision.** Put the approved families and roles in one vendored guide under `docs/` and add it
+to the Markdown-only allowlist.
+
+**Why.** The same proportional, monospace, and condensed roles already work across slide, exam,
+web, and print projects.
+
+**Consequence.** Every repo type receives the guide and its link from the shared Markdown style
+guide through normal sync.
+
+**Owner.** [docs/FONT_STYLE.md](../../docs/FONT_STYLE.md).
+
 ### GitHub Pages is a child of TypeScript
 
 **Decision.** Define `githubpages -> typescript -> website` in the repository-type inheritance

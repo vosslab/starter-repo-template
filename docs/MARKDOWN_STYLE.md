@@ -18,6 +18,7 @@ Keep documentation concise, scannable, and consistent.
 
 - Use ASCII or ISO-8859-1 source characters.
 - Escape other characters with HTML character references such as `&alpha;` and `&beta;`.
+- When choosing fonts for rendered content, follow [FONT_STYLE.md](FONT_STYLE.md).
 
 ## Headings
 

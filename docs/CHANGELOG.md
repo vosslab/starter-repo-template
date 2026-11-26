@@ -1,3 +1,10 @@
+## 2026-11-26
+
+### Behavior or Interface Changes
+
+- Add a vendored [FONT_STYLE.md](FONT_STYLE.md) with three approved font families and their roles.
+  Ship it to every repo type, including Markdown-only repos.
+
 ## 2026-11-18
 
 ### Behavior or Interface Changes

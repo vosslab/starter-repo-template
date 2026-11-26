@@ -62,6 +62,9 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
   [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md).
 - Use one fixed palette of 91 colors, with five shades and one pastel per hue plus neutrals.
   Use the palette colors freely in gradients and layers, and keep concept assignments local.
+- Use only Atkinson Hyperlegible Next, Atkinson Hyperlegible Mono, and IBM Plex Sans Condensed
+  for project typography. Ship the guidance to every repo through normal propagation.
+  [docs/FONT_STYLE.md](../../docs/FONT_STYLE.md)
 - Keep one native application or library package in a named root-level folder. Use a `packages/`
   grouping layer when multiple native applications or libraries need separation.
 - Keep `docs/MARKDOWN_STYLE.md` high-level. Use GitHub Flavored Markdown as its syntax baseline and
