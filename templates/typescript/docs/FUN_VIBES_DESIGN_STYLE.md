@@ -321,6 +321,7 @@ Carry over the underlying relationships; retain each game's chosen visual direct
 
 ### Keep spectacle readable
 
+- For browser layout, keyboard controls, and visual verification, follow `docs/WEB_STYLE.md`.
 - Use saturated palettes, chunky shapes, expressive typography, and bold outlines when they fit
   the promise. Rich color and readable contrast can coexist.
 - Make the playfield dominant. Put scores, explanations, and menus where they support the action.

@@ -29,8 +29,7 @@ def test_pages_workflow_installs_builds_and_uploads_artifact() -> None:
 	workflow = load_yaml(PAGES_ROOT / 'noexist' / 'deploy-pages.yml')
 	steps = workflow['jobs']['build']['steps']
 	run_steps = [step['run'] for step in steps if 'run' in step]
-	assert 'npm ci --no-audit' in run_steps
-	assert './build_github_pages.sh' in run_steps
+	assert run_steps == ['npm ci --no-audit', './build_github_pages.sh']
 	upload_step = next(
 		step for step in steps
 		if step.get('uses', '').startswith('actions/upload-pages-artifact@')
@@ -48,7 +47,7 @@ def test_pages_workflow_installs_builds_and_uploads_artifact() -> None:
 def test_pages_build_uses_installed_tools() -> None:
 	"""The Pages build does not download tools outside the committed install."""
 	build_text = (PAGES_ROOT / 'noexist' / 'build_github_pages.sh').read_text(encoding='utf-8')
-	assert './node_modules/.bin/tsc --noEmit -p tsconfig.json' in build_text
+	assert './node_modules/.bin/tsc' not in build_text
 	assert './node_modules/.bin/esbuild "$ENTRY"' in build_text
 	assert 'dist/.nojekyll' in build_text
 

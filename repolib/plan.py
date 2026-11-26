@@ -109,7 +109,7 @@ def auto_discover_test_files(template_root: str, repo_type: str) -> list[str]:
 
 
 #============================================
-def _route_overlay_file(plan: dict, file_rel: str, name: str) -> None:
+def _route_overlay_file(plan: dict, file_rel: str, name: str, repo_type: str, repo_dir: str) -> None:
 	"""Route one selected overlay file into its consumer-plan bucket.
 
 	Both typed and shared overlays use the same consumer-path conventions. This
@@ -121,10 +121,13 @@ def _route_overlay_file(plan: dict, file_rel: str, name: str) -> None:
 		plan (dict): Propagation plan receiving the routed path.
 		file_rel (str): File path relative to its selected overlay root.
 		name (str): File basename used to recognize gitignore templates.
+		repo_type (str): Selected repository type marker.
+		repo_dir (str): Destination repository directory.
 	"""
+	consumer_path = file_rel.removeprefix('noexist/')
+	if should_ship_override(consumer_path, repo_type, repo_dir) is False:
+		return
 	if file_rel.startswith('noexist/'):
-		# Strip 'noexist/' prefix for the consumer path.
-		consumer_path = file_rel[8:]
 		if not consumer_path:
 			return
 		if is_meta_file(consumer_path):
@@ -324,10 +327,9 @@ def compute_propagation_plan(
 	# select_overlay_dirs() returns ordered overlay path segments: the base
 	# repo_type folder first (e.g. 'python'), then each conditional overlay
 	# '<type>/_<name>' whose configured marker file exists at repo_dir.
-	# Overlay SELECTION is what gates conditional content -- a _<name> folder ships
-	# only when its marker is present, so the typed-overlay walk does NOT call
-	# should_ship_override (the universal walk in block 1 still applies the
-	# exclude_repos gate).
+	# Overlay selection gates conditional content: a _<name> folder ships only when
+	# its marker is present. The exclude_repos safety gate still applies to every
+	# routed consumer path, including typed overlay files.
 	#
 	# Standard: EVERY file under a selected overlay ships at its relative path to
 	# consumers of that type. The genuine walk-efficiency skips (node_modules,
@@ -378,7 +380,7 @@ def compute_propagation_plan(
 					continue
 
 				# Conditional and base overlays share the same consumer-path routing.
-				_route_overlay_file(plan, file_rel, name)
+				_route_overlay_file(plan, file_rel, name, repo_type, repo_dir)
 
 	# 2b. Walk templates/shared/: canonical files routed to a SET of repo types.
 	#
@@ -430,7 +432,7 @@ def compute_propagation_plan(
 					continue
 
 				# Shared overlays use the same consumer-path routing as typed overlays.
-				_route_overlay_file(plan, file_rel, name)
+				_route_overlay_file(plan, file_rel, name, repo_type, repo_dir)
 
 	# 3. Load gitignore blocks from files
 	gitignore_block = []

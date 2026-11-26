@@ -4,6 +4,15 @@
 
 - Add a vendored [FONT_STYLE.md](FONT_STYLE.md) with three approved font families and their roles.
   Ship it to every repo type, including Markdown-only repos.
+- Validate Rust release workspaces with the reviewed Cargo lockfile. Keep dependency updates
+  in local maintenance and preserve QTI Package Maker's project-specific release scripts on sync.
+- Keep GitHub Pages focused on the committed dependency install, artifact build, upload, and
+  publishing. Run release checks, including the TypeScript type check, locally before pushing.
+- Ship a generic `AGENTS.md`. Keep template-only instructions under `meta/` so the existing reset
+  cleanup removes them when bootstrapping a consumer.
+- Route browser-facing work through Modern Web Guidance. Align the CSS, TypeScript, Rust/Wasm,
+  and Playwright guidance with native browser behavior and verification in the rendered site.
+- Document browser-relative text sizing, blocked-font checks, and PDF font embedding verification.
 
 ## 2026-11-18
 

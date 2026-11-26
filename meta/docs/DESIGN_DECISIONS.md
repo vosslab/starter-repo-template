@@ -264,6 +264,60 @@ infer whether their previously copied Pages files remain intentional.
 **Owner.** [REPO_TYPE.md](REPO_TYPE.md) and
 [build_github_pages.sh](../../templates/githubpages/noexist/build_github_pages.sh).
 
+### Local Rust release validation
+
+**Decision.** Run the template's native Rust release checks against the reviewed `Cargo.lock`.
+Advance Cargo and npm dependencies during explicit local maintenance.
+
+**Why.** The release check needs the exact dependency resolution already reviewed. A project's
+browser and optional renderer suites depend on its own package and target configuration.
+
+**Consequence.** Rust consumers receive generic workspace checks. QTI Package Maker keeps its
+own two release scripts through a destination exclusion because its caller uses renderer flags.
+
+**Owner.** [rust_release_check.sh](../../templates/rust/devel/rust_release_check.sh),
+[check_rust_release_metadata.py](../../templates/rust/devel/check_rust_release_metadata.py),
+[PROPAGATION_RULES.md](PROPAGATION_RULES.md).
+
+### Build and upload with Pages
+
+**Decision.** Use Pages Actions to install the committed dependencies, build, upload, and publish
+the site. Run release checks locally before pushing.
+
+**Why.** Publishing needs a valid artifact. Local release checks cover types, dependency
+maintenance, and project-specific suites.
+
+**Consequence.** The deploy job waits for a successful build and upload. The esbuild step and
+required artifact checks stay in the build seed. The team runs the separate type check locally.
+
+**Owner.** [GITHUB_PAGES_STYLE.md](../../templates/githubpages/docs/GITHUB_PAGES_STYLE.md),
+[deploy-pages.yml](../../templates/githubpages/noexist/deploy-pages.yml),
+[build_github_pages.sh](../../templates/githubpages/noexist/build_github_pages.sh).
+
+### Template-local agent instructions
+
+**Decision.** Keep repository-independent instructions in the `AGENTS.md` seed and starter-only
+instructions under `meta/`.
+
+**Why.** Agents need different ledger paths in the starter template and consumer repos.
+
+**Consequence.** Reset removes the template-only notes through its existing `meta/` cleanup.
+Normal propagation seeds a missing `AGENTS.md` and preserves a consumer's existing file.
+
+**Owner.** [AGENTS_LOCAL.md](../AGENTS_LOCAL.md) and [reset.py](../../repolib/reset.py).
+
+### Browser guidance belongs to the website overlay
+
+**Decision.** Keep native platform, browser support, CSS, and rendered verification guidance
+in the website overlay. TypeScript and GitHub Pages inherit it.
+
+**Why.** HTML, CSS, and browser API choices follow the same host rules across these repo types.
+
+**Consequence.** TypeScript owns strict application types and Rust/Wasm owns the generated
+binding and runtime contract. The browser-facing guides start with Modern Web Guidance.
+
+**Owner.** [WEB_STYLE.md](../../templates/website/docs/WEB_STYLE.md).
+
 ### Repo-owned Prettier ignores live in `.prettierignore.local`
 
 **Decision.** Put repository-specific Prettier exclusions in the consumer-owned

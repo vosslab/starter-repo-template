@@ -1,3 +1,4 @@
+# Build and publish the committed site. Run release checks locally before pushing.
 name: Deploy GitHub Pages
 
 on:
@@ -14,6 +15,7 @@ concurrency:
 
 jobs:
   build:
+    name: Build and upload Pages artifact
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -33,6 +35,7 @@ jobs:
           path: dist
 
   deploy:
+    name: Publish Pages artifact
     needs: build
     runs-on: ubuntu-latest
     permissions:

@@ -32,14 +32,20 @@
 # Routing overrides: per-file exceptions layered on location-based routing.
 # Location (which template folder a file lives in) is the PRIMARY determinant;
 # the only remaining exception encoded here is exclude_repos.
-# exclude_repos blocks a file when the destination repo basename is listed
-# (used for docs sourced FROM a specific repo that must never ship back to it).
+# exclude_repos protects an authoritative file in a named destination repo.
 routing_overrides:
   # CLAUDE_HOOK_USAGE_GUIDE.md is sourced from claude-code-permissions-hook;
   # never copy the mirror back over that repo's source of truth.
   "docs/CLAUDE_HOOK_USAGE_GUIDE.md":
     exclude_repos:
       - claude-code-permissions-hook
+  # QTI Package Maker owns its renderer and Wasm release lanes locally.
+  "devel/rust_release_check.sh":
+    exclude_repos:
+      - qti-package-maker-rs
+  "devel/check_rust_release_metadata.py":
+    exclude_repos:
+      - qti-package-maker-rs
 
 # Conditional overlays: underscore-prefixed template folders selected per consumer.
 # Shape: repo_type -> { overlay_name -> {when, path, description} }.

@@ -259,3 +259,26 @@ def test_exclude_repos_blocks_named_consumer(tmp_path: pathlib.Path, monkeypatch
 	plan_excluded = repolib.plan.compute_propagation_plan(str(tmp_path), 'python', repo_dir=str(excluded_repo))
 	assert 'docs/GUIDE.md' in plan_normal['overwrite_files']
 	assert 'docs/GUIDE.md' not in plan_excluded['overwrite_files']
+
+
+def test_exclude_repos_blocks_typed_devel_file(
+	tmp_path: pathlib.Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""A typed devel file observes the same named-consumer exclusion gate."""
+	devel_dir = tmp_path / 'templates' / 'rust' / 'devel'
+	devel_dir.mkdir(parents=True)
+	(devel_dir / 'rust_release_check.sh').write_text('test')
+	monkeypatch.setitem(
+		repolib.model.ROUTING_OVERRIDES,
+		'devel/rust_release_check.sh',
+		{'exclude_repos': frozenset({'qti-package-maker-rs'})},
+	)
+	normal_repo = tmp_path / 'normal-rust-repo'
+	excluded_repo = tmp_path / 'qti-package-maker-rs'
+	normal_repo.mkdir()
+	excluded_repo.mkdir()
+	plan_normal = repolib.plan.compute_propagation_plan(str(tmp_path), 'rust', repo_dir=str(normal_repo))
+	plan_excluded = repolib.plan.compute_propagation_plan(str(tmp_path), 'rust', repo_dir=str(excluded_repo))
+	assert 'rust_release_check.sh' in plan_normal['devel_files']
+	assert 'rust_release_check.sh' not in plan_excluded['devel_files']

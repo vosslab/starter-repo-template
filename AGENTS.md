@@ -1,14 +1,12 @@
-## Coding Style
-See Python coding style in docs/PYTHON_STYLE.md.
-See Markdown style in docs/MARKDOWN_STYLE.md.
-See repo style in docs/REPO_STYLE.md.
-When making edits, document them in docs/CHANGELOG.md.
-In the starter template checkout (`meta/propagation/` is present), record human guidance in
-`meta/docs/HUMAN_GUIDANCE.md` and design decisions in `meta/docs/DESIGN_DECISIONS.md`.
-Consumer repositories use `docs/HUMAN_GUIDANCE.md` and `docs/DESIGN_DECISIONS.md`.
+## Repository rules
 
-## Python Environment
-AI agents (Codex/Claude) must run Python using `source source_me.sh && python3`
-If additional PYTHONPATH paths are needed add them to source_me.sh
-(Prefer using the system python, use Python 3.12 for macOS and 3.13 for debian13; venv only as a last resort.).
-On this user's macOS (Homebrew Python 3.12), Python modules are installed to `/opt/homebrew/lib/python3.12/site-packages/`. Debian will likely be in `/home/vosslab/.local/lib/python3.1x/site-packages/`
+docs/REPO_STYLE.md
+docs/PYTHON_STYLE.md
+docs/MARKDOWN_STYLE.md
+docs/PYTEST_STYLE.md
+
+Record edits in docs/CHANGELOG.md.
+
+## Python environment
+
+Run Python with `source source_me.sh && python3`.

@@ -6,18 +6,21 @@ This guide owns the GitHub Pages deployment contract for repositories with
 `REPO_TYPE=githubpages`. It complements `docs/TYPESCRIPT_STYLE.md`,
 which owns local TypeScript maintenance.
 
-## Keep deployment small
+## Build and upload with Pages
 
-Local maintenance establishes that the newest dependencies work. Pages publishes
-the committed result and does not independently select newer dependencies.
+Run release verification locally before pushing. Pages installs the committed dependencies,
+builds the site, uploads the artifact, and publishes it after the upload succeeds.
 
-- Run `./update_dependencies.sh` locally to refresh dependencies, audit them,
-  run code checks, and validate the production build.
+- Use `./update_dependencies.sh` for local dependency refresh and audit. Complete the project's
+  local release checks for types, lint, relevant test suites, and the production build before
+  pushing to GitHub.
+- For the standard Pages seed, run `./check_codebase.sh` and `./build_github_pages.sh` locally.
+  Run `./run_playwright_tests.sh` when the project has browser tests.
 - Commit the reviewed `package.json` and `package-lock.json` together.
 - The Pages workflow runs `npm ci --no-audit`, then
   `./build_github_pages.sh`, then uploads `dist/` and deploys it.
-- `build_github_pages.sh` type-checks and builds the site. Keep broader lint,
-  test, audit, and dependency update work in local maintenance.
+- `build_github_pages.sh` bundles the site and checks the required build inputs and outputs.
+  Keep release checks in the local verifier so publishing depends on the build and artifact.
 
 The workflow uses an explicit Node major validated by local maintenance. Update
 that value only after validating the newer major locally.

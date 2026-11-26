@@ -12,6 +12,7 @@ Read this before writing a browser test. For install and run mechanics
 `PLAYWRIGHT_USAGE.md` doc where it ships. For the fast unit lane and the e2e
 folder layout, see the `PYTEST_STYLE.md` and `E2E_TESTS.md` docs, which land
 beside this one in a consumer repo's docs/ folder.
+For implementation and rendered accessibility checks, follow [WEB_STYLE.md](WEB_STYLE.md).
 
 Prefer fewer, stronger permanent browser tests. Protect intentionally stable user behavior rather
 than incidental page structure, and use `tests/_temp/` for one-time browser checks. Before plan

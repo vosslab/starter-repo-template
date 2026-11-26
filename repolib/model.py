@@ -686,9 +686,8 @@ def override_key_source(template_root: str, file_rel: str) -> str | None:
 
 	An override key is a repo-root-relative path (e.g. 'docs/CLAUDE_HOOK_USAGE_GUIDE.md').
 	Its source may live in any bucket layout, so this probes find_source_for_bucket()
-	across the relevant buckets (overwrite, noexist, devel, test) and returns the first
-	existing source path. The probe uses the python repo_type so that typed and
-	conditional-overlay roots are searched in addition to the universal root.
+	across the relevant buckets (overwrite, noexist, devel, test) and repository
+	types, returning the first existing source path.
 
 	Args:
 		template_root (str): Template root directory.
@@ -702,17 +701,23 @@ def override_key_source(template_root: str, file_rel: str) -> str | None:
 	devel_rel = file_rel
 	if devel_rel.startswith('devel' + os.sep):
 		devel_rel = devel_rel[len('devel' + os.sep):]
-	# Probe each plausible bucket; first hit wins. python repo_type pulls in typed
-	# and conditional-overlay roots via overlay_roots_for_type().
-	for bucket, probe_rel in (
+	# Probe each plausible bucket and type; Python remains first to preserve the
+	# historical resolution order, then every other typed overlay can supply a
+	# source for a location-based override.
+	repo_types = (LANG_PYTHON,) + tuple(
+		repo_type for repo_type in REPO_TYPE_ORDER if repo_type != LANG_PYTHON
+	)
+	bucket_paths = (
 		('overwrite_files', file_rel),
 		('noexist_files', file_rel),
 		('devel_files', devel_rel),
 		('test_files', file_rel),
-	):
-		source = find_source_for_bucket(template_root, bucket, probe_rel, LANG_PYTHON)
-		if source is not None:
-			return source
+	)
+	for repo_type in repo_types:
+		for bucket, probe_rel in bucket_paths:
+			source = find_source_for_bucket(template_root, bucket, probe_rel, repo_type)
+			if source is not None:
+				return source
 	return None
 
 

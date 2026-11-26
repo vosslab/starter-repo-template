@@ -76,6 +76,19 @@ retain these strict defaults when adapting its source paths to the project.
 * Prefer simple inline object types or named `type` aliases.
 * Use `interface` only when it clearly improves readability or extension.
 
+### Browser and data boundaries
+
+Start browser-facing work with Modern Web Guidance and follow `docs/WEB_STYLE.md`. The
+compiler target controls emitted syntax. Check browser API support against the project's
+browser target separately.
+
+Keep DOM behavior in the browser layer and application state in its owning module. Narrow DOM
+values at runtime before calling element-specific methods, such as checking `instanceof
+HTMLDialogElement` before calling `showModal()`. Validate unknown data at its input boundary.
+Use `import type` for type-only imports. For Wasm, use the generated bindings and keep host-side
+validation in the boundary adapter. Run the local type check and exercise the changed browser
+interaction in the built site.
+
 ### Good
 
 ```ts
@@ -289,7 +302,7 @@ TypeScript files; empty trees need no stub file. Keep custom include paths accur
 
 ## BUILD SYSTEM
 
-Use `./node_modules/.bin/tsc --noEmit -p tsconfig.json` to type-check. Repositories declaring
+Run `./node_modules/.bin/tsc --noEmit -p tsconfig.json` as a local check. Repositories declaring
 `REPO_TYPE=githubpages` use `./node_modules/.bin/esbuild <entry>.ts --bundle --format=esm
 --target=es2020 --platform=browser --minify --sourcemap
 --outfile=dist/main.js` for the runtime bundle. Generic TypeScript repositories
@@ -297,7 +310,9 @@ own the build command appropriate to their application.
 
 ### Why this shape
 
-esbuild produces a single deterministic ESM bundle GitHub Pages serves without per-file MIME quirks. The alternative (repo-root `tsc -p tsconfig.json` emitting many `.js` files served alongside `index.html`) multiplies HTTP requests and produces inconsistent module-resolution across browsers.
+The Pages seed uses esbuild to bundle the entry point and resolve its import graph into ESM.
+The local TypeScript check validates types. The Pages build prepares and verifies the
+publishable artifact.
 
 ### Output convention
 

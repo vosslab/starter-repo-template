@@ -30,8 +30,8 @@ The cleaner principle:
 2. **Explicit list when root-level meaning is ambiguous.** Root files (`README.md`, `VERSION`,
    `.gitignore`, `REPO_TYPE`) need per-repo customization; list them in META_FILES.
 3. **Override table only for true routing exceptions.** Currently the only exception encoded in
-   `ROUTING_OVERRIDES` is `exclude_repos` (blocks a universal file from shipping back to its
-   source repo). Language gates, `requires_repo_file` gates, and `bucket` fields have been removed.
+   `ROUTING_OVERRIDES` is `exclude_repos`, which protects a named repo's authoritative file from
+   an incoming universal or typed copy. Use folder location for language-specific routing.
 
 Do not try to eliminate all hardcoding. Root has mixed semantics; explicit lists are correct there.
 
@@ -78,7 +78,8 @@ routing coverage are present in the template.
 | PyPI-package file | templates/pypi/<consumer-path> | `pypi` repos; also inherits the Python overlay |
 | Conditionally-shipped overlay | templates/<type>/_overlay/<consumer-path> + conditional_overlays rule | selected repos only (see below) |
 | One canonical file shared by a SET of types | templates/shared/<consumer-path> + shared_overlays rule | the rule's repo_types (see below) |
-| Root-level file like AGENTS.md | template root + add to ROOT_PROPAGATE_ALLOWLIST | every repo, overwrite |
+| Root-level shared file | template root + add to `ROOT_PROPAGATE_ALLOWLIST` | every repo, overwrite by default |
+| Root-level consumer seed like `AGENTS.md` | allowlist it and add it to `UNIVERSAL_NOEXIST` | every repo, seed when absent |
 | Universal gitignore blocks | templates/gitignore.universal | every repo, merged into .gitignore under `# === UNIVERSAL ===` |
 | MERGE bucket (set-union @-import merge with strip list) | template root + add to `MERGE_FILES` | every repo; template @-imports union-added to consumer; strip list at `meta/propagation/deprecated_claude_md.txt` removes retired entries (see [MERGE_BUCKET_SPEC.md](MERGE_BUCKET_SPEC.md)) |
 | HEADER bucket (consumer-owned file with a vendored header region) | docs/ (or another shipping location) + add to `header_files` | every repo; seeded whole when absent, then only the marked region is refreshed while consumer entries stay untouched (see [HEADER_BUCKET_SPEC.md](HEADER_BUCKET_SPEC.md)) |
@@ -316,11 +317,9 @@ deprecation-strip list); consumer keeps any local `@`-imports and non-`@` conten
 - `meta/propagation/deprecated_claude_md.txt` -- user-editable strip manifest for the CLAUDE.md
   set-union merge. Lines in this file are removed from every consumer CLAUDE.md on every sync (after
   comment/blank-line filtering). Add a line when retiring an `@`-import from the template.
-- `ROUTING_OVERRIDES` -- per-file exceptions. Currently holds only one entry:
-  `docs/CLAUDE_HOOK_USAGE_GUIDE.md: {exclude_repos: [claude-code-permissions-hook]}` (blocks the
-  mirror from shipping back to its source repo). Language gates, `requires_repo_file` gates, and
-  `bucket` fields have been removed; use location or `conditional_overlays` instead. `docs/PYTHON_STYLE.md`
-  and `devel/submit_to_pypi.py` route by location (universal doc and `pypi` type overlay respectively).
+- `ROUTING_OVERRIDES` -- per-file destination exclusions. For example, the hook guide's entry
+  protects its source repo, and the two Rust release scripts' entries protect QTI Package Maker's
+  project-specific release commands. Use location or `conditional_overlays` for ordinary routing.
 - `conditional_overlays` -- per-type underscore-folder rules. See the `_folder` section above.
 - `shared_overlays` -- named rules routing `templates/shared/` files to a SET of repo types, with
   an optional `lacks_file` condition. See the shared-overlays section above.
@@ -341,7 +340,9 @@ deprecation-strip list); consumer keeps any local `@`-imports and non-`@` conten
   get it alongside the inherited TypeScript and website files; generic TypeScript repos do not.
 - Adding a new starter `Makefile` that must not clobber existing ones -- drop at `templates/<type>/noexist/Makefile` (per type) or add path to `UNIVERSAL_NOEXIST` + place at template root.
 - Adding a PyPI-package tool -- place it under `templates/pypi/<consumer-path>`. The `pypi` child type inherits all Python files and adds that overlay. Example: `devel/submit_to_pypi.py` lives at `templates/pypi/devel/submit_to_pypi.py`.
-- Adding an `exclude_repos` exception -- add to `ROUTING_OVERRIDES` in `meta/propagation/manifests.yaml` with `exclude_repos: [<repo-basename>]`. Use only to prevent a mirror file from shipping back to its source repo.
+- Adding an `exclude_repos` exception -- use the consumer-relative path and
+  `exclude_repos: [<repo-basename>]` in `meta/propagation/manifests.yaml` to preserve the
+  destination repo's authoritative file.
 
 ## conftest.py managed blocks
 
@@ -375,7 +376,7 @@ The `ROUTING_OVERRIDES` dict in `meta/propagation/manifests.yaml` now holds only
 exceptions. Language gates, `requires_repo_file` gates, and `bucket` fields have been removed.
 
 - **`exclude_repos` gate** - Blocks a file from shipping when the destination repo basename matches
-  any entry in the list. Use only for mirror files that must not overwrite the source repo.
+  any entry in the list. Use this gate to preserve authoritative files in those repos.
   Example: `docs/CLAUDE_HOOK_USAGE_GUIDE.md` is sourced from `claude-code-permissions-hook`; the
   `exclude_repos` rule prevents the mirror from shipping back to that repo.
 

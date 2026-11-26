@@ -81,18 +81,18 @@ configuration.
 
 ## Common automation
 
-### Open a local HTML file
+### Open served output
+
+Build and serve the site using the repository's normal commands. Use the HTTP URL reported by
+that server.
 
 ```javascript
 import { chromium } from "playwright";
-import path from "node:path";
-
-const html_path = path.resolve("index.html");
 
 const browser = await chromium.launch();
 const page = await browser.newPage();
 
-await page.goto(`file://${html_path}`);
+await page.goto("http://127.0.0.1:8000/");
 await browser.close();
 ```
 
@@ -136,11 +136,11 @@ const value = await page.evaluate(() => {
 });
 ```
 
-### Wait for animations
+### Wait for a result
 
 ```javascript
-await page.click("#start");
-await page.waitForTimeout(500);
+await page.getByRole("button", { name: "Start" }).click();
+await page.getByText("Ready", { exact: true }).waitFor({ state: "visible" });
 ```
 
 ### Measure layout

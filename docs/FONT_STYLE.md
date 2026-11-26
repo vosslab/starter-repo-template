@@ -20,7 +20,8 @@ accessibility overrides.
 
 For reproducible output, bundle or embed the faces your project uses. Include the corresponding
 license with redistributed font files. Check the rendered output for the intended face and
-readable text at its actual display or print size.
+readable text at its actual display or print size. For a PDF that should carry its fonts,
+check the exported file's font list for the expected embedded faces.
 
 Get the font files from the upstream projects.
 [Atkinson Hyperlegible Next](https://github.com/googlefonts/atkinson-hyperlegible-next),

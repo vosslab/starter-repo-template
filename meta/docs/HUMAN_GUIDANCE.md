@@ -16,6 +16,14 @@ See [docs/REPO_STYLE.md](../../docs/REPO_STYLE.md) for repo-wide conventions.
   validation should be easy to run with one command; do version testing locally before Pages.
 - Keep GitHub Pages guidance in its own style document. Implement template changes here;
   I will propagate them and have agents update consumer repositories individually.
+- Use GitHub Pages Actions to build, upload, and publish the site. Run critical release checks
+  locally before pushing.
+- Keep Rust release checks consistent with the style guides and use the latest Cargo and npm
+  dependencies through local maintenance.
+- Keep the shippable `AGENTS.md` clear of starter-template-only instructions. Remove those
+  instructions when resetting a consumer checkout.
+- Align the shipped web guides with Modern Web Guidance and the CSS, TypeScript, and Rust/Wasm
+  skills.
 
 - Optimize repository tools for the human maintainer's real workflow and stated preferences.
 - Address the highest-impact risks first. Spend review and validation time on decisions that

@@ -1,10 +1,12 @@
 # starter_repo_template
 Canonical bootstrap scaffolding for new Python repositories: ready-to-use repo policy docs, Python style rules, licensing boundaries, and pytest lint checks so projects start consistent before any project-specific code is added.
 
-Only `README.md` and `docs/CHANGELOG.md` are intentionally repository-specific; every other file is designed to remain generic for downstream template users.
+Shared files are designed for downstream reuse. Starter-template maintenance instructions and
+tooling live under `meta/`.
 
 ## Documentation
 
+- [meta/AGENTS_LOCAL.md](meta/AGENTS_LOCAL.md): Agent instructions for maintaining the source template.
 - [meta/docs/REPO_TYPE.md](meta/docs/REPO_TYPE.md): Repository type marker format, available
   types, inheritance, and multi-type behavior.
 - [meta/docs/LICENSE_POLICY.md](meta/docs/LICENSE_POLICY.md): Canonical license filenames,

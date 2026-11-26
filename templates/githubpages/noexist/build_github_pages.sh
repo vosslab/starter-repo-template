@@ -7,7 +7,7 @@
 #
 # Contract:
 #   - Wipes dist/ from scratch.
-#   - Type-checks via 'tsc --noEmit -p tsconfig.json'.
+#   - Use the project's local release checks for type-checking and tests.
 #   - Resolves the entry: src/main.ts preferred, src/init.ts legacy fallback.
 #     Aborts with an actionable error if neither exists.
 #   - Verifies src/index.html and src/style.css exist before copying;
@@ -59,8 +59,6 @@ fi
 
 rm -rf dist
 mkdir -p dist
-
-./node_modules/.bin/tsc --noEmit -p tsconfig.json
 
 ./node_modules/.bin/esbuild "$ENTRY" \
 	--bundle \

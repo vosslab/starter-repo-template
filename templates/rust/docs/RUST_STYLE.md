@@ -720,9 +720,9 @@ repository-wide form selected by the manager:
 Both forms intentionally allow future major, minor, and patch releases. Application
 repositories use `Cargo.lock` as the exact tested resolution between refreshes in
 either mode. A future package intended for crates.io uses the explicit-floor form
-because crates.io rejects bare wildcard requirements. Keep requirements open-ended even when upstream compatibility needs repair; follow
-[REPO_STYLE.md](REPO_STYLE.md) instead of adding exact pins or upper bounds
-([Version requirement syntax](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#version-requirement-syntax)).
+because crates.io rejects bare wildcard requirements. Keep requirements open-ended when upstream
+compatibility needs repair. Follow the dependency policy in `docs/REPO_STYLE.md`.
+[Version requirement syntax](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#version-requirement-syntax)
 
 **Refresh sequence.** `Cargo.toml` describes compatible ranges; `Cargo.lock` records
 the exact resolved graph. Keep both current:
@@ -737,6 +737,13 @@ vulnerability. `cargo update` honors the manifest ranges, so the manifest must f
 express the selected latest-first policy
 ([Cargo.toml versus Cargo.lock](https://doc.rust-lang.org/cargo/guide/cargo-toml-vs-cargo-lock.html),
 [cargo update](https://doc.rust-lang.org/cargo/commands/cargo-update.html)).
+
+**Local release checks.** After reviewing the dependency refresh, run
+`./devel/rust_release_check.sh` from the checkout. It validates the workspace resolution and runs
+format, check, Clippy, tests, and the release build against the reviewed `Cargo.lock`. When both
+`VERSION` and a root package or shared workspace version exist, it checks that they agree.
+Run project-specific renderer and browser checks through the project's local release commands.
+[Cargo lock enforcement](https://doc.rust-lang.org/cargo/commands/cargo-metadata.html#manifest-options)
 
 **Derives.** Prefer the standard derivable traits over hand-written impls where they
 fit: `Debug` for programmer output, `PartialEq` and `Eq`, `PartialOrd` and `Ord`,

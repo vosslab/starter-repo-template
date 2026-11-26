@@ -6,6 +6,11 @@ Use this guide for Rust that ships as WebAssembly to a browser or a WASI runtime
 [RUST_STYLE.md](RUST_STYLE.md) owns Rust language and shared Cargo practice; this
 document owns the runtime contract, host adapter, and delivered artifact.
 
+For browser-facing work, consult Modern Web Guidance first. Check the browser support policy
+and use native HTML, CSS, and DOM behavior where the host provides it. Follow `docs/WEB_STYLE.md`
+in repositories with the website overlay.
+[Modern Web Guidance setup](https://developer.chrome.com/docs/modern-web-guidance/get-started)
+
 ## Start with the runtime contract
 
 Record the target triple, runtime, supported browsers or runtime version, crate type,
@@ -52,10 +57,19 @@ export, then broaden the host API after its contract and proof are established.
 
 ## Deliver the browser package
 
-Use the generated `wasm-bindgen` bindings as the JavaScript contract. Load the release
-package from a minimal real browser page before connecting it to a larger frontend.
-Keep generated package output separate from handwritten browser code so ownership is
-obvious.
+Use the generated `wasm-bindgen` bindings and type declarations as the JavaScript contract.
+Keep host input validation and application types at the TypeScript call site. Choose the
+`wasm-pack` output target the host can load. Use `web` for a browser-native ES module and
+`bundler` when the configured bundler supports that output. Initialize through the generated
+loader and ship its `.wasm` asset with the JavaScript. Verify the resolved URL under the actual
+site base path and serve `.wasm` as `application/wasm` for streaming. Load the release package
+over HTTP in a minimal real browser page before connecting it to a larger frontend.
+[wasm-pack output targets](https://wasm-bindgen.github.io/wasm-pack/book/commands/build.html),
+[WebAssembly streaming](https://developer.mozilla.org/en-US/docs/WebAssembly/Reference/JavaScript_interface/instantiateStreaming_static)
+
+Refresh Cargo and npm dependencies in local maintenance. When the host uses npm, install its
+reviewed lockfile with `npm ci` for the local release proof and run the package's declared checks.
+Use the TypeScript template's `./update_dependencies.sh` when it owns that npm package.
 
 For Canvas or interactive rendering, use `requestAnimationFrame` as the browser
 scheduler. Keep update and rendering responsibilities explicit, use a measured frame
